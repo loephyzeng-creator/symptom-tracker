@@ -15,8 +15,10 @@ import HistoryView from "@/components/HistoryView";
 import ReportView from "@/components/ReportView";
 import DailyReminder from "@/components/DailyReminder";
 import NotificationSettings from "@/components/NotificationSettings";
+import BackupRestore from "@/components/BackupRestore";
+import CustomMetricsManager from "@/components/CustomMetricsManager";
 import { motion, AnimatePresence } from "framer-motion";
-import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2, FileText, Bell } from "lucide-react";
+import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2, FileText, Bell, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type TabKey = "record" | "stats" | "history" | "report";
@@ -33,6 +35,7 @@ export default function Home() {
 
   const [activeTab, setActiveTab] = useState<TabKey>("record");
   const [showNotifSettings, setShowNotifSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -151,6 +154,15 @@ export default function Home() {
                 <Bell className="w-3.5 h-3.5" />
               </button>
               <button
+                onClick={() => setShowSettings(!showSettings)}
+                className={`text-xs flex items-center gap-1 transition-colors ${
+                  showSettings ? "text-terracotta" : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="设置"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+              <button
                 onClick={() => logout()}
                 className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
                 title={`${user?.name ?? "用户"} · 退出登录`}
@@ -181,6 +193,28 @@ export default function Home() {
               </button>
             </div>
             <NotificationSettings />
+          </motion.div>
+        )}
+        {/* Settings Panel (Backup & Restore) */}
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-serif text-base font-bold text-foreground">设置</h2>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                收起
+              </button>
+            </div>
+            <BackupRestore />
+            <div className="mt-4">
+              <CustomMetricsManager />
+            </div>
           </motion.div>
         )}
         {/* Daily reminder - show on all tabs except record when not recorded today */}

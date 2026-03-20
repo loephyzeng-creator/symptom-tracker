@@ -17,6 +17,14 @@ import {
   removePushSubscription,
   getPushSubscriptionsByUserId,
   getMedicationHistory,
+  exportUserData,
+  restoreUserData,
+  getCustomMetrics,
+  addCustomMetric,
+  updateCustomMetric,
+  deleteCustomMetric as deleteCustomMetricDb,
+  getCustomMetricValues,
+  saveCustomMetricValues,
 } from "./db";
 import { generateReportHTML } from "./report";
 
@@ -174,6 +182,127 @@ export const appRouter = router({
     history: protectedProcedure.query(async ({ ctx }) => {
       return getMedicationHistory(ctx.user.id);
     }),
+  }),
+
+  customMetrics: router({
+    /** List all custom metrics for the current user */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getCustomMetrics(ctx.user.id);
+    }),
+
+    /** Add a new custom metric */
+    add: protectedProcedure
+      .input(
+        z.object({
+          name: z.string().min(1).max(100),
+          description: z.string().max(255).optional(),
+          icon: z.string().max(50).optional(),
+          isHighGood: z.number().min(0).max(1).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        return addCustomMetric(ctx.user.id, input);
+      }),
+
+    /** Update a custom metric */
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().min(1).max(100).optional(),
+          description: z.string().max(255).optional(),
+          icon: z.string().max(50).optional(),
+          isHighGood: z.number().min(0).max(1).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        return updateCustomMetric(ctx.user.id, id, data);
+      }),
+
+    /** Delete a custom metric */
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteCustomMetricDb(ctx.user.id, input.id);
+        return { success: true };
+      }),
+
+    /** Get custom metric values for an entry */
+    getValues: protectedProcedure
+      .input(z.object({ entryId: z.number() }))
+      .query(async ({ input }) => {
+        return getCustomMetricValues(input.entryId);
+      }),
+
+    /** Save custom metric values for an entry */
+    saveValues: protectedProcedure
+      .input(
+        z.object({
+          entryId: z.number(),
+          values: z.array(
+            z.object({
+              metricId: z.number(),
+              value: z.number().min(0).max(10),
+            })
+          ),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await saveCustomMetricValues(input.entryId, input.values);
+        return { success: true };
+      }),
+  }),
+
+  backup: router({
+    /** Export all user data as a complete backup */
+    export: protectedProcedure.query(async ({ ctx }) => {
+      return exportUserData(ctx.user.id);
+    }),
+
+    /** Restore user data from a backup JSON */
+    restore: protectedProcedure
+      .input(
+        z.object({
+          entries: z
+            .array(
+              z.object({
+                date: z.string(),
+                dizziness: z.number().optional(),
+                headache: z.number().optional(),
+                sleepQuality: z.number().optional(),
+                anxiety: z.number().optional(),
+                fatigue: z.number().optional(),
+                photosensitivity: z.number().optional(),
+                motionSickness: z.number().optional(),
+                palpitations: z.number().optional(),
+                mood: z.number().optional(),
+                medications: z
+                  .array(z.object({ name: z.string(), dosage: z.string() }))
+                  .optional(),
+                triggers: z.array(z.string()).optional(),
+                severeHeadache: z.number().optional(),
+                notes: z.string().nullable().optional(),
+              })
+            )
+            .optional(),
+          customTriggers: z
+            .array(z.object({ name: z.string() }))
+            .optional(),
+          notificationSettings: z
+            .object({
+              enabled: z.number(),
+              reminderHour: z.number(),
+              reminderMinute: z.number(),
+            })
+            .nullable()
+            .optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const result = await restoreUserData(ctx.user.id, input);
+        return result;
+      }),
   }),
 
   report: router({

@@ -9,9 +9,10 @@ import type { SymptomEntry } from "@/hooks/useSymptomData";
 import { formatMedications } from "@/hooks/useSymptomData";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Trash2, Download, Upload, ChevronDown, ChevronUp, FileText, FileSpreadsheet,
+  Trash2, Download, Upload, ChevronDown, ChevronUp, FileText, FileSpreadsheet, CalendarDays, List,
 } from "lucide-react";
 import { toast } from "sonner";
+import CalendarView from "./CalendarView";
 
 interface HistoryViewProps {
   entries: SymptomEntry[];
@@ -42,6 +43,7 @@ function getOverallScore(entry: SymptomEntry): { score: number; label: string; c
 
 export default function HistoryView({ entries, onDelete, onExport, onExportCSV, onImport, onSelectDate }: HistoryViewProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportClick = () => {
@@ -90,7 +92,25 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
     <div className="space-y-4">
       {/* Actions */}
       <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">共 {entries.length} 条记录</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">共 {entries.length} 条记录</span>
+          <div className="flex bg-muted rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              title="列表视图"
+            >
+              <List className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setViewMode("calendar")}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === "calendar" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              title="日历视图"
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleImportClick} className="rounded-full text-xs">
             <Upload className="w-3 h-3 mr-1" /> 导入
@@ -107,7 +127,13 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
         </div>
       </div>
 
+      {/* Calendar View */}
+      {viewMode === "calendar" && (
+        <CalendarView entries={entries} onSelectDate={onSelectDate} />
+      )}
+
       {/* Entry List */}
+      {viewMode === "list" && (
       <div className="space-y-3">
         <AnimatePresence>
           {reversedEntries.map((entry) => {
@@ -239,6 +265,7 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
           })}
         </AnimatePresence>
       </div>
+      )}
     </div>
   );
 }

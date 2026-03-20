@@ -91,3 +91,36 @@ export const pushSubscriptions = mysqlTable("push_subscriptions", {
 
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type InsertPushSubscription = typeof pushSubscriptions.$inferInsert;
+
+/**
+ * Custom symptom metrics per user — user-defined symptom indicators beyond the default 9.
+ * Each metric has a name and optional description, scored 0-10 like built-in metrics.
+ * Values are stored in the customMetricValues table.
+ */
+export const customMetrics = mysqlTable("custom_metrics", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: varchar("description", { length: 255 }),
+  icon: varchar("icon", { length: 50 }).default("Activity"),
+  isHighGood: int("isHighGood").default(0).notNull(), // 0 = high is bad (like headache), 1 = high is good (like mood)
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CustomMetric = typeof customMetrics.$inferSelect;
+export type InsertCustomMetric = typeof customMetrics.$inferInsert;
+
+/**
+ * Custom metric values — stores the score for each custom metric per entry.
+ */
+export const customMetricValues = mysqlTable("custom_metric_values", {
+  id: int("id").autoincrement().primaryKey(),
+  entryId: int("entryId").notNull(),
+  metricId: int("metricId").notNull(),
+  value: int("value").default(0).notNull(), // 0-10
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CustomMetricValue = typeof customMetricValues.$inferSelect;
+export type InsertCustomMetricValue = typeof customMetricValues.$inferInsert;

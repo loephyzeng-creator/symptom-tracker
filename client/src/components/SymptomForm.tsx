@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import type { SymptomEntry, MedicationItem } from "@/hooks/useSymptomData";
 import { normalizeMedications } from "@/hooks/useSymptomData";
 import MedicationAutocomplete from "@/components/MedicationAutocomplete";
+import CustomMetricSliders from "@/components/CustomMetricSliders";
 import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
 import { zhCN } from "date-fns/locale";
@@ -40,7 +41,7 @@ import {
 interface SymptomFormProps {
   date: string;
   existingEntry?: SymptomEntry;
-  onSave: (entry: Omit<SymptomEntry, "id" | "userId" | "createdAt" | "updatedAt">) => Promise<void>;
+  onSave: (entry: Omit<SymptomEntry, "id" | "userId" | "createdAt" | "updatedAt">) => Promise<any>;
   onDateChange: (date: string) => void;
   allTriggers: string[];
   customTriggers: string[];
@@ -122,12 +123,21 @@ export default function SymptomForm({
   const [newTrigger, setNewTrigger] = useState("");
   const [showAddTrigger, setShowAddTrigger] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [customMetricValues, setCustomMetricValues] = useState<Record<number, number>>({});
 
   const selectedDate = useMemo(() => dateStrToDate(date), [date]);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayStr = dateToDateStr(today);
   const isToday = date === todayStr;
+
+  // Load custom metric values when entry changes
+  const customMetricValuesQuery = trpc.customMetrics.getValues.useQuery(
+    { entryId: existingEntry?.id ?? 0 },
+    { enabled: !!existingEntry?.id, refetchOnWindowFocus: false }
+  );
+
+  const saveCustomMetrics = trpc.customMetrics.saveValues.useMutation();
 
   useEffect(() => {
     if (existingEntry) {
@@ -155,15 +165,27 @@ export default function SymptomForm({
       setMedications([]);
       setTriggers([]);
       setSevereHeadache(false);
+      setCustomMetricValues({});
     }
     setSaved(false);
   }, [existingEntry, date]);
+
+  // Sync custom metric values from query
+  useEffect(() => {
+    if (customMetricValuesQuery.data) {
+      const vals: Record<number, number> = {};
+      for (const v of customMetricValuesQuery.data) {
+        vals[v.metricId] = v.value;
+      }
+      setCustomMetricValues(vals);
+    }
+  }, [customMetricValuesQuery.data]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
       const cleanMeds = medications.filter((m) => m.name.trim());
-      await onSave({
+      const savedEntry = await onSave({
         date,
         dizziness: values.dizziness,
         headache: values.headache,
@@ -179,6 +201,17 @@ export default function SymptomForm({
         triggers,
         severeHeadache: severeHeadache ? 1 : 0,
       });
+      // Save custom metric values if any
+      const metricEntries = Object.entries(customMetricValues);
+      if (metricEntries.length > 0 && savedEntry && typeof (savedEntry as any).id === "number") {
+        await saveCustomMetrics.mutateAsync({
+          entryId: (savedEntry as any).id,
+          values: metricEntries.map(([metricId, value]) => ({
+            metricId: Number(metricId),
+            value,
+          })),
+        });
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } finally {
@@ -579,6 +612,14 @@ export default function SymptomForm({
           </div>
         )}
       </motion.div>
+
+      {/* Custom Metric Sliders */}
+      <CustomMetricSliders
+        values={customMetricValues}
+        onChange={(metricId, value) =>
+          setCustomMetricValues((prev) => ({ ...prev, [metricId]: value }))
+        }
+      />
 
       {/* Notes */}
       <motion.div

@@ -84,7 +84,7 @@ export function useSymptomData() {
     async (
       entry: Omit<SymptomEntry, "id" | "userId" | "createdAt" | "updatedAt">
     ) => {
-      await upsertMutation.mutateAsync({
+      const result = await upsertMutation.mutateAsync({
         date: entry.date,
         dizziness: entry.dizziness,
         headache: entry.headache,
@@ -100,6 +100,7 @@ export function useSymptomData() {
         severeHeadache: entry.severeHeadache ?? 0,
         notes: entry.notes ?? undefined,
       });
+      return result;
     },
     [upsertMutation]
   );
