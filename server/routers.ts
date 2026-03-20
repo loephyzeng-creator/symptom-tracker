@@ -16,6 +16,7 @@ import {
   savePushSubscription,
   removePushSubscription,
   getPushSubscriptionsByUserId,
+  getMedicationHistory,
 } from "./db";
 import { generateReportHTML } from "./report";
 
@@ -166,6 +167,13 @@ export const appRouter = router({
         await removePushSubscription(ctx.user.id, input.endpoint);
         return { success: true };
       }),
+  }),
+
+  medications: router({
+    /** Get medication history for autocomplete */
+    history: protectedProcedure.query(async ({ ctx }) => {
+      return getMedicationHistory(ctx.user.id);
+    }),
   }),
 
   report: router({

@@ -13,6 +13,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { SymptomEntry, MedicationItem } from "@/hooks/useSymptomData";
 import { normalizeMedications } from "@/hooks/useSymptomData";
+import MedicationAutocomplete from "@/components/MedicationAutocomplete";
 import { motion } from "framer-motion";
 import { zhCN } from "date-fns/locale";
 import {
@@ -484,17 +485,27 @@ export default function SymptomForm({
                 animate={{ opacity: 1, y: 0 }}
                 className="grid grid-cols-[1fr_auto_auto] gap-2 items-center"
               >
-                <Input
+                <MedicationAutocomplete
                   value={med.name}
-                  onChange={(e) => updateMedication(idx, "name", e.target.value)}
+                  onChange={(v) => updateMedication(idx, "name", v)}
+                  onSelectSuggestion={(name, dosage) => {
+                    setMedications((prev) =>
+                      prev.map((m, i) =>
+                        i === idx ? { ...m, name, dosage: dosage || m.dosage } : m
+                      )
+                    );
+                  }}
                   placeholder="如：布洛芬"
                   className="text-sm bg-muted/50 border-0 h-9"
+                  field="name"
                 />
-                <Input
+                <MedicationAutocomplete
                   value={med.dosage}
-                  onChange={(e) => updateMedication(idx, "dosage", e.target.value)}
+                  onChange={(v) => updateMedication(idx, "dosage", v)}
                   placeholder="如：200mg"
                   className="text-sm bg-muted/50 border-0 h-9 w-24"
+                  field="dosage"
+                  currentMedName={med.name}
                 />
                 <button
                   onClick={() => removeMedication(idx)}

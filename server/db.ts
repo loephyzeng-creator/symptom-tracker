@@ -415,3 +415,44 @@ export async function removePushSubscriptionById(id: number) {
 
   await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, id));
 }
+
+// ─── Medication Autocomplete helpers ────────────────────────────────────
+
+/**
+ * Get all unique medication name+dosage pairs from a user's history.
+ * Returns an array of { name, dosage, count } sorted by frequency (most used first).
+ */
+export async function getMedicationHistory(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const entries = await db
+    .select({ medications: symptomEntries.medications })
+    .from(symptomEntries)
+    .where(eq(symptomEntries.userId, userId));
+
+  // Collect all medication items and count frequency
+  const medMap = new Map<string, { name: string; dosage: string; count: number }>();
+
+  for (const entry of entries) {
+    const meds = entry.medications;
+    if (!Array.isArray(meds)) continue;
+    for (const med of meds) {
+      if (!med.name || !med.name.trim()) continue;
+      const key = `${med.name.trim()}||${med.dosage?.trim() ?? ""}`;
+      const existing = medMap.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        medMap.set(key, {
+          name: med.name.trim(),
+          dosage: med.dosage?.trim() ?? "",
+          count: 1,
+        });
+      }
+    }
+  }
+
+  // Sort by frequency descending
+  return Array.from(medMap.values()).sort((a, b) => b.count - a.count);
+}
