@@ -1,10 +1,32 @@
-import { getUsersNeedingReminder, markUserNotified } from "./db";
-import { notifyOwner } from "./_core/notification";
+import {
+  getUsersNeedingReminder,
+  markUserNotified,
+  getPushSubscriptionsByUserId,
+  removePushSubscriptionById,
+} from "./db";
+import webpush from "web-push";
+import { ENV } from "./_core/env";
 
 /**
  * Check interval in milliseconds (every 15 minutes)
  */
 const CHECK_INTERVAL = 15 * 60 * 1000;
+
+/**
+ * Configure web-push with VAPID keys
+ */
+function configureWebPush() {
+  if (ENV.vapidPublicKey && ENV.vapidPrivateKey) {
+    webpush.setVapidDetails(
+      "mailto:symptom-tracker@example.com",
+      ENV.vapidPublicKey,
+      ENV.vapidPrivateKey
+    );
+    return true;
+  }
+  console.warn("[Reminder] VAPID keys not configured, Web Push disabled");
+  return false;
+}
 
 /**
  * Get current date string in YYYY-MM-DD format (UTC+8 for China timezone)
@@ -47,6 +69,58 @@ function isReminderTime(
 }
 
 /**
+ * Send Web Push notification to all subscriptions of a user.
+ * Returns true if at least one push was sent successfully.
+ */
+async function sendWebPush(userId: number, title: string, body: string): Promise<boolean> {
+  const subscriptions = await getPushSubscriptionsByUserId(userId);
+  if (subscriptions.length === 0) {
+    console.log(`[Reminder] No push subscriptions for user ${userId}`);
+    return false;
+  }
+
+  const payload = JSON.stringify({
+    title,
+    body,
+    icon: "/pwa-icon-192.png",
+    badge: "/pwa-icon-192.png",
+    tag: "daily-reminder",
+    data: {
+      url: "/",
+    },
+  });
+
+  let anySuccess = false;
+
+  for (const sub of subscriptions) {
+    try {
+      await webpush.sendNotification(
+        {
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.p256dh,
+            auth: sub.auth,
+          },
+        },
+        payload
+      );
+      anySuccess = true;
+      console.log(`[Reminder] Push sent to subscription ${sub.id} for user ${userId}`);
+    } catch (error: any) {
+      // 410 Gone or 404 means subscription is no longer valid
+      if (error.statusCode === 410 || error.statusCode === 404) {
+        console.log(`[Reminder] Removing expired subscription ${sub.id}`);
+        await removePushSubscriptionById(sub.id);
+      } else {
+        console.error(`[Reminder] Push failed for subscription ${sub.id}:`, error.message);
+      }
+    }
+  }
+
+  return anySuccess;
+}
+
+/**
  * Run the reminder check: find users who need reminders and send notifications.
  */
 async function checkAndSendReminders() {
@@ -76,17 +150,18 @@ async function checkAndSendReminders() {
       );
 
       try {
-        const sent = await notifyOwner({
-          title: "📝 症状日记提醒",
-          content: `${userName}，今天还没有记录症状哦！花几分钟记录一下今天的身体状况吧。坚持记录有助于发现症状规律，为就诊提供参考。`,
-        });
+        const sent = await sendWebPush(
+          user.userId,
+          "📝 症状日记提醒",
+          `${userName}，今天还没有记录症状哦！花几分钟记录一下今天的身体状况吧。`
+        );
 
         if (sent) {
           await markUserNotified(user.userId, todayStr);
-          console.log(`[Reminder] Successfully notified user ${user.userId}`);
+          console.log(`[Reminder] Successfully notified user ${user.userId} via Web Push`);
         } else {
           console.warn(
-            `[Reminder] Failed to notify user ${user.userId}`
+            `[Reminder] No active push subscriptions for user ${user.userId}`
           );
         }
       } catch (error) {
@@ -107,7 +182,8 @@ let intervalId: ReturnType<typeof setInterval> | null = null;
  * Start the reminder scheduler. Checks every 15 minutes.
  */
 export function startReminderScheduler() {
-  console.log("[Reminder] Starting reminder scheduler (every 15 min)");
+  const configured = configureWebPush();
+  console.log(`[Reminder] Starting reminder scheduler (every 15 min), Web Push: ${configured ? "enabled" : "disabled"}`);
 
   // Run first check after a short delay to let the server fully start
   setTimeout(() => {
@@ -130,4 +206,4 @@ export function stopReminderScheduler() {
 }
 
 // Export for testing
-export { checkAndSendReminders, isReminderTime, getTodayStr, getChinaTime };
+export { checkAndSendReminders, isReminderTime, getTodayStr, getChinaTime, sendWebPush, configureWebPush };

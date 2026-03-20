@@ -8,6 +8,7 @@ import {
   customTriggers,
   InsertCustomTrigger,
   notificationSettings,
+  pushSubscriptions,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -353,4 +354,63 @@ export async function markUserNotified(userId: number, dateStr: string) {
     .update(notificationSettings)
     .set({ lastNotifiedDate: dateStr })
     .where(eq(notificationSettings.userId, userId));
+}
+
+// ─── Push Subscription helpers ───────────────────────────────────────────
+
+export async function savePushSubscription(
+  userId: number,
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Remove existing subscription with same endpoint for this user
+  await db
+    .delete(pushSubscriptions)
+    .where(
+      and(
+        eq(pushSubscriptions.userId, userId),
+        eq(pushSubscriptions.endpoint, subscription.endpoint)
+      )
+    );
+
+  // Insert new subscription
+  await db.insert(pushSubscriptions).values({
+    userId,
+    endpoint: subscription.endpoint,
+    p256dh: subscription.keys.p256dh,
+    auth: subscription.keys.auth,
+  });
+}
+
+export async function removePushSubscription(userId: number, endpoint: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .delete(pushSubscriptions)
+    .where(
+      and(
+        eq(pushSubscriptions.userId, userId),
+        eq(pushSubscriptions.endpoint, endpoint)
+      )
+    );
+}
+
+export async function getPushSubscriptionsByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(pushSubscriptions)
+    .where(eq(pushSubscriptions.userId, userId));
+}
+
+export async function removePushSubscriptionById(id: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, id));
 }

@@ -1,20 +1,43 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
-import { Bell, BellOff, Clock, Loader2, Check } from "lucide-react";
+import { Bell, BellOff, Clock, Loader2, Check, BellRing, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
+// Get VAPID public key from env
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
+
+/**
+ * Convert a base64 string to a Uint8Array for applicationServerKey
+ */
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+type PushStatus = "loading" | "unsupported" | "denied" | "not-subscribed" | "subscribed";
+
 export default function NotificationSettings() {
   const { data: settings, isLoading } = trpc.notification.getSettings.useQuery();
   const updateMutation = trpc.notification.updateSettings.useMutation();
+  const subscribeMutation = trpc.notification.subscribe.useMutation();
+  const unsubscribeMutation = trpc.notification.unsubscribe.useMutation();
   const utils = trpc.useUtils();
 
   const [enabled, setEnabled] = useState(true);
   const [hour, setHour] = useState(21);
   const [minute, setMinute] = useState(0);
   const [hasChanges, setHasChanges] = useState(false);
+  const [pushStatus, setPushStatus] = useState<PushStatus>("loading");
+  const [subscribing, setSubscribing] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -23,6 +46,103 @@ export default function NotificationSettings() {
       setMinute(settings.reminderMinute);
     }
   }, [settings]);
+
+  // Check push notification support and current status
+  const checkPushStatus = useCallback(async () => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setPushStatus("unsupported");
+      return;
+    }
+
+    const permission = Notification.permission;
+    if (permission === "denied") {
+      setPushStatus("denied");
+      return;
+    }
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      setPushStatus(subscription ? "subscribed" : "not-subscribed");
+    } catch {
+      setPushStatus("not-subscribed");
+    }
+  }, []);
+
+  useEffect(() => {
+    checkPushStatus();
+  }, [checkPushStatus]);
+
+  const handleSubscribe = async () => {
+    if (!VAPID_PUBLIC_KEY) {
+      toast.error("推送服务未配置");
+      return;
+    }
+
+    setSubscribing(true);
+    try {
+      // Request notification permission
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushStatus("denied");
+        toast.error("通知权限被拒绝，请在浏览器设置中允许通知");
+        setSubscribing(false);
+        return;
+      }
+
+      // Subscribe to push
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+
+      const subJson = subscription.toJSON();
+
+      // Save subscription to server
+      await subscribeMutation.mutateAsync({
+        endpoint: subJson.endpoint!,
+        keys: {
+          p256dh: subJson.keys!.p256dh!,
+          auth: subJson.keys!.auth!,
+        },
+      });
+
+      setPushStatus("subscribed");
+      utils.notification.getSettings.invalidate();
+      toast.success("推送通知已开启");
+    } catch (error: any) {
+      console.error("Push subscription failed:", error);
+      toast.error("开启推送失败，请重试");
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
+  const handleUnsubscribe = async () => {
+    setSubscribing(true);
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+
+      if (subscription) {
+        const endpoint = subscription.endpoint;
+        await subscription.unsubscribe();
+
+        // Remove from server
+        await unsubscribeMutation.mutateAsync({ endpoint });
+      }
+
+      setPushStatus("not-subscribed");
+      utils.notification.getSettings.invalidate();
+      toast.success("推送通知已关闭");
+    } catch (error) {
+      console.error("Push unsubscribe failed:", error);
+      toast.error("关闭推送失败，请重试");
+    } finally {
+      setSubscribing(false);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -78,6 +198,82 @@ export default function NotificationSettings() {
 
   return (
     <div className="space-y-4">
+      {/* Push Notification Status Card */}
+      <div className="bg-card rounded-2xl border border-border/30 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <BellRing className="w-4 h-4 text-terracotta" />
+          <p className="text-sm font-semibold text-foreground">浏览器推送通知</p>
+        </div>
+
+        {pushStatus === "loading" && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <span>检查推送状态...</span>
+          </div>
+        )}
+
+        {pushStatus === "unsupported" && (
+          <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-950/20 rounded-xl p-3">
+            <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+            <div className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
+              <p className="font-medium mb-1">当前浏览器不支持推送通知</p>
+              <p>iOS 用户请先将网站「添加到主屏幕」（需 iOS 16.4+），然后从主屏幕图标打开即可支持推送。</p>
+            </div>
+          </div>
+        )}
+
+        {pushStatus === "denied" && (
+          <div className="flex items-start gap-2 bg-red-50 dark:bg-red-950/20 rounded-xl p-3">
+            <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+            <div className="text-xs text-red-700 dark:text-red-400 leading-relaxed">
+              <p className="font-medium mb-1">通知权限已被拒绝</p>
+              <p>请在浏览器设置中重新允许本网站的通知权限，然后刷新页面。</p>
+            </div>
+          </div>
+        )}
+
+        {pushStatus === "not-subscribed" && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-3">
+              开启后，即使关闭网页也能收到提醒通知。
+            </p>
+            <button
+              onClick={handleSubscribe}
+              disabled={subscribing}
+              className="w-full flex items-center justify-center gap-2 bg-terracotta hover:bg-terracotta/90 text-white rounded-xl py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              {subscribing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Bell className="w-4 h-4" />
+              )}
+              开启推送通知
+            </button>
+          </div>
+        )}
+
+        {pushStatus === "subscribed" && (
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-xs text-green-600 dark:text-green-400 font-medium">推送通知已开启</span>
+            </div>
+            <button
+              onClick={handleUnsubscribe}
+              disabled={subscribing}
+              className="w-full flex items-center justify-center gap-2 bg-muted/50 hover:bg-muted text-muted-foreground rounded-xl py-2.5 text-xs transition-colors disabled:opacity-50"
+            >
+              {subscribing ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <BellOff className="w-3.5 h-3.5" />
+              )}
+              关闭推送通知
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Toggle Card */}
       <div className="bg-card rounded-2xl border border-border/30 p-4">
         <div className="flex items-center justify-between">
@@ -128,7 +324,7 @@ export default function NotificationSettings() {
             <p className="text-sm font-semibold text-foreground">提醒时间</p>
           </div>
           <p className="text-xs text-muted-foreground mb-4">
-            每天 {getTimeLabel(hour)} {formatTime(hour, minute)}，如果还没有记录，系统会推送消息提醒你
+            每天 {getTimeLabel(hour)} {formatTime(hour, minute)}，如果还没有记录，系统会推送通知提醒你
           </p>
 
           {/* Hour selector */}
@@ -197,7 +393,9 @@ export default function NotificationSettings() {
       {/* Info note */}
       <div className="bg-sage/10 rounded-xl p-3 border border-sage/20">
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          提醒通知会通过 Manus 系统消息推送。请确保已允许 Manus 的通知权限，以便及时收到提醒。
+          {pushStatus === "subscribed"
+            ? "推送通知已开启，即使关闭网页也能收到提醒。iOS 用户需从主屏幕图标打开应用才能收到推送。"
+            : "开启浏览器推送通知后，即使关闭网页也能收到每日提醒。iOS 用户需先将网站添加到主屏幕（需 iOS 16.4+）。"}
         </p>
       </div>
     </div>

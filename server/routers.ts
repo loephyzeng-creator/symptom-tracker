@@ -13,6 +13,9 @@ import {
   deleteCustomTrigger,
   getNotificationSettings,
   upsertNotificationSettings,
+  savePushSubscription,
+  removePushSubscription,
+  getPushSubscriptionsByUserId,
 } from "./db";
 import { generateReportHTML } from "./report";
 
@@ -110,10 +113,14 @@ export const appRouter = router({
     /** Get notification settings for current user */
     getSettings: protectedProcedure.query(async ({ ctx }) => {
       const settings = await getNotificationSettings(ctx.user.id);
-      return settings ?? {
-        enabled: 1,
-        reminderHour: 21,
-        reminderMinute: 0,
+      const subs = await getPushSubscriptionsByUserId(ctx.user.id);
+      return {
+        ...(settings ?? {
+          enabled: 1,
+          reminderHour: 21,
+          reminderMinute: 0,
+        }),
+        hasPushSubscription: subs.length > 0,
       };
     }),
 
@@ -128,6 +135,34 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         return upsertNotificationSettings(ctx.user.id, input);
+      }),
+
+    /** Save a Web Push subscription */
+    subscribe: protectedProcedure
+      .input(
+        z.object({
+          endpoint: z.string().url(),
+          keys: z.object({
+            p256dh: z.string(),
+            auth: z.string(),
+          }),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await savePushSubscription(ctx.user.id, input);
+        return { success: true };
+      }),
+
+    /** Remove a Web Push subscription */
+    unsubscribe: protectedProcedure
+      .input(
+        z.object({
+          endpoint: z.string().url(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await removePushSubscription(ctx.user.id, input.endpoint);
+        return { success: true };
       }),
   }),
 
