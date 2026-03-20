@@ -361,13 +361,69 @@ export function generateReportHTML(
     padding-top: 10px;
   }
   
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: #faf8f5;
+    border-bottom: 1px solid #e8e2dc;
+    margin-bottom: 16px;
+  }
+  
+  .toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border: 1px solid #d4c8bc;
+    border-radius: 8px;
+    background: #fff;
+    color: #5a5550;
+    font-size: 12px;
+    font-family: 'Noto Sans SC', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .toolbar-btn:hover {
+    background: #f0ebe5;
+    color: #c4704b;
+    border-color: #c4704b;
+  }
+  
+  .toolbar-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .toolbar-hint {
+    font-size: 11px;
+    color: #8a8580;
+  }
+
   @media print {
     body { padding: 0; }
-    .no-print { display: none; }
+    .no-print { display: none !important; }
   }
 </style>
 </head>
 <body>
+
+<div class="toolbar no-print">
+  <button class="toolbar-btn" onclick="window.close(); if(!window.closed) history.back();">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+    返回主界面
+  </button>
+  <span class="toolbar-hint">点击下方「打印」可保存为 PDF</span>
+  <button class="toolbar-btn" onclick="window.print()">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+    打印 / 保存 PDF
+  </button>
+</div>
 
 <div class="report-header">
   <h1>症状日记 · 就诊报告</h1>
