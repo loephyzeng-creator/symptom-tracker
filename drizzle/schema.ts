@@ -57,3 +57,20 @@ export const customTriggers = mysqlTable("custom_triggers", {
 
 export type CustomTrigger = typeof customTriggers.$inferSelect;
 export type InsertCustomTrigger = typeof customTriggers.$inferInsert;
+
+/**
+ * Notification settings per user — controls daily reminder push.
+ */
+export const notificationSettings = mysqlTable("notification_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  enabled: int("enabled").default(1).notNull(), // 1 = on, 0 = off
+  reminderHour: int("reminderHour").default(21).notNull(), // 0-23, default 9pm
+  reminderMinute: int("reminderMinute").default(0).notNull(), // 0-59
+  lastNotifiedDate: varchar("lastNotifiedDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate notifications
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type NotificationSetting = typeof notificationSettings.$inferSelect;
+export type InsertNotificationSetting = typeof notificationSettings.$inferInsert;

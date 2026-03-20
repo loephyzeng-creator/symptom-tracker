@@ -7,6 +7,7 @@ import {
   InsertSymptomEntry,
   customTriggers,
   InsertCustomTrigger,
+  notificationSettings,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -238,4 +239,118 @@ export async function deleteCustomTrigger(userId: number, triggerId: number) {
     .where(
       and(eq(customTriggers.id, triggerId), eq(customTriggers.userId, userId))
     );
+}
+
+// ─── Notification Settings helpers ─────────────────────────────────────
+
+export async function getNotificationSettings(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db
+    .select()
+    .from(notificationSettings)
+    .where(eq(notificationSettings.userId, userId))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function upsertNotificationSettings(
+  userId: number,
+  data: { enabled: number; reminderHour: number; reminderMinute: number }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await getNotificationSettings(userId);
+
+  if (existing) {
+    await db
+      .update(notificationSettings)
+      .set({
+        enabled: data.enabled,
+        reminderHour: data.reminderHour,
+        reminderMinute: data.reminderMinute,
+      })
+      .where(eq(notificationSettings.userId, userId));
+    return { ...existing, ...data };
+  } else {
+    const result = await db.insert(notificationSettings).values({
+      userId,
+      enabled: data.enabled,
+      reminderHour: data.reminderHour,
+      reminderMinute: data.reminderMinute,
+    });
+    return {
+      id: Number(result[0].insertId),
+      userId,
+      ...data,
+      lastNotifiedDate: null,
+    };
+  }
+}
+
+/**
+ * Get all users who have notifications enabled and haven't been notified today.
+ * Also checks if they have an entry for today.
+ */
+export async function getUsersNeedingReminder(todayStr: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Get all users with notifications enabled
+  const settings = await db
+    .select()
+    .from(notificationSettings)
+    .where(
+      and(
+        eq(notificationSettings.enabled, 1)
+      )
+    );
+
+  const results: Array<{
+    userId: number;
+    reminderHour: number;
+    reminderMinute: number;
+    hasEntryToday: boolean;
+    lastNotifiedDate: string | null;
+    userName: string | null;
+  }> = [];
+
+  for (const setting of settings) {
+    // Skip if already notified today
+    if (setting.lastNotifiedDate === todayStr) continue;
+
+    // Check if user has an entry for today
+    const entry = await getEntryByUserAndDate(setting.userId, todayStr);
+
+    // Get user name
+    const userResult = await db
+      .select({ name: users.name })
+      .from(users)
+      .where(eq(users.id, setting.userId))
+      .limit(1);
+
+    results.push({
+      userId: setting.userId,
+      reminderHour: setting.reminderHour,
+      reminderMinute: setting.reminderMinute,
+      hasEntryToday: !!entry,
+      lastNotifiedDate: setting.lastNotifiedDate,
+      userName: userResult[0]?.name ?? null,
+    });
+  }
+
+  return results;
+}
+
+export async function markUserNotified(userId: number, dateStr: string) {
+  const db = await getDb();
+  if (!db) return;
+
+  await db
+    .update(notificationSettings)
+    .set({ lastNotifiedDate: dateStr })
+    .where(eq(notificationSettings.userId, userId));
 }

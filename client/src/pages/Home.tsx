@@ -14,8 +14,9 @@ import StatsView from "@/components/StatsView";
 import HistoryView from "@/components/HistoryView";
 import ReportView from "@/components/ReportView";
 import DailyReminder from "@/components/DailyReminder";
+import NotificationSettings from "@/components/NotificationSettings";
 import { motion, AnimatePresence } from "framer-motion";
-import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2, FileText } from "lucide-react";
+import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2, FileText, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type TabKey = "record" | "stats" | "history" | "report";
@@ -31,6 +32,7 @@ export default function Home() {
   const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabKey>("record");
+  const [showNotifSettings, setShowNotifSettings] = useState(false);
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -139,6 +141,15 @@ export default function Home() {
                 <span>{entries.length} 条</span>
               </div>
               <button
+                onClick={() => setShowNotifSettings(!showNotifSettings)}
+                className={`text-xs flex items-center gap-1 transition-colors ${
+                  showNotifSettings ? "text-terracotta" : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="提醒设置"
+              >
+                <Bell className="w-3.5 h-3.5" />
+              </button>
+              <button
                 onClick={() => logout()}
                 className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
                 title={`${user?.name ?? "用户"} · 退出登录`}
@@ -152,6 +163,25 @@ export default function Home() {
 
       {/* Content */}
       <main className="flex-1 container max-w-lg mx-auto px-4 py-5 pb-24">
+        {/* Notification Settings Panel */}
+        {showNotifSettings && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-serif text-base font-bold text-foreground">提醒设置</h2>
+              <button
+                onClick={() => setShowNotifSettings(false)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                收起
+              </button>
+            </div>
+            <NotificationSettings />
+          </motion.div>
+        )}
         {/* Daily reminder - show on all tabs except record when not recorded today */}
         {!dataLoading && activeTab !== "record" && (
           <DailyReminder

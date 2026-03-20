@@ -11,6 +11,8 @@ import {
   getTriggersByUserId,
   addCustomTrigger,
   deleteCustomTrigger,
+  getNotificationSettings,
+  upsertNotificationSettings,
 } from "./db";
 import { generateReportHTML } from "./report";
 
@@ -101,6 +103,31 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await deleteCustomTrigger(ctx.user.id, input.id);
         return { success: true };
+      }),
+  }),
+
+  notification: router({
+    /** Get notification settings for current user */
+    getSettings: protectedProcedure.query(async ({ ctx }) => {
+      const settings = await getNotificationSettings(ctx.user.id);
+      return settings ?? {
+        enabled: 1,
+        reminderHour: 21,
+        reminderMinute: 0,
+      };
+    }),
+
+    /** Update notification settings */
+    updateSettings: protectedProcedure
+      .input(
+        z.object({
+          enabled: z.number().min(0).max(1),
+          reminderHour: z.number().min(0).max(23),
+          reminderMinute: z.number().min(0).max(59),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        return upsertNotificationSettings(ctx.user.id, input);
       }),
   }),
 

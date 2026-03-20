@@ -1,0 +1,13 @@
+{
+  "query": "SHOW TABLES LIKE 'notification_settings';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SHOW TABLES LIKE 'notification_settings';",
+  "rows": [
+    {
+      "Tables_in_7CnBeGxyBasxbKLjVrJzxx (notification_settings)": "notification_settings"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_7CnBeGxyBasxbKLjVrJzxx (notification_settings)\nnotification_settings\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}
