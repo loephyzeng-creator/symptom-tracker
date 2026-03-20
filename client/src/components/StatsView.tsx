@@ -1,19 +1,23 @@
 /*
  * Design: Warm Healing Journal — Scandinavian + Wabi-sabi
  * Recharts-based trend visualization with warm color palette
+ * Includes trigger frequency + correlation analysis
  */
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area,
 } from "recharts";
 import type { SymptomEntry } from "@/hooks/useSymptomData";
+import TriggerAnalysis from "@/components/TriggerAnalysis";
 import { motion } from "framer-motion";
-import { Calendar, TrendingDown, TrendingUp, Minus, BarChart3 } from "lucide-react";
+import { Calendar, TrendingDown, TrendingUp, Minus, BarChart3, Flame } from "lucide-react";
 
 interface StatsViewProps {
   entries: SymptomEntry[];
 }
+
+type StatsTab = "trends" | "triggers";
 
 const RANGES = [
   { key: "7d", label: "7天", days: 7 },
@@ -53,6 +57,7 @@ function CustomTooltip({ active, payload, label }: any) {
 
 export default function StatsView({ entries }: StatsViewProps) {
   const [range, setRange] = useState("30d");
+  const [statsTab, setStatsTab] = useState<StatsTab>("trends");
   const [activeSymptoms, setActiveSymptoms] = useState<string[]>([
     "dizziness", "headache", "sleepQuality", "anxiety",
   ]);
@@ -137,166 +142,198 @@ export default function StatsView({ entries }: StatsViewProps) {
 
   return (
     <div className="space-y-6">
-      {/* Range Selector */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
-        {RANGES.map((r) => (
-          <Button
-            key={r.key}
-            variant={range === r.key ? "default" : "outline"}
-            size="sm"
-            className={`text-xs rounded-full shrink-0 ${
-              range === r.key
-                ? "bg-terracotta hover:bg-terracotta/90 text-white border-terracotta"
-                : "border-border"
-            }`}
-            onClick={() => setRange(r.key)}
-          >
-            {r.label}
-          </Button>
-        ))}
+      {/* Sub-tab: Trends vs Triggers */}
+      <div className="flex items-center gap-2 bg-muted/50 rounded-xl p-1">
+        <button
+          onClick={() => setStatsTab("trends")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
+            statsTab === "trends"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          趋势图表
+        </button>
+        <button
+          onClick={() => setStatsTab("triggers")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
+            statsTab === "triggers"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Flame className="w-4 h-4" />
+          诱因分析
+        </button>
       </div>
 
-      {/* Summary Cards */}
-      {averages && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="grid grid-cols-3 gap-2"
-        >
-          {SYMPTOM_CONFIGS.filter((s) => activeSymptoms.includes(s.key)).map((s) => {
-            const trend = trends?.[s.key];
-            const isGood = s.invert
-              ? (trend === "down")
-              : (trend === "up");
-            const isBad = s.invert
-              ? (trend === "up")
-              : (trend === "down");
-            return (
-              <div
-                key={s.key}
-                className="bg-card rounded-xl p-3 border border-border/50 shadow-sm"
+      {statsTab === "triggers" ? (
+        <TriggerAnalysis entries={filteredEntries} />
+      ) : (
+        <>
+          {/* Range Selector */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+            {RANGES.map((r) => (
+              <Button
+                key={r.key}
+                variant={range === r.key ? "default" : "outline"}
+                size="sm"
+                className={`text-xs rounded-full shrink-0 ${
+                  range === r.key
+                    ? "bg-terracotta hover:bg-terracotta/90 text-white border-terracotta"
+                    : "border-border"
+                }`}
+                onClick={() => setRange(r.key)}
               >
-                <div className="text-xs text-muted-foreground mb-1">{s.label}</div>
-                <div className="flex items-end gap-1">
-                  <span className="text-xl font-serif font-bold" style={{ color: s.color }}>
-                    {averages[s.key]}
-                  </span>
-                  {trend && trend !== "flat" && (
-                    <span className={`text-xs mb-0.5 ${isGood ? "text-sage" : isBad ? "text-destructive" : ""}`}>
-                      {isGood ? <TrendingDown className="w-3 h-3 inline" /> : <TrendingUp className="w-3 h-3 inline" />}
-                    </span>
-                  )}
-                  {trend === "flat" && (
-                    <Minus className="w-3 h-3 text-muted-foreground mb-0.5" />
-                  )}
-                </div>
-                <div className="text-[10px] text-muted-foreground">平均值</div>
-              </div>
-            );
-          })}
-        </motion.div>
-      )}
-
-      {/* Symptom Toggle */}
-      <div className="flex flex-wrap gap-2">
-        {SYMPTOM_CONFIGS.map((s) => (
-          <button
-            key={s.key}
-            onClick={() => toggleSymptom(s.key)}
-            className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
-              activeSymptoms.includes(s.key)
-                ? "text-white border-transparent"
-                : "border-border text-muted-foreground bg-transparent hover:bg-muted"
-            }`}
-            style={
-              activeSymptoms.includes(s.key)
-                ? { backgroundColor: s.color, borderColor: s.color }
-                : {}
-            }
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Main Chart */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-card rounded-xl p-4 border border-border/50 shadow-sm"
-      >
-        <div className="flex items-center gap-2 mb-4">
-          <BarChart3 className="w-4 h-4 text-muted-foreground" />
-          <h3 className="font-serif font-semibold text-sm">趋势变化</h3>
-          <span className="text-xs text-muted-foreground">（共 {filteredEntries.length} 条记录）</span>
-        </div>
-        <div className="h-[280px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-              />
-              <YAxis
-                domain={[0, 10]}
-                tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              {SYMPTOM_CONFIGS.filter((s) => activeSymptoms.includes(s.key)).map((s) => (
-                <Line
-                  key={s.key}
-                  type="monotone"
-                  dataKey={s.key}
-                  name={s.label}
-                  stroke={s.color}
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: s.color }}
-                  activeDot={{ r: 5 }}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </motion.div>
-
-      {/* Area Chart for key symptoms */}
-      {activeSymptoms.includes("dizziness") && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-card rounded-xl p-4 border border-border/50 shadow-sm"
-        >
-          <h3 className="font-serif font-semibold text-sm mb-4">头晕 + 头痛 趋势</h3>
-          <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                  tickLine={false}
-                />
-                <YAxis domain={[0, 10]} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="dizziness" name="头晕" stroke="#b87a4b" fill="#b87a4b" fillOpacity={0.15} strokeWidth={2} />
-                <Area type="monotone" dataKey="headache" name="头痛" stroke="#c45c5c" fill="#c45c5c" fillOpacity={0.1} strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
+                {r.label}
+              </Button>
+            ))}
           </div>
-        </motion.div>
-      )}
 
-      {/* Record count */}
-      <div className="text-center text-xs text-muted-foreground py-2">
-        共 {entries.length} 条记录 · 最早记录于 {entries[0]?.date}
-      </div>
+          {/* Summary Cards */}
+          {averages && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="grid grid-cols-3 gap-2"
+            >
+              {SYMPTOM_CONFIGS.filter((s) => activeSymptoms.includes(s.key)).map((s) => {
+                const trend = trends?.[s.key];
+                const isGood = s.invert
+                  ? (trend === "down")
+                  : (trend === "up");
+                const isBad = s.invert
+                  ? (trend === "up")
+                  : (trend === "down");
+                return (
+                  <div
+                    key={s.key}
+                    className="bg-card rounded-xl p-3 border border-border/50 shadow-sm"
+                  >
+                    <div className="text-xs text-muted-foreground mb-1">{s.label}</div>
+                    <div className="flex items-end gap-1">
+                      <span className="text-xl font-serif font-bold" style={{ color: s.color }}>
+                        {averages[s.key]}
+                      </span>
+                      {trend && trend !== "flat" && (
+                        <span className={`text-xs mb-0.5 ${isGood ? "text-sage" : isBad ? "text-destructive" : ""}`}>
+                          {isGood ? <TrendingDown className="w-3 h-3 inline" /> : <TrendingUp className="w-3 h-3 inline" />}
+                        </span>
+                      )}
+                      {trend === "flat" && (
+                        <Minus className="w-3 h-3 text-muted-foreground mb-0.5" />
+                      )}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">平均值</div>
+                  </div>
+                );
+              })}
+            </motion.div>
+          )}
+
+          {/* Symptom Toggle */}
+          <div className="flex flex-wrap gap-2">
+            {SYMPTOM_CONFIGS.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => toggleSymptom(s.key)}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
+                  activeSymptoms.includes(s.key)
+                    ? "text-white border-transparent"
+                    : "border-border text-muted-foreground bg-transparent hover:bg-muted"
+                }`}
+                style={
+                  activeSymptoms.includes(s.key)
+                    ? { backgroundColor: s.color, borderColor: s.color }
+                    : {}
+                }
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Main Chart */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-xl p-4 border border-border/50 shadow-sm"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="w-4 h-4 text-muted-foreground" />
+              <h3 className="font-serif font-semibold text-sm">趋势变化</h3>
+              <span className="text-xs text-muted-foreground">（共 {filteredEntries.length} 条记录）</span>
+            </div>
+            <div className="h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    tickLine={false}
+                    axisLine={{ stroke: "var(--border)" }}
+                  />
+                  <YAxis
+                    domain={[0, 10]}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    tickLine={false}
+                    axisLine={{ stroke: "var(--border)" }}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  {SYMPTOM_CONFIGS.filter((s) => activeSymptoms.includes(s.key)).map((s) => (
+                    <Line
+                      key={s.key}
+                      type="monotone"
+                      dataKey={s.key}
+                      name={s.label}
+                      stroke={s.color}
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: s.color }}
+                      activeDot={{ r: 5 }}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+
+          {/* Area Chart for key symptoms */}
+          {activeSymptoms.includes("dizziness") && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-card rounded-xl p-4 border border-border/50 shadow-sm"
+            >
+              <h3 className="font-serif font-semibold text-sm mb-4">头晕 + 头痛 趋势</h3>
+              <div className="h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                      tickLine={false}
+                    />
+                    <YAxis domain={[0, 10]} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area type="monotone" dataKey="dizziness" name="头晕" stroke="#b87a4b" fill="#b87a4b" fillOpacity={0.15} strokeWidth={2} />
+                    <Area type="monotone" dataKey="headache" name="头痛" stroke="#c45c5c" fill="#c45c5c" fillOpacity={0.1} strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Record count */}
+          <div className="text-center text-xs text-muted-foreground py-2">
+            共 {entries.length} 条记录 · 最早记录于 {entries[0]?.date}
+          </div>
+        </>
+      )}
     </div>
   );
 }

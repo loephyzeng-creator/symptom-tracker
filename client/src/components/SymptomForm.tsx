@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { SymptomEntry } from "@/hooks/useSymptomData";
 import { motion } from "framer-motion";
@@ -23,6 +24,8 @@ import {
   Save,
   ChevronLeft,
   ChevronRight,
+  Plus,
+  Trash2,
 } from "lucide-react";
 
 interface SymptomFormProps {
@@ -30,6 +33,10 @@ interface SymptomFormProps {
   existingEntry?: SymptomEntry;
   onSave: (entry: Omit<SymptomEntry, "id" | "createdAt">) => void;
   onDateChange: (date: string) => void;
+  allTriggers: string[];
+  customTriggers: string[];
+  onAddTrigger: (trigger: string) => boolean;
+  onRemoveTrigger: (trigger: string) => void;
 }
 
 const SYMPTOM_FIELDS = [
@@ -43,12 +50,6 @@ const SYMPTOM_FIELDS = [
   { key: "palpitations", label: "心慌程度", icon: HeartPulse, color: "text-destructive", bgColor: "bg-destructive/10", invert: true },
   { key: "mood", label: "整体心情", icon: Smile, color: "text-sage", bgColor: "bg-sage/10", invert: false },
 ] as const;
-
-const TRIGGER_OPTIONS = [
-  "睡眠不足", "压力大", "天气变化", "饮食不当", "运动过量",
-  "久坐", "强光刺激", "噪音", "情绪波动", "月经期",
-  "未戴眼镜", "坐车", "熬夜", "中午未午睡", "临时工作汇报",
-];
 
 function getScoreLabel(value: number, invert: boolean): string {
   if (invert) {
@@ -90,22 +91,20 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function SymptomForm({ date, existingEntry, onSave, onDateChange }: SymptomFormProps) {
+export default function SymptomForm({
+  date, existingEntry, onSave, onDateChange,
+  allTriggers, customTriggers, onAddTrigger, onRemoveTrigger,
+}: SymptomFormProps) {
   const [values, setValues] = useState<Record<string, number>>({
-    dizziness: 0,
-    headache: 0,
-    sleepQuality: 5,
-    anxiety: 0,
-    fatigue: 0,
-    photosensitivity: 0,
-    motionSickness: 0,
-    palpitations: 0,
-    mood: 5,
+    dizziness: 0, headache: 0, sleepQuality: 5, anxiety: 0,
+    fatigue: 0, photosensitivity: 0, motionSickness: 0, palpitations: 0, mood: 5,
   });
   const [notes, setNotes] = useState("");
   const [medications, setMedications] = useState("");
   const [triggers, setTriggers] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
+  const [newTrigger, setNewTrigger] = useState("");
+  const [showAddTrigger, setShowAddTrigger] = useState(false);
 
   useEffect(() => {
     if (existingEntry) {
@@ -159,6 +158,18 @@ export default function SymptomForm({ date, existingEntry, onSave, onDateChange 
     setTriggers((prev) =>
       prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
     );
+  };
+
+  const handleAddCustomTrigger = () => {
+    const trimmed = newTrigger.trim();
+    if (!trimmed) return;
+    const success = onAddTrigger(trimmed);
+    if (success) {
+      setNewTrigger("");
+      setShowAddTrigger(false);
+      // Auto-select the newly added trigger
+      setTriggers((prev) => [...prev, trimmed]);
+    }
   };
 
   const today = new Date().toISOString().slice(0, 10);
@@ -247,23 +258,81 @@ export default function SymptomForm({ date, existingEntry, onSave, onDateChange 
         transition={{ delay: 0.4 }}
         className="bg-card rounded-xl p-4 shadow-sm border border-border/50"
       >
-        <h3 className="font-serif font-semibold text-sm mb-3">今日诱因</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-serif font-semibold text-sm">今日诱因</h3>
+          <button
+            onClick={() => setShowAddTrigger(!showAddTrigger)}
+            className="text-xs text-terracotta hover:text-terracotta/80 flex items-center gap-1 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            自定义
+          </button>
+        </div>
+
+        {/* Add Custom Trigger Input */}
+        {showAddTrigger && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-3"
+          >
+            <div className="flex gap-2">
+              <Input
+                value={newTrigger}
+                onChange={(e) => setNewTrigger(e.target.value)}
+                placeholder="输入新的诱因..."
+                className="text-sm bg-muted/50 border-0 h-9"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddCustomTrigger();
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                onClick={handleAddCustomTrigger}
+                className="bg-terracotta hover:bg-terracotta/90 text-white h-9 px-3 shrink-0"
+                disabled={!newTrigger.trim()}
+              >
+                添加
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
         <div className="flex flex-wrap gap-2">
-          {TRIGGER_OPTIONS.map((t) => (
-            <Badge
-              key={t}
-              variant={triggers.includes(t) ? "default" : "outline"}
-              className={`cursor-pointer transition-all text-xs ${
-                triggers.includes(t)
-                  ? "bg-terracotta text-white hover:bg-terracotta/90 border-terracotta"
-                  : "hover:bg-muted border-border"
-              }`}
-              onClick={() => toggleTrigger(t)}
-            >
-              {t}
-              {triggers.includes(t) && <X className="w-3 h-3 ml-1" />}
-            </Badge>
-          ))}
+          {allTriggers.map((t) => {
+            const isCustom = customTriggers.includes(t);
+            return (
+              <Badge
+                key={t}
+                variant={triggers.includes(t) ? "default" : "outline"}
+                className={`cursor-pointer transition-all text-xs ${
+                  triggers.includes(t)
+                    ? "bg-terracotta text-white hover:bg-terracotta/90 border-terracotta"
+                    : "hover:bg-muted border-border"
+                }`}
+                onClick={() => toggleTrigger(t)}
+              >
+                {t}
+                {triggers.includes(t) && <X className="w-3 h-3 ml-1" />}
+                {isCustom && !triggers.includes(t) && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveTrigger(t);
+                      setTriggers((prev) => prev.filter((x) => x !== t));
+                    }}
+                    className="ml-1 hover:text-destructive"
+                  >
+                    <Trash2 className="w-2.5 h-2.5" />
+                  </button>
+                )}
+              </Badge>
+            );
+          })}
         </div>
       </motion.div>
 

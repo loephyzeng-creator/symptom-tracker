@@ -6,6 +6,7 @@
  */
 import { useState, useMemo } from "react";
 import { useSymptomData } from "@/hooks/useSymptomData";
+import { useCustomTriggers } from "@/hooks/useCustomTriggers";
 import SymptomForm from "@/components/SymptomForm";
 import StatsView from "@/components/StatsView";
 import HistoryView from "@/components/HistoryView";
@@ -34,6 +35,13 @@ export default function Home() {
     exportData,
     importData,
   } = useSymptomData();
+
+  const {
+    allTriggers,
+    customTriggers,
+    addTrigger,
+    removeTrigger,
+  } = useCustomTriggers();
 
   const existingEntry = useMemo(
     () => getEntryByDate(selectedDate),
@@ -90,6 +98,10 @@ export default function Home() {
                 existingEntry={existingEntry}
                 onSave={addEntry}
                 onDateChange={setSelectedDate}
+                allTriggers={allTriggers}
+                customTriggers={customTriggers}
+                onAddTrigger={addTrigger}
+                onRemoveTrigger={removeTrigger}
               />
             )}
             {activeTab === "stats" && <StatsView entries={entries} />}
