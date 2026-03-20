@@ -10,6 +10,7 @@ import { getLoginUrl } from "@/const";
 import { useSymptomData } from "@/hooks/useSymptomData";
 import { useCustomTriggers } from "@/hooks/useCustomTriggers";
 import SymptomForm from "@/components/SymptomForm";
+import QuickRecord from "@/components/QuickRecord";
 import StatsView from "@/components/StatsView";
 import HistoryView from "@/components/HistoryView";
 import ReportView from "@/components/ReportView";
@@ -17,9 +18,10 @@ import DailyReminder from "@/components/DailyReminder";
 import NotificationSettings from "@/components/NotificationSettings";
 import AlertSettings from "@/components/AlertSettings";
 import BackupRestore from "@/components/BackupRestore";
+import SyncStatus from "@/components/SyncStatus";
 import CustomMetricsManager from "@/components/CustomMetricsManager";
 import { motion, AnimatePresence } from "framer-motion";
-import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2, FileText, Bell, Settings, Sun, Moon } from "lucide-react";
+import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2, FileText, Bell, Settings, Sun, Moon, Zap } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 
@@ -39,6 +41,9 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<TabKey>("record");
   const [showNotifSettings, setShowNotifSettings] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [quickMode, setQuickMode] = useState(() => {
+    try { return localStorage.getItem("record-mode") === "quick"; } catch { return false; }
+  });
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -228,7 +233,10 @@ export default function Home() {
                 收起
               </button>
             </div>
-            <BackupRestore />
+            <SyncStatus />
+            <div className="mt-4">
+              <BackupRestore />
+            </div>
             <div className="mt-4">
               <CustomMetricsManager />
             </div>
@@ -265,16 +273,51 @@ export default function Home() {
               transition={{ duration: 0.2 }}
             >
               {activeTab === "record" && (
-                <SymptomForm
-                  date={selectedDate}
-                  existingEntry={existingEntry}
-                  onSave={addEntry}
-                  onDateChange={setSelectedDate}
-                  allTriggers={allTriggers}
-                  customTriggers={customTriggers}
-                  onAddTrigger={addTrigger}
-                  onRemoveTrigger={removeTrigger}
-                />
+                <>
+                  {/* Mode toggle */}
+                  <div className="flex items-center justify-center gap-1 mb-4">
+                    <button
+                      onClick={() => { setQuickMode(false); localStorage.setItem("record-mode", "full"); }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-l-lg text-xs font-medium transition-all border ${
+                        !quickMode
+                          ? "border-terracotta/40 bg-terracotta/10 text-terracotta"
+                          : "border-border/40 bg-card text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <PenLine className="w-3 h-3" />
+                      完整记录
+                    </button>
+                    <button
+                      onClick={() => { setQuickMode(true); localStorage.setItem("record-mode", "quick"); }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-r-lg text-xs font-medium transition-all border ${
+                        quickMode
+                          ? "border-terracotta/40 bg-terracotta/10 text-terracotta"
+                          : "border-border/40 bg-card text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Zap className="w-3 h-3" />
+                      快捷模式
+                    </button>
+                  </div>
+                  {quickMode ? (
+                    <QuickRecord
+                      date={selectedDate}
+                      existingEntry={existingEntry}
+                      onSave={addEntry}
+                    />
+                  ) : (
+                    <SymptomForm
+                      date={selectedDate}
+                      existingEntry={existingEntry}
+                      onSave={addEntry}
+                      onDateChange={setSelectedDate}
+                      allTriggers={allTriggers}
+                      customTriggers={customTriggers}
+                      onAddTrigger={addTrigger}
+                      onRemoveTrigger={removeTrigger}
+                    />
+                  )}
+                </>
               )}
               {activeTab === "stats" && <StatsView entries={entries} />}
               {activeTab === "history" && (

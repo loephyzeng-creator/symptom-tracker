@@ -19,6 +19,7 @@ import {
   getMedicationHistory,
   exportUserData,
   restoreUserData,
+  getSyncStatus,
   getCustomMetrics,
   addCustomMetric,
   updateCustomMetric,
@@ -268,6 +269,13 @@ export const appRouter = router({
         await saveCustomMetricValues(input.entryId, input.values);
         return { success: true };
       }),
+  }),
+
+  sync: router({
+    /** Get sync status (total entries, latest update, date range) */
+    status: protectedProcedure.query(async ({ ctx }) => {
+      return getSyncStatus(ctx.user.id);
+    }),
   }),
 
   backup: router({

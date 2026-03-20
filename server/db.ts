@@ -929,3 +929,42 @@ export async function getUnreadAlertCount(userId: number): Promise<number> {
     .where(and(eq(alertHistory.userId, userId), eq(alertHistory.isRead, 0)));
   return result[0]?.count ?? 0;
 }
+
+// ─── Sync Status helpers ──────────────────────────────────────
+
+/**
+ * Get sync status for a user: total entries, latest update time, date range.
+ */
+export async function getSyncStatus(userId: number) {
+  const db = await getDb();
+  if (!db) return { totalEntries: 0, latestUpdate: null, firstDate: null, lastDate: null };
+
+  const countResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(symptomEntries)
+    .where(eq(symptomEntries.userId, userId));
+
+  const latestResult = await db
+    .select({
+      updatedAt: symptomEntries.updatedAt,
+      date: symptomEntries.date,
+    })
+    .from(symptomEntries)
+    .where(eq(symptomEntries.userId, userId))
+    .orderBy(desc(symptomEntries.updatedAt))
+    .limit(1);
+
+  const firstResult = await db
+    .select({ date: symptomEntries.date })
+    .from(symptomEntries)
+    .where(eq(symptomEntries.userId, userId))
+    .orderBy(symptomEntries.date)
+    .limit(1);
+
+  return {
+    totalEntries: countResult[0]?.count ?? 0,
+    latestUpdate: latestResult[0]?.updatedAt?.toISOString() ?? null,
+    lastDate: latestResult[0]?.date ?? null,
+    firstDate: firstResult[0]?.date ?? null,
+  };
+}
