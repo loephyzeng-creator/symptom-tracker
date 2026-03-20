@@ -11,6 +11,7 @@ import { useSymptomData } from "@/hooks/useSymptomData";
 import { useCustomTriggers } from "@/hooks/useCustomTriggers";
 import SymptomForm from "@/components/SymptomForm";
 import QuickRecord from "@/components/QuickRecord";
+import TodayWidget from "@/components/TodayWidget";
 import StatsView from "@/components/StatsView";
 import HistoryView from "@/components/HistoryView";
 import ReportView from "@/components/ReportView";
@@ -274,6 +275,10 @@ export default function Home() {
             >
               {activeTab === "record" && (
                 <>
+                  {/* Today Widget - overview card */}
+                  {selectedDate === todayStr && !dataLoading && (
+                    <TodayWidget entries={entries} />
+                  )}
                   {/* Mode toggle */}
                   <div className="flex items-center justify-center gap-1 mb-4">
                     <button
