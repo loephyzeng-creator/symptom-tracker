@@ -13,6 +13,7 @@ import SymptomForm from "@/components/SymptomForm";
 import StatsView from "@/components/StatsView";
 import HistoryView from "@/components/HistoryView";
 import ReportView from "@/components/ReportView";
+import DailyReminder from "@/components/DailyReminder";
 import { motion, AnimatePresence } from "framer-motion";
 import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,17 @@ export default function Home() {
     () => getEntryByDate(selectedDate),
     [getEntryByDate, selectedDate]
   );
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const hasRecordedToday = useMemo(
+    () => !!getEntryByDate(todayStr),
+    [getEntryByDate, todayStr]
+  );
+
+  const handleGoToRecord = () => {
+    setSelectedDate(todayStr);
+    setActiveTab("record");
+  };
 
   const handleSelectDateFromHistory = (date: string) => {
     setSelectedDate(date);
@@ -140,6 +152,22 @@ export default function Home() {
 
       {/* Content */}
       <main className="flex-1 container max-w-lg mx-auto px-4 py-5 pb-24">
+        {/* Daily reminder - show on all tabs except record when not recorded today */}
+        {!dataLoading && activeTab !== "record" && (
+          <DailyReminder
+            hasRecordedToday={hasRecordedToday}
+            totalEntries={entries.length}
+            onGoToRecord={handleGoToRecord}
+          />
+        )}
+        {/* Also show on record tab if viewing a different date */}
+        {!dataLoading && activeTab === "record" && selectedDate !== todayStr && (
+          <DailyReminder
+            hasRecordedToday={hasRecordedToday}
+            totalEntries={entries.length}
+            onGoToRecord={handleGoToRecord}
+          />
+        )}
         {dataLoading ? (
           <div className="flex flex-col items-center justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-terracotta mb-3" />
