@@ -1,4 +1,4 @@
-import { and, eq, desc, gte, lte } from "drizzle-orm";
+import { and, eq, desc, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -735,4 +735,197 @@ export async function getMedicationHistory(userId: number) {
 
   // Sort by frequency descending
   return Array.from(medMap.values()).sort((a, b) => b.count - a.count);
+}
+
+// ─── Alert Rules & History helpers ────────────────────────────────────
+
+import { alertRules, alertHistory } from "../drizzle/schema";
+
+/**
+ * Get all alert rules for a user.
+ */
+export async function getAlertRules(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(alertRules).where(eq(alertRules.userId, userId));
+}
+
+/**
+ * Create a new alert rule.
+ */
+export async function createAlertRule(data: {
+  userId: number;
+  metricKey: string;
+  threshold: number;
+  consecutiveDays: number;
+  direction: "above" | "below";
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(alertRules).values({
+    userId: data.userId,
+    metricKey: data.metricKey,
+    threshold: data.threshold,
+    consecutiveDays: data.consecutiveDays,
+    direction: data.direction,
+    enabled: 1,
+  });
+  return result.insertId;
+}
+
+/**
+ * Update an alert rule.
+ */
+export async function updateAlertRule(
+  ruleId: number,
+  userId: number,
+  data: Partial<{
+    metricKey: string;
+    threshold: number;
+    consecutiveDays: number;
+    direction: "above" | "below";
+    enabled: number;
+  }>
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(alertRules)
+    .set(data)
+    .where(and(eq(alertRules.id, ruleId), eq(alertRules.userId, userId)));
+}
+
+/**
+ * Delete an alert rule.
+ */
+export async function deleteAlertRule(ruleId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(alertRules)
+    .where(and(eq(alertRules.id, ruleId), eq(alertRules.userId, userId)));
+}
+
+/**
+ * Check alert rules after saving an entry.
+ * Returns an array of triggered alert messages.
+ */
+export async function checkAlertRules(userId: number, todayStr: string): Promise<{ ruleId: number; metricKey: string; message: string }[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rules = await db
+    .select()
+    .from(alertRules)
+    .where(and(eq(alertRules.userId, userId), eq(alertRules.enabled, 1)));
+
+  if (rules.length === 0) return [];
+
+  // Get recent entries (up to max consecutiveDays needed)
+  const maxDays = Math.max(...rules.map((r) => r.consecutiveDays));
+  const entries = await db
+    .select()
+    .from(symptomEntries)
+    .where(eq(symptomEntries.userId, userId))
+    .orderBy(desc(symptomEntries.date))
+    .limit(maxDays + 1);
+
+  // Sort by date descending
+  const sortedEntries = entries.sort((a, b) => b.date.localeCompare(a.date));
+
+  const SYMPTOM_LABELS: Record<string, string> = {
+    dizziness: "头晕脑胀",
+    headache: "头痛程度",
+    sleepQuality: "睡眠质量",
+    anxiety: "焦虑程度",
+    fatigue: "疲劳程度",
+    photosensitivity: "畏光程度",
+    motionSickness: "运动敏感",
+    palpitations: "心慌程度",
+    mood: "整体心情",
+  };
+
+  const triggered: { ruleId: number; metricKey: string; message: string }[] = [];
+
+  for (const rule of rules) {
+    // Skip if already triggered today
+    if (rule.lastTriggeredDate === todayStr) continue;
+
+    // Check consecutive days
+    const recentEntries = sortedEntries.slice(0, rule.consecutiveDays);
+    if (recentEntries.length < rule.consecutiveDays) continue;
+
+    // Check if all recent entries exceed the threshold
+    const allExceed = recentEntries.every((entry) => {
+      const value = (entry as any)[rule.metricKey];
+      if (value === undefined || value === null) return false;
+      if (rule.direction === "above") return value >= rule.threshold;
+      return value <= rule.threshold;
+    });
+
+    if (allExceed) {
+      const label = SYMPTOM_LABELS[rule.metricKey] || rule.metricKey;
+      const dirText = rule.direction === "above" ? "≥" : "≤";
+      const message = `⚠️ 预警：「${label}」已连续 ${rule.consecutiveDays} 天${dirText}${rule.threshold}，请注意关注身体状况。`;
+
+      triggered.push({ ruleId: rule.id, metricKey: rule.metricKey, message });
+
+      // Record in alert history
+      await db.insert(alertHistory).values({
+        userId,
+        ruleId: rule.id,
+        metricKey: rule.metricKey,
+        message,
+        triggeredDate: todayStr,
+        isRead: 0,
+      });
+
+      // Update lastTriggeredDate to prevent duplicate alerts
+      await db
+        .update(alertRules)
+        .set({ lastTriggeredDate: todayStr })
+        .where(eq(alertRules.id, rule.id));
+    }
+  }
+
+  return triggered;
+}
+
+/**
+ * Get alert history for a user (most recent first).
+ */
+export async function getAlertHistory(userId: number, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(alertHistory)
+    .where(eq(alertHistory.userId, userId))
+    .orderBy(desc(alertHistory.createdAt))
+    .limit(limit);
+}
+
+/**
+ * Mark all alerts as read for a user.
+ */
+export async function markAlertsRead(userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(alertHistory)
+    .set({ isRead: 1 })
+    .where(and(eq(alertHistory.userId, userId), eq(alertHistory.isRead, 0)));
+}
+
+/**
+ * Get unread alert count for a user.
+ */
+export async function getUnreadAlertCount(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(alertHistory)
+    .where(and(eq(alertHistory.userId, userId), eq(alertHistory.isRead, 0)));
+  return result[0]?.count ?? 0;
 }

@@ -15,10 +15,12 @@ import HistoryView from "@/components/HistoryView";
 import ReportView from "@/components/ReportView";
 import DailyReminder from "@/components/DailyReminder";
 import NotificationSettings from "@/components/NotificationSettings";
+import AlertSettings from "@/components/AlertSettings";
 import BackupRestore from "@/components/BackupRestore";
 import CustomMetricsManager from "@/components/CustomMetricsManager";
 import { motion, AnimatePresence } from "framer-motion";
-import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2, FileText, Bell, Settings } from "lucide-react";
+import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2, FileText, Bell, Settings, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 
 type TabKey = "record" | "stats" | "history" | "report";
@@ -32,6 +34,7 @@ const TABS: { key: TabKey; label: string; icon: typeof PenLine }[] = [
 
 export default function Home() {
   const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const [activeTab, setActiveTab] = useState<TabKey>("record");
   const [showNotifSettings, setShowNotifSettings] = useState(false);
@@ -154,6 +157,17 @@ export default function Home() {
                 <Bell className="w-3.5 h-3.5" />
               </button>
               <button
+                onClick={toggleTheme}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                title={theme === "light" ? "切换深色模式" : "切换浅色模式"}
+              >
+                {theme === "light" ? (
+                  <Moon className="w-3.5 h-3.5" />
+                ) : (
+                  <Sun className="w-3.5 h-3.5" />
+                )}
+              </button>
+              <button
                 onClick={() => setShowSettings(!showSettings)}
                 className={`text-xs flex items-center gap-1 transition-colors ${
                   showSettings ? "text-terracotta" : "text-muted-foreground hover:text-foreground"
@@ -193,6 +207,9 @@ export default function Home() {
               </button>
             </div>
             <NotificationSettings />
+            <div className="mt-4 pt-4 border-t border-border/30">
+              <AlertSettings />
+            </div>
           </motion.div>
         )}
         {/* Settings Panel (Backup & Restore) */}

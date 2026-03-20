@@ -124,3 +124,40 @@ export const customMetricValues = mysqlTable("custom_metric_values", {
 
 export type CustomMetricValue = typeof customMetricValues.$inferSelect;
 export type InsertCustomMetricValue = typeof customMetricValues.$inferInsert;
+
+/**
+ * Symptom alert rules per user — triggers notification when a metric exceeds
+ * a threshold for consecutive days.
+ */
+export const alertRules = mysqlTable("alert_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  metricKey: varchar("metricKey", { length: 50 }).notNull(), // e.g. "dizziness", "headache"
+  threshold: int("threshold").default(7).notNull(), // score threshold (0-10)
+  consecutiveDays: int("consecutiveDays").default(3).notNull(), // how many days in a row
+  direction: mysqlEnum("direction", ["above", "below"]).default("above").notNull(), // above = score >= threshold triggers alert
+  enabled: int("enabled").default(1).notNull(), // 1 = on, 0 = off
+  lastTriggeredDate: varchar("lastTriggeredDate", { length: 10 }), // prevent duplicate alerts same day
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AlertRule = typeof alertRules.$inferSelect;
+export type InsertAlertRule = typeof alertRules.$inferInsert;
+
+/**
+ * Alert history — log of triggered alerts for display in the app.
+ */
+export const alertHistory = mysqlTable("alert_history", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  ruleId: int("ruleId").notNull(),
+  metricKey: varchar("metricKey", { length: 50 }).notNull(),
+  message: text("message").notNull(),
+  triggeredDate: varchar("triggeredDate", { length: 10 }).notNull(),
+  isRead: int("isRead").default(0).notNull(), // 0 = unread, 1 = read
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AlertHistoryRow = typeof alertHistory.$inferSelect;
+export type InsertAlertHistoryRow = typeof alertHistory.$inferInsert;

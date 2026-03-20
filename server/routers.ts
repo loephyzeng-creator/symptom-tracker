@@ -25,6 +25,14 @@ import {
   deleteCustomMetric as deleteCustomMetricDb,
   getCustomMetricValues,
   saveCustomMetricValues,
+  getAlertRules,
+  createAlertRule,
+  updateAlertRule,
+  deleteAlertRule,
+  checkAlertRules,
+  getAlertHistory,
+  markAlertsRead,
+  getUnreadAlertCount,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -72,7 +80,7 @@ export const appRouter = router({
     upsert: protectedProcedure
       .input(entryInputSchema)
       .mutation(async ({ ctx, input }) => {
-        return upsertEntry(ctx.user.id, {
+        const result = await upsertEntry(ctx.user.id, {
           date: input.date,
           dizziness: input.dizziness,
           headache: input.headache,
@@ -88,6 +96,13 @@ export const appRouter = router({
           severeHeadache: input.severeHeadache,
           notes: input.notes ?? null,
         });
+
+        // Check alert rules after saving (non-blocking)
+        checkAlertRules(ctx.user.id, input.date).catch((err) =>
+          console.error("[Alert] Error checking alert rules:", err)
+        );
+
+        return result;
       }),
 
     /** Delete an entry by id */
@@ -315,6 +330,73 @@ export const appRouter = router({
       }
       const analysis = await analyzeSymptoms(entries as any);
       return { analysis };
+    }),
+  }),
+
+  alerts: router({
+    /** List all alert rules for the current user */
+    listRules: protectedProcedure.query(async ({ ctx }) => {
+      return getAlertRules(ctx.user.id);
+    }),
+
+    /** Create a new alert rule */
+    createRule: protectedProcedure
+      .input(
+        z.object({
+          metricKey: z.string(),
+          threshold: z.number().min(0).max(10),
+          consecutiveDays: z.number().min(1).max(30),
+          direction: z.enum(["above", "below"]),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const id = await createAlertRule({
+          userId: ctx.user.id,
+          ...input,
+        });
+        return { id };
+      }),
+
+    /** Update an alert rule */
+    updateRule: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          metricKey: z.string().optional(),
+          threshold: z.number().min(0).max(10).optional(),
+          consecutiveDays: z.number().min(1).max(30).optional(),
+          direction: z.enum(["above", "below"]).optional(),
+          enabled: z.number().min(0).max(1).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        await updateAlertRule(id, ctx.user.id, data);
+        return { success: true };
+      }),
+
+    /** Delete an alert rule */
+    deleteRule: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteAlertRule(input.id, ctx.user.id);
+        return { success: true };
+      }),
+
+    /** Get alert history */
+    history: protectedProcedure.query(async ({ ctx }) => {
+      return getAlertHistory(ctx.user.id);
+    }),
+
+    /** Get unread alert count */
+    unreadCount: protectedProcedure.query(async ({ ctx }) => {
+      return getUnreadAlertCount(ctx.user.id);
+    }),
+
+    /** Mark all alerts as read */
+    markRead: protectedProcedure.mutation(async ({ ctx }) => {
+      await markAlertsRead(ctx.user.id);
+      return { success: true };
     }),
   }),
 
