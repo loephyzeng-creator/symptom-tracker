@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { motion } from "framer-motion";
 import { zhCN } from "date-fns/locale";
 import {
-  FileText, CalendarDays, Download, Loader2, AlertCircle, Printer,
+  FileText, CalendarDays, Download, Loader2, AlertCircle, Printer, ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -219,6 +219,15 @@ export default function ReportView() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-3"
         >
+          {/* Back button */}
+          <button
+            onClick={() => setReportHtml(null)}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            返回重新配置
+          </button>
+
           {entryCount === 0 ? (
             <div className="bg-card rounded-xl p-6 shadow-sm border border-border/50 text-center">
               <AlertCircle className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
