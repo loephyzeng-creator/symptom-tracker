@@ -55,10 +55,70 @@ const SYMPTOM_LABELS: Record<string, string> = {
 
 const SYMPTOM_KEYS = Object.keys(SYMPTOM_LABELS);
 
+// Symptoms where higher = worse
+const INVERTED_SYMPTOMS = new Set([
+  "dizziness", "headache", "anxiety", "fatigue",
+  "photosensitivity", "motionSickness", "palpitations",
+]);
+
 function computeAvg(entries: EntryRow[], key: string): string {
   if (entries.length === 0) return "—";
   const sum = entries.reduce((acc, e) => acc + ((e as unknown as Record<string, number>)[key] ?? 0), 0);
   return (sum / entries.length).toFixed(1);
+}
+
+function computeTrends(entries: EntryRow[]): { key: string; label: string; direction: string; diff: number }[] {
+  if (entries.length < 4) return [];
+  const mid = Math.floor(entries.length / 2);
+  const firstHalf = entries.slice(0, mid);
+  const secondHalf = entries.slice(mid);
+  return SYMPTOM_KEYS.map((k) => {
+    const avg1 = firstHalf.reduce((s, e) => s + ((e as any)[k] ?? 0), 0) / firstHalf.length;
+    const avg2 = secondHalf.reduce((s, e) => s + ((e as any)[k] ?? 0), 0) / secondHalf.length;
+    const diff = Math.round((avg2 - avg1) * 10) / 10;
+    const isInverted = INVERTED_SYMPTOMS.has(k);
+    let direction = "持平";
+    if (Math.abs(diff) >= 0.5) {
+      if (isInverted) {
+        direction = diff > 0 ? "加重" : "改善";
+      } else {
+        direction = diff > 0 ? "改善" : "下降";
+      }
+    }
+    return { key: k, label: SYMPTOM_LABELS[k], direction, diff };
+  });
+}
+
+function computeTriggerCorrelation(entries: EntryRow[]): { trigger: string; count: number; impacts: { label: string; diff: number; impact: string }[] }[] {
+  if (entries.length < 3) return [];
+  const triggerCounts: Record<string, number> = {};
+  entries.forEach((e) => {
+    if (Array.isArray(e.triggers)) {
+      e.triggers.forEach((t) => { triggerCounts[t] = (triggerCounts[t] || 0) + 1; });
+    }
+  });
+  const validTriggers = Object.entries(triggerCounts)
+    .filter(([, c]) => c >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
+  return validTriggers.map(([trigger, count]) => {
+    const withT = entries.filter((e) => Array.isArray(e.triggers) && e.triggers.includes(trigger));
+    const withoutT = entries.filter((e) => !Array.isArray(e.triggers) || !e.triggers.includes(trigger));
+    if (withoutT.length === 0) return null;
+    const impacts = SYMPTOM_KEYS.map((k) => {
+      const avgW = withT.reduce((s, e) => s + ((e as any)[k] ?? 0), 0) / withT.length;
+      const avgWO = withoutT.reduce((s, e) => s + ((e as any)[k] ?? 0), 0) / withoutT.length;
+      const diff = Math.round((avgW - avgWO) * 10) / 10;
+      const isInverted = INVERTED_SYMPTOMS.has(k);
+      let impact = "无影响";
+      if (Math.abs(diff) >= 0.5) {
+        impact = isInverted ? (diff > 0 ? "加重" : "改善") : (diff > 0 ? "改善" : "下降");
+      }
+      return { label: SYMPTOM_LABELS[k], diff, impact };
+    }).filter((i) => i.impact !== "无影响");
+    return { trigger, count, impacts };
+  }).filter(Boolean) as any[];
 }
 
 function computeTriggerFrequency(entries: EntryRow[]): { name: string; count: number; pct: string }[] {
@@ -390,6 +450,56 @@ ${sorted.filter(e => e.notes).length > 0 ? `
   </div>
 </div>
 ` : ""}
+
+${(() => {
+  const trends = computeTrends(sorted);
+  const improving = trends.filter(t => t.direction === "改善");
+  const worsening = trends.filter(t => t.direction === "加重" || t.direction === "下降");
+  if (trends.length === 0) return "";
+  return `
+<div class="section">
+  <h2>趋势分析</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>症状</th>
+        <th>趋势</th>
+        <th>变化幅度</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${trends.map(t => `
+      <tr>
+        <td style="text-align:left;font-weight:500">${t.label}</td>
+        <td style="color:${t.direction === "改善" ? "#7a9a6e" : t.direction === "加重" || t.direction === "下降" ? "#dc3545" : "#8a8580"}">${t.direction}</td>
+        <td>${t.diff > 0 ? "+" : ""}${t.diff}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>
+  <div style="margin-top:10px;font-size:11px;color:#5a5550;line-height:1.8">
+    ${improving.length > 0 ? `<p style="color:#7a9a6e">✓ 改善中的指标：${improving.map(t => t.label).join("、")}</p>` : ""}
+    ${worsening.length > 0 ? `<p style="color:#dc3545">✗ 需要关注：${worsening.map(t => t.label).join("、")}</p>` : ""}
+    ${improving.length === 0 && worsening.length === 0 ? "<p>各项指标趋势平稳，无明显变化。</p>" : ""}
+  </div>
+</div>`;
+})()}
+
+${(() => {
+  const correlations = computeTriggerCorrelation(sorted);
+  if (correlations.length === 0) return "";
+  return `
+<div class="section">
+  <h2>诱因-症状关联分析</h2>
+  <p style="font-size:10px;color:#8a8580;margin-bottom:8px">对比有/无特定诱因时各症状的平均评分差异</p>
+  ${correlations.map(c => `
+  <div style="margin-bottom:12px">
+    <div style="font-weight:600;font-size:12px;margin-bottom:4px;color:#c4704b">${escapeHtml(c.trigger)} <span style="font-weight:400;font-size:10px;color:#8a8580">(${c.count}次)</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">
+      ${c.impacts.map((imp: any) => `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;background:${imp.impact === "加重" || imp.impact === "下降" ? "#fde8e8" : "#e8f5e9"};color:${imp.impact === "加重" || imp.impact === "下降" ? "#dc3545" : "#7a9a6e"}">${imp.label} ${imp.diff > 0 ? "+" : ""}${imp.diff}</span>`).join("")}
+    </div>
+  </div>`).join("")}
+</div>`;
+})()}
 
 <div class="footer">
   本报告由「症状日记」自动生成，仅供就诊参考。如有疑问请咨询专业医生。

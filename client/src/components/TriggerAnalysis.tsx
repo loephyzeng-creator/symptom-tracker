@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import type { SymptomEntry } from "@/hooks/useSymptomData";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp, Flame, TrendingUp, TrendingDown, Minus, AlertTriangle, Info } from "lucide-react";
+import CorrelationHeatmap from "@/components/CorrelationHeatmap";
 
 interface TriggerAnalysisProps {
   entries: SymptomEntry[];
@@ -388,6 +389,11 @@ export default function TriggerAnalysis({ entries }: TriggerAnalysisProps) {
               })}
           </div>
         </motion.div>
+      )}
+
+      {/* Correlation Heatmap */}
+      {correlations.length > 0 && (
+        <CorrelationHeatmap entries={entries} />
       )}
 
       {/* Insufficient data notice */}

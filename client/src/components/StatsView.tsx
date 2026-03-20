@@ -11,6 +11,8 @@ import {
 import type { SymptomEntry } from "@/hooks/useSymptomData";
 import TriggerAnalysis from "@/components/TriggerAnalysis";
 import SymptomSummary from "@/components/SymptomSummary";
+import MedicationChart from "@/components/MedicationChart";
+import TriggerBubbleChart from "@/components/TriggerBubbleChart";
 import { motion } from "framer-motion";
 import { Calendar, TrendingDown, TrendingUp, Minus, BarChart3, Flame } from "lucide-react";
 
@@ -170,7 +172,10 @@ export default function StatsView({ entries }: StatsViewProps) {
       </div>
 
       {statsTab === "triggers" ? (
-        <TriggerAnalysis entries={filteredEntries} />
+        <>
+          <TriggerBubbleChart entries={filteredEntries} />
+          <TriggerAnalysis entries={filteredEntries} />
+        </>
       ) : (
         <>
           {/* Range Selector */}
@@ -328,6 +333,9 @@ export default function StatsView({ entries }: StatsViewProps) {
               </div>
             </motion.div>
           )}
+
+          {/* Medication Chart */}
+          <MedicationChart entries={filteredEntries} />
 
           {/* Symptom Summary */}
           <SymptomSummary entries={entries} />
