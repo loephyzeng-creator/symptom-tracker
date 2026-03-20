@@ -19,6 +19,7 @@ export interface SymptomEntry {
   motionSickness: number;
   palpitations: number;
   mood: number;
+  severeHeadache: number; // 0 = no, 1 = yes
   notes: string | null;
   medications: MedicationItem[];
   triggers: string[];
@@ -96,6 +97,7 @@ export function useSymptomData() {
         mood: entry.mood,
         medications: normalizeMedications(entry.medications),
         triggers: entry.triggers,
+        severeHeadache: entry.severeHeadache ?? 0,
         notes: entry.notes ?? undefined,
       });
     },
@@ -145,6 +147,7 @@ export function useSymptomData() {
             mood: entry.mood ?? 5,
             medications: normalizeMedications(entry.medications),
             triggers: entry.triggers ?? [],
+            severeHeadache: entry.severeHeadache ?? 0,
             notes: entry.notes ?? undefined,
           });
         }

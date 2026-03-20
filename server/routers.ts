@@ -37,6 +37,7 @@ const entryInputSchema = z.object({
   mood: z.number().min(0).max(10),
   medications: z.array(medicationSchema).default([]),
   triggers: z.array(z.string()).default([]),
+  severeHeadache: z.number().min(0).max(1).default(0),
   notes: z.string().optional().nullable(),
 });
 
@@ -74,6 +75,7 @@ export const appRouter = router({
           mood: input.mood,
           medications: input.medications,
           triggers: input.triggers,
+          severeHeadache: input.severeHeadache,
           notes: input.notes ?? null,
         });
       }),

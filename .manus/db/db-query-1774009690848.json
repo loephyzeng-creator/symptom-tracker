@@ -1,0 +1,26 @@
+{
+  "query": "SHOW COLUMNS FROM symptom_entries LIKE '%headache%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SHOW COLUMNS FROM symptom_entries LIKE '%headache%';",
+  "rows": [
+    {
+      "Field": "headache",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "severeHeadache",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nheadache\tint\tNO\t\t0\t\nsevereHeadache\tint\tNO\t\t0\t\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

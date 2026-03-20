@@ -164,6 +164,13 @@ export default function HistoryView({ entries, onDelete, onExport, onImport, onS
                           <div className="flex justify-between"><span className="text-muted-foreground">心情</span><span className="font-medium">{entry.mood}/10</span></div>
                         </div>
 
+                        {/* Severe Headache */}
+                        {entry.severeHeadache === 1 && (
+                          <div className="text-xs font-medium text-destructive flex items-center gap-1">
+                            ⚠️ 当日发生剧烈头痛
+                          </div>
+                        )}
+
                         {/* Triggers */}
                         {entry.triggers && entry.triggers.length > 0 && (
                           <div>

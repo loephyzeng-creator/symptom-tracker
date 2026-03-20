@@ -21,6 +21,7 @@ interface EntryRow {
   mood: number;
   medications: MedicationItem[] | string | null;
   triggers: string[] | null;
+  severeHeadache?: number;
   notes: string | null;
 }
 
@@ -328,6 +329,7 @@ export function generateReportHTML(
       <tr>
         <th style="width:70px">日期</th>
         ${SYMPTOM_KEYS.map(k => `<th>${SYMPTOM_LABELS[k]}</th>`).join("")}
+        <th>剧烈头痛</th>
         <th>用药</th>
       </tr>
     </thead>
@@ -340,11 +342,13 @@ export function generateReportHTML(
           const cls = v >= 7 ? "score-high" : v >= 4 ? "score-mid" : "score-low";
           return `<td class="${cls}">${v}</td>`;
         }).join("")}
+        <td style="text-align:center">${e.severeHeadache === 1 ? '<span style="color:#d32f2f">⚠️ 是</span>' : '-'}</td>
         <td style="font-size:9px;text-align:left">${formatMeds(e.medications)}</td>
       </tr>`).join("")}
       <tr class="avg-row">
         <td>平均</td>
         ${SYMPTOM_KEYS.map(k => `<td>${computeAvg(sorted, k)}</td>`).join("")}
+        <td></td>
         <td></td>
       </tr>
     </tbody>

@@ -172,6 +172,7 @@ export async function upsertEntry(
         mood: data.mood,
         medications: data.medications,
         triggers: data.triggers,
+        severeHeadache: data.severeHeadache,
         notes: data.notes,
       })
       .where(eq(symptomEntries.id, existing.id));

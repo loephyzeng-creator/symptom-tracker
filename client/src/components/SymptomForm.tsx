@@ -31,6 +31,7 @@ import {
   CalendarDays,
   Pill,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 
 interface SymptomFormProps {
@@ -114,6 +115,7 @@ export default function SymptomForm({
   const [triggers, setTriggers] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [severeHeadache, setSevereHeadache] = useState(false);
   const [newTrigger, setNewTrigger] = useState("");
   const [showAddTrigger, setShowAddTrigger] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -140,6 +142,7 @@ export default function SymptomForm({
       setNotes(existingEntry.notes ?? "");
       setMedications(normalizeMedications(existingEntry.medications));
       setTriggers(existingEntry.triggers ?? []);
+      setSevereHeadache(existingEntry.severeHeadache === 1);
     } else {
       setValues({
         dizziness: 0, headache: 0, sleepQuality: 5, anxiety: 0,
@@ -148,6 +151,7 @@ export default function SymptomForm({
       setNotes("");
       setMedications([]);
       setTriggers([]);
+      setSevereHeadache(false);
     }
     setSaved(false);
   }, [existingEntry, date]);
@@ -170,6 +174,7 @@ export default function SymptomForm({
         notes,
         medications: cleanMeds,
         triggers,
+        severeHeadache: severeHeadache ? 1 : 0,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -305,6 +310,49 @@ export default function SymptomForm({
           );
         })}
       </div>
+
+      {/* Severe Headache Toggle */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.38 }}
+        className="bg-card rounded-xl p-4 shadow-sm border border-border/50"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4 text-destructive" />
+            </div>
+            <div>
+              <h3 className="font-serif font-semibold text-sm">是否剧烈头痛</h3>
+              <p className="text-[11px] text-muted-foreground">突发性、难以忍受的头痛</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setSevereHeadache(!severeHeadache)}
+            className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+              severeHeadache ? "bg-destructive" : "bg-muted"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                severeHeadache ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+        {severeHeadache && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="mt-3 p-2.5 rounded-lg bg-destructive/5 border border-destructive/20"
+          >
+            <p className="text-xs text-destructive font-medium">
+              ⚠️ 已标记剧烈头痛，如持续不缓解请及时就医
+            </p>
+          </motion.div>
+        )}
+      </motion.div>
 
       {/* Triggers */}
       <motion.div

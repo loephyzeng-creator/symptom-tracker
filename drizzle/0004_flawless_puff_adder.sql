@@ -1,0 +1,1 @@
+ALTER TABLE `symptom_entries` ADD `severeHeadache` int DEFAULT 0 NOT NULL;
