@@ -15,9 +15,9 @@ import { toast } from "sonner";
 
 interface HistoryViewProps {
   entries: SymptomEntry[];
-  onDelete: (id: string) => void;
+  onDelete: (id: number) => void;
   onExport: () => void;
-  onImport: (json: string) => boolean;
+  onImport: (json: string) => Promise<boolean> | boolean;
   onSelectDate: (date: string) => void;
 }
 
@@ -28,7 +28,6 @@ function formatDateShort(dateStr: string): string {
 }
 
 function getOverallScore(entry: SymptomEntry): { score: number; label: string; color: string } {
-  // Invert bad symptoms, keep good ones as-is
   const badAvg = (entry.dizziness + entry.headache + entry.anxiety + entry.fatigue +
     entry.photosensitivity + entry.motionSickness + entry.palpitations) / 7;
   const goodAvg = (entry.sleepQuality + entry.mood) / 2;
@@ -41,19 +40,19 @@ function getOverallScore(entry: SymptomEntry): { score: number; label: string; c
 }
 
 export default function HistoryView({ entries, onDelete, onExport, onImport, onSelectDate }: HistoryViewProps) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const result = onImport(ev.target?.result as string);
+    reader.onload = async (ev) => {
+      const result = await onImport(ev.target?.result as string);
       if (result) {
         toast.success("数据导入成功");
       } else {
@@ -166,11 +165,11 @@ export default function HistoryView({ entries, onDelete, onExport, onImport, onS
                         </div>
 
                         {/* Triggers */}
-                        {entry.triggers.length > 0 && (
+                        {entry.triggers && entry.triggers.length > 0 && (
                           <div>
                             <span className="text-xs text-muted-foreground">诱因：</span>
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {entry.triggers.map((t) => (
+                              {entry.triggers.map((t: string) => (
                                 <Badge key={t} variant="outline" className="text-[10px] py-0 border-terracotta/30 text-terracotta">
                                   {t}
                                 </Badge>

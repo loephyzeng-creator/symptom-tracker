@@ -30,17 +30,18 @@ import {
   Trash2,
   CalendarDays,
   Pill,
+  Loader2,
 } from "lucide-react";
 
 interface SymptomFormProps {
   date: string;
   existingEntry?: SymptomEntry;
-  onSave: (entry: Omit<SymptomEntry, "id" | "createdAt">) => void;
+  onSave: (entry: Omit<SymptomEntry, "id" | "userId" | "createdAt" | "updatedAt">) => Promise<void>;
   onDateChange: (date: string) => void;
   allTriggers: string[];
   customTriggers: string[];
-  onAddTrigger: (trigger: string) => boolean;
-  onRemoveTrigger: (trigger: string) => void;
+  onAddTrigger: (trigger: string) => Promise<boolean> | boolean;
+  onRemoveTrigger: (trigger: string) => Promise<void> | void;
 }
 
 const SYMPTOM_FIELDS = [
@@ -112,6 +113,7 @@ export default function SymptomForm({
   const [medications, setMedications] = useState<MedicationItem[]>([]);
   const [triggers, setTriggers] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [newTrigger, setNewTrigger] = useState("");
   const [showAddTrigger, setShowAddTrigger] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -135,9 +137,9 @@ export default function SymptomForm({
         palpitations: existingEntry.palpitations,
         mood: existingEntry.mood,
       });
-      setNotes(existingEntry.notes);
+      setNotes(existingEntry.notes ?? "");
       setMedications(normalizeMedications(existingEntry.medications));
-      setTriggers(existingEntry.triggers);
+      setTriggers(existingEntry.triggers ?? []);
     } else {
       setValues({
         dizziness: 0, headache: 0, sleepQuality: 5, anxiety: 0,
@@ -150,26 +152,30 @@ export default function SymptomForm({
     setSaved(false);
   }, [existingEntry, date]);
 
-  const handleSave = () => {
-    // Filter out empty medication rows
-    const cleanMeds = medications.filter((m) => m.name.trim());
-    onSave({
-      date,
-      dizziness: values.dizziness,
-      headache: values.headache,
-      sleepQuality: values.sleepQuality,
-      anxiety: values.anxiety,
-      fatigue: values.fatigue,
-      photosensitivity: values.photosensitivity,
-      motionSickness: values.motionSickness,
-      palpitations: values.palpitations,
-      mood: values.mood,
-      notes,
-      medications: cleanMeds,
-      triggers,
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const cleanMeds = medications.filter((m) => m.name.trim());
+      await onSave({
+        date,
+        dizziness: values.dizziness,
+        headache: values.headache,
+        sleepQuality: values.sleepQuality,
+        anxiety: values.anxiety,
+        fatigue: values.fatigue,
+        photosensitivity: values.photosensitivity,
+        motionSickness: values.motionSickness,
+        palpitations: values.palpitations,
+        mood: values.mood,
+        notes,
+        medications: cleanMeds,
+        triggers,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleTrigger = (t: string) => {
@@ -178,10 +184,10 @@ export default function SymptomForm({
     );
   };
 
-  const handleAddCustomTrigger = () => {
+  const handleAddCustomTrigger = async () => {
     const trimmed = newTrigger.trim();
     if (!trimmed) return;
-    const success = onAddTrigger(trimmed);
+    const success = await onAddTrigger(trimmed);
     if (success) {
       setNewTrigger("");
       setShowAddTrigger(false);
@@ -189,7 +195,6 @@ export default function SymptomForm({
     }
   };
 
-  // Medication helpers
   const addMedicationRow = () => {
     setMedications((prev) => [...prev, { name: "", dosage: "" }]);
   };
@@ -319,7 +324,6 @@ export default function SymptomForm({
           </button>
         </div>
 
-        {/* Add Custom Trigger Input */}
         {showAddTrigger && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -419,7 +423,6 @@ export default function SymptomForm({
           </button>
         ) : (
           <div className="space-y-2.5">
-            {/* Header */}
             <div className="grid grid-cols-[1fr_auto_auto] gap-2 text-[11px] text-muted-foreground px-1">
               <span>药品名称</span>
               <span className="w-24 text-center">用量</span>
@@ -454,7 +457,6 @@ export default function SymptomForm({
               </motion.div>
             ))}
 
-            {/* Add more button */}
             <button
               onClick={addMedicationRow}
               className="w-full py-2 rounded-lg border border-dashed border-border/60 text-muted-foreground hover:border-terracotta/40 hover:text-terracotta transition-colors flex items-center justify-center gap-1.5 text-xs"
@@ -490,14 +492,19 @@ export default function SymptomForm({
       >
         <Button
           onClick={handleSave}
+          disabled={saving}
           className={`w-full h-12 text-base font-medium rounded-xl transition-all ${
             saved
               ? "bg-sage hover:bg-sage text-white"
               : "bg-terracotta hover:bg-terracotta/90 text-white"
           }`}
         >
-          <Save className="w-4 h-4 mr-2" />
-          {saved ? "已保存" : existingEntry ? "更新记录" : "保存记录"}
+          {saving ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <Save className="w-4 h-4 mr-2" />
+          )}
+          {saving ? "保存中..." : saved ? "已保存" : existingEntry ? "更新记录" : "保存记录"}
         </Button>
       </motion.div>
     </div>

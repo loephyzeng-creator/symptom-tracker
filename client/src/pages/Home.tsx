@@ -5,13 +5,16 @@
  * Typography: Noto Serif SC (headings), Noto Sans SC (body)
  */
 import { useState, useMemo } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
 import { useSymptomData } from "@/hooks/useSymptomData";
 import { useCustomTriggers } from "@/hooks/useCustomTriggers";
 import SymptomForm from "@/components/SymptomForm";
 import StatsView from "@/components/StatsView";
 import HistoryView from "@/components/HistoryView";
 import { motion, AnimatePresence } from "framer-motion";
-import { PenLine, BarChart3, Clock, BookOpen } from "lucide-react";
+import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type TabKey = "record" | "stats" | "history";
 
@@ -22,6 +25,8 @@ const TABS: { key: TabKey; label: string; icon: typeof PenLine }[] = [
 ];
 
 export default function Home() {
+  const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
+
   const [activeTab, setActiveTab] = useState<TabKey>("record");
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().slice(0, 10)
@@ -34,6 +39,7 @@ export default function Home() {
     getEntryByDate,
     exportData,
     importData,
+    isLoading: dataLoading,
   } = useSymptomData();
 
   const {
@@ -52,6 +58,45 @@ export default function Home() {
     setSelectedDate(date);
     setActiveTab("record");
   };
+
+  // Loading state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-terracotta mb-4" />
+        <p className="text-sm text-muted-foreground">加载中...</p>
+      </div>
+    );
+  }
+
+  // Not logged in — show login prompt
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
+        <div className="text-center max-w-sm">
+          <img
+            src="https://d2xsxph8kpxj0f.cloudfront.net/310519663299884726/7CnBeGxyBasxbKLjVrJzxx/wellness-icon-6VW4Dy8xn7zsxPdzmdLqpc.webp"
+            alt="logo"
+            className="w-16 h-16 rounded-2xl mx-auto mb-4"
+          />
+          <h1 className="font-serif text-2xl font-bold text-foreground mb-2">
+            症状日记
+          </h1>
+          <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
+            记录每一天的身体状况，发现症状规律，<br />
+            数据安全存储在云端，随时随地访问。
+          </p>
+          <Button
+            onClick={() => { window.location.href = getLoginUrl(); }}
+            className="bg-terracotta hover:bg-terracotta/90 text-white rounded-xl h-12 px-8 text-base"
+          >
+            <LogIn className="w-5 h-5 mr-2" />
+            登录开始记录
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -74,9 +119,18 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>{entries.length} 条</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>{entries.length} 条</span>
+              </div>
+              <button
+                onClick={() => logout()}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                title={`${user?.name ?? "用户"} · 退出登录`}
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
         </div>
@@ -84,38 +138,45 @@ export default function Home() {
 
       {/* Content */}
       <main className="flex-1 container max-w-lg mx-auto px-4 py-5 pb-24">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            transition={{ duration: 0.2 }}
-          >
-            {activeTab === "record" && (
-              <SymptomForm
-                date={selectedDate}
-                existingEntry={existingEntry}
-                onSave={addEntry}
-                onDateChange={setSelectedDate}
-                allTriggers={allTriggers}
-                customTriggers={customTriggers}
-                onAddTrigger={addTrigger}
-                onRemoveTrigger={removeTrigger}
-              />
-            )}
-            {activeTab === "stats" && <StatsView entries={entries} />}
-            {activeTab === "history" && (
-              <HistoryView
-                entries={entries}
-                onDelete={deleteEntry}
-                onExport={exportData}
-                onImport={importData}
-                onSelectDate={handleSelectDateFromHistory}
-              />
-            )}
-          </motion.div>
-        </AnimatePresence>
+        {dataLoading ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-terracotta mb-3" />
+            <p className="text-sm text-muted-foreground">加载数据中...</p>
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+            >
+              {activeTab === "record" && (
+                <SymptomForm
+                  date={selectedDate}
+                  existingEntry={existingEntry}
+                  onSave={addEntry}
+                  onDateChange={setSelectedDate}
+                  allTriggers={allTriggers}
+                  customTriggers={customTriggers}
+                  onAddTrigger={addTrigger}
+                  onRemoveTrigger={removeTrigger}
+                />
+              )}
+              {activeTab === "stats" && <StatsView entries={entries} />}
+              {activeTab === "history" && (
+                <HistoryView
+                  entries={entries}
+                  onDelete={deleteEntry}
+                  onExport={exportData}
+                  onImport={importData}
+                  onSelectDate={handleSelectDateFromHistory}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        )}
       </main>
 
       {/* Bottom Tab Bar */}

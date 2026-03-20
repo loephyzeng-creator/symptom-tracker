@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `symptom_entries` (`id` int AUTO_INCREMENT NOT NULL, `userId` int NOT NULL, `date` varchar(10) NOT NULL, `dizziness` int NOT NULL DEFAULT 0, `headache` int NOT NULL DEFAULT 0, `sleepQuality` int NOT NULL DEFAULT 5, `anxiety` int NOT NULL DEFAULT 0, `fatigue` int NOT NULL DEFAULT 0, `photosensitivity` int NOT NULL DEFAULT 0, `motionSickness` int NOT NULL DEFAULT 0, `palpitations` int NOT NULL DEFAULT 0, `mood` int NOT NULL DEFAULT 5, `medications` json NOT NULL, `triggers` json NOT NULL, `notes` text, `createdAt` timestamp NOT NULL DEFAULT now(), `updatedAt` timestamp NOT NULL DEFAULT now() ON UPDATE CURRENT_TIMESTAMP, CONSTRAINT `symptom_entries_id` PRIMARY KEY(`id`));",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute CREATE TABLE `symptom_entries` (`id` int AUTO_INCREMENT NOT NULL, `userId` int NOT NULL, `date` varchar(10) NOT NULL, `dizziness` int NOT NULL DEFAULT 0, `headache` int NOT NULL DEFAULT 0, `sleepQuality` int NOT NULL DEFAULT 5, `anxiety` int NOT NULL DEFAULT 0, `fatigue` int NOT NULL DEFAULT 0, `photosensitivity` int NOT NULL DEFAULT 0, `motionSickness` int NOT NULL DEFAULT 0, `palpitations` int NOT NULL DEFAULT 0, `mood` int NOT NULL DEFAULT 5, `medications` json NOT NULL, `triggers` json NOT NULL, `notes` text, `createdAt` timestamp NOT NULL DEFAULT now(), `updatedAt` timestamp NOT NULL DEFAULT now() ON UPDATE CURRENT_TIMESTAMP, CONSTRAINT `symptom_entries_id` PRIMARY KEY(`id`));",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 269
+}

@@ -1,0 +1,14 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `symptom_entries` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `date` varchar(10) NOT NULL,\n  `dizziness` int NOT NULL DEFAULT 0,\n  `headache` int NOT NULL DEFAULT 0,\n  `sleepQuality` int NOT NULL DEFAULT 5,\n  `anxiety` int NOT NULL DEFAULT 0,\n  `fatigue` int NOT NULL DEFAULT 0,\n  `photosensitivity` int NOT NULL DEFAULT 0,\n  `motionSickness` int NOT NULL DEFAULT 0,\n  `palpitations` int NOT NULL DEFAULT 0,\n  `mood` int NOT NULL DEFAULT 5,\n  `medications` json NOT NULL DEFAULT ('[]'),\n  `triggers` json NOT NULL DEFAULT ('[]'),\n  `notes` text,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `symptom_entries_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute CREATE TABLE IF NOT EXISTS `symptom_entries` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `date` varchar(10) NOT NULL,\n  `dizziness` int NOT NULL DEFAULT 0,\n  `headache` int NOT NULL DEFAULT 0,\n  `sleepQuality` int NOT NULL DEFAULT 5,\n  `anxiety` int NOT NULL DEFAULT 0,\n  `fatigue` int NOT NULL DEFAULT 0,\n  `photosensitivity` int NOT NULL DEFAULT 0,\n  `motionSickness` int NOT NULL DEFAULT 0,\n  `palpitations` int NOT NULL DEFAULT 0,\n  `mood` int NOT NULL DEFAULT 5,\n  `medications` json NOT NULL DEFAULT ('[]'),\n  `triggers` json NOT NULL DEFAULT ('[]'),\n  `notes` text,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `symptom_entries_id` PRIMARY KEY(`id`)\n);",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your TiDB version for the right syntax to use line 14 column 44 near \"'[]'),",
+    "  `triggers` json NOT NULL DEFAULT ('[]'),",
+    "  `notes` text,",
+    "  `createdAt` timestamp NOT NULL DEFAULT (now()),",
+    "  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,",
+    "  CONSTRAINT `symptom_entries_id` PRIMARY KEY(`id`)",
+    ")\""
+  ]
+}

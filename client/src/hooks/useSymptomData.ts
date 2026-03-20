@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
+import { trpc } from "@/lib/trpc";
+import { useCallback, useMemo } from "react";
 
 export interface MedicationItem {
   name: string;
@@ -6,36 +7,45 @@ export interface MedicationItem {
 }
 
 export interface SymptomEntry {
-  id: string;
+  id: number;
+  userId: number;
   date: string; // YYYY-MM-DD
-  dizziness: number; // 0-10
-  headache: number; // 0-10
-  sleepQuality: number; // 0-10 (10=best)
-  anxiety: number; // 0-10
-  fatigue: number; // 0-10
-  photosensitivity: number; // 0-10
-  motionSickness: number; // 0-10
-  palpitations: number; // 0-10
-  mood: number; // 0-10 (10=best)
-  notes: string;
-  medications: string | MedicationItem[]; // backward compatible: old=string, new=array
+  dizziness: number;
+  headache: number;
+  sleepQuality: number;
+  anxiety: number;
+  fatigue: number;
+  photosensitivity: number;
+  motionSickness: number;
+  palpitations: number;
+  mood: number;
+  notes: string | null;
+  medications: MedicationItem[];
   triggers: string[];
-  createdAt: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /** Normalize medications to always return MedicationItem[] */
-export function normalizeMedications(meds: string | MedicationItem[]): MedicationItem[] {
+export function normalizeMedications(
+  meds: string | MedicationItem[] | null | undefined
+): MedicationItem[] {
+  if (!meds) return [];
   if (Array.isArray(meds)) return meds;
-  if (!meds || !meds.trim()) return [];
-  // Legacy string: try to parse each line as "name dosage"
-  return meds.split(/[,，\n]/).filter(Boolean).map((s) => {
-    const trimmed = s.trim();
-    return { name: trimmed, dosage: "" };
-  });
+  if (typeof meds === "string") {
+    if (!meds.trim()) return [];
+    return meds
+      .split(/[,，\n]/)
+      .filter(Boolean)
+      .map((s) => ({ name: s.trim(), dosage: "" }));
+  }
+  return [];
 }
 
 /** Format medications for display */
-export function formatMedications(meds: string | MedicationItem[]): string {
+export function formatMedications(
+  meds: string | MedicationItem[] | null | undefined
+): string {
   const items = normalizeMedications(meds);
   if (items.length === 0) return "";
   return items
@@ -43,61 +53,64 @@ export function formatMedications(meds: string | MedicationItem[]): string {
     .join("、");
 }
 
-const STORAGE_KEY = "symptom-tracker-data";
-
-function loadEntries(): SymptomEntry[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-function saveEntries(entries: SymptomEntry[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-}
-
 export function useSymptomData() {
-  const [entries, setEntries] = useState<SymptomEntry[]>(() => loadEntries());
+  const utils = trpc.useUtils();
 
-  useEffect(() => {
-    saveEntries(entries);
-  }, [entries]);
+  const entriesQuery = trpc.entries.list.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
 
-  const addEntry = useCallback((entry: Omit<SymptomEntry, "id" | "createdAt">) => {
-    const newEntry: SymptomEntry = {
-      ...entry,
-      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-      createdAt: new Date().toISOString(),
-    };
-    setEntries((prev) => {
-      // Replace if same date exists
-      const filtered = prev.filter((e) => e.date !== entry.date);
-      return [...filtered, newEntry].sort((a, b) => a.date.localeCompare(b.date));
-    });
-    return newEntry;
-  }, []);
+  const upsertMutation = trpc.entries.upsert.useMutation({
+    onSuccess: () => {
+      utils.entries.list.invalidate();
+    },
+  });
 
-  const updateEntry = useCallback((id: string, updates: Partial<SymptomEntry>) => {
-    setEntries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, ...updates } : e))
-    );
-  }, []);
+  const deleteMutation = trpc.entries.delete.useMutation({
+    onSuccess: () => {
+      utils.entries.list.invalidate();
+    },
+  });
 
-  const deleteEntry = useCallback((id: string) => {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
-  }, []);
+  const entries: SymptomEntry[] = useMemo(() => {
+    if (!entriesQuery.data) return [];
+    return [...entriesQuery.data].sort((a, b) =>
+      a.date.localeCompare(b.date)
+    ) as SymptomEntry[];
+  }, [entriesQuery.data]);
+
+  const addEntry = useCallback(
+    async (
+      entry: Omit<SymptomEntry, "id" | "userId" | "createdAt" | "updatedAt">
+    ) => {
+      await upsertMutation.mutateAsync({
+        date: entry.date,
+        dizziness: entry.dizziness,
+        headache: entry.headache,
+        sleepQuality: entry.sleepQuality,
+        anxiety: entry.anxiety,
+        fatigue: entry.fatigue,
+        photosensitivity: entry.photosensitivity,
+        motionSickness: entry.motionSickness,
+        palpitations: entry.palpitations,
+        mood: entry.mood,
+        medications: normalizeMedications(entry.medications),
+        triggers: entry.triggers,
+        notes: entry.notes ?? undefined,
+      });
+    },
+    [upsertMutation]
+  );
+
+  const deleteEntry = useCallback(
+    async (id: number) => {
+      await deleteMutation.mutateAsync({ id });
+    },
+    [deleteMutation]
+  );
 
   const getEntryByDate = useCallback(
     (date: string) => entries.find((e) => e.date === date),
-    [entries]
-  );
-
-  const getEntriesInRange = useCallback(
-    (startDate: string, endDate: string) =>
-      entries.filter((e) => e.date >= startDate && e.date <= endDate),
     [entries]
   );
 
@@ -112,27 +125,46 @@ export function useSymptomData() {
     URL.revokeObjectURL(url);
   }, [entries]);
 
-  const importData = useCallback((jsonStr: string) => {
-    try {
-      const imported = JSON.parse(jsonStr) as SymptomEntry[];
-      if (Array.isArray(imported)) {
-        setEntries(imported.sort((a, b) => a.date.localeCompare(b.date)));
+  const importData = useCallback(
+    async (jsonStr: string) => {
+      try {
+        const imported = JSON.parse(jsonStr);
+        if (!Array.isArray(imported)) return false;
+        // Import each entry via API
+        for (const entry of imported) {
+          await upsertMutation.mutateAsync({
+            date: entry.date,
+            dizziness: entry.dizziness ?? 0,
+            headache: entry.headache ?? 0,
+            sleepQuality: entry.sleepQuality ?? 5,
+            anxiety: entry.anxiety ?? 0,
+            fatigue: entry.fatigue ?? 0,
+            photosensitivity: entry.photosensitivity ?? 0,
+            motionSickness: entry.motionSickness ?? 0,
+            palpitations: entry.palpitations ?? 0,
+            mood: entry.mood ?? 5,
+            medications: normalizeMedications(entry.medications),
+            triggers: entry.triggers ?? [],
+            notes: entry.notes ?? undefined,
+          });
+        }
+        await utils.entries.list.invalidate();
         return true;
+      } catch {
+        return false;
       }
-      return false;
-    } catch {
-      return false;
-    }
-  }, []);
+    },
+    [upsertMutation, utils]
+  );
 
   return {
     entries,
     addEntry,
-    updateEntry,
     deleteEntry,
     getEntryByDate,
-    getEntriesInRange,
     exportData,
     importData,
+    isLoading: entriesQuery.isLoading,
+    isSaving: upsertMutation.isPending,
   };
 }
