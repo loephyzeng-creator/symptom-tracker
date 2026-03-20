@@ -47,7 +47,7 @@ const SYMPTOM_FIELDS = [
 const TRIGGER_OPTIONS = [
   "睡眠不足", "压力大", "天气变化", "饮食不当", "运动过量",
   "久坐", "强光刺激", "噪音", "情绪波动", "月经期",
-  "未戴眼镜", "坐车", "熬夜", "中午未午睡",
+  "未戴眼镜", "坐车", "熬夜", "中午未午睡", "临时工作汇报",
 ];
 
 function getScoreLabel(value: number, invert: boolean): string {
