@@ -1,6 +1,6 @@
 /*
  * Design: Warm Healing Journal — Scandinavian + Wabi-sabi
- * Main page with tab navigation: Record / Stats / History
+ * Main page with tab navigation: Record / Stats / History / Report
  * Colors: warm cream bg, terracotta accents, sage green, dusty blue
  * Typography: Noto Serif SC (headings), Noto Sans SC (body)
  */
@@ -12,16 +12,18 @@ import { useCustomTriggers } from "@/hooks/useCustomTriggers";
 import SymptomForm from "@/components/SymptomForm";
 import StatsView from "@/components/StatsView";
 import HistoryView from "@/components/HistoryView";
+import ReportView from "@/components/ReportView";
 import { motion, AnimatePresence } from "framer-motion";
-import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2 } from "lucide-react";
+import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-type TabKey = "record" | "stats" | "history";
+type TabKey = "record" | "stats" | "history" | "report";
 
 const TABS: { key: TabKey; label: string; icon: typeof PenLine }[] = [
   { key: "record", label: "记录", icon: PenLine },
   { key: "stats", label: "统计", icon: BarChart3 },
   { key: "history", label: "历史", icon: Clock },
+  { key: "report", label: "报告", icon: FileText },
 ];
 
 export default function Home() {
@@ -174,6 +176,7 @@ export default function Home() {
                   onSelectDate={handleSelectDateFromHistory}
                 />
               )}
+              {activeTab === "report" && <ReportView />}
             </motion.div>
           </AnimatePresence>
         )}
@@ -190,7 +193,7 @@ export default function Home() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex flex-col items-center gap-1 py-1 px-4 rounded-xl transition-all ${
+                  className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
                     isActive
                       ? "text-terracotta"
                       : "text-muted-foreground hover:text-foreground"

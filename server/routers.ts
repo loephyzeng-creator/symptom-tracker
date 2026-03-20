@@ -5,12 +5,14 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
   getEntriesByUserId,
+  getEntriesByDateRange,
   upsertEntry,
   deleteEntryById,
   getTriggersByUserId,
   addCustomTrigger,
   deleteCustomTrigger,
 } from "./db";
+import { generateReportHTML } from "./report";
 
 const medicationSchema = z.object({
   name: z.string(),
@@ -99,6 +101,31 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await deleteCustomTrigger(ctx.user.id, input.id);
         return { success: true };
+      }),
+  }),
+
+  report: router({
+    /** Generate HTML report for a date range */
+    generate: protectedProcedure
+      .input(
+        z.object({
+          startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const entries = await getEntriesByDateRange(
+          ctx.user.id,
+          input.startDate,
+          input.endDate
+        );
+        const html = generateReportHTML(
+          entries,
+          input.startDate,
+          input.endDate,
+          ctx.user.name ?? "用户"
+        );
+        return { html, entryCount: entries.length };
       }),
   }),
 });

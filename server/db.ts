@@ -1,4 +1,4 @@
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -112,6 +112,23 @@ export async function getEntriesByUserId(userId: number) {
     .from(symptomEntries)
     .where(eq(symptomEntries.userId, userId))
     .orderBy(desc(symptomEntries.date));
+}
+
+export async function getEntriesByDateRange(userId: number, startDate: string, endDate: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(symptomEntries)
+    .where(
+      and(
+        eq(symptomEntries.userId, userId),
+        gte(symptomEntries.date, startDate),
+        lte(symptomEntries.date, endDate)
+      )
+    )
+    .orderBy(symptomEntries.date);
 }
 
 export async function getEntryByUserAndDate(userId: number, date: string) {
