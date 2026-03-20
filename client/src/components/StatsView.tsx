@@ -13,14 +13,15 @@ import TriggerAnalysis from "@/components/TriggerAnalysis";
 import SymptomSummary from "@/components/SymptomSummary";
 import MedicationChart from "@/components/MedicationChart";
 import TriggerBubbleChart from "@/components/TriggerBubbleChart";
+import AIAnalysis from "@/components/AIAnalysis";
 import { motion } from "framer-motion";
-import { Calendar, TrendingDown, TrendingUp, Minus, BarChart3, Flame } from "lucide-react";
+import { Calendar, TrendingDown, TrendingUp, Minus, BarChart3, Flame, Sparkles } from "lucide-react";
 
 interface StatsViewProps {
   entries: SymptomEntry[];
 }
 
-type StatsTab = "trends" | "triggers";
+type StatsTab = "trends" | "triggers" | "ai";
 
 const RANGES = [
   { key: "7d", label: "7天", days: 7 },
@@ -145,7 +146,7 @@ export default function StatsView({ entries }: StatsViewProps) {
 
   return (
     <div className="space-y-6">
-      {/* Sub-tab: Trends vs Triggers */}
+      {/* Sub-tab: Trends vs Triggers vs AI */}
       <div className="flex items-center gap-2 bg-muted/50 rounded-xl p-1">
         <button
           onClick={() => setStatsTab("trends")}
@@ -156,7 +157,7 @@ export default function StatsView({ entries }: StatsViewProps) {
           }`}
         >
           <BarChart3 className="w-4 h-4" />
-          趋势图表
+          趋势
         </button>
         <button
           onClick={() => setStatsTab("triggers")}
@@ -167,11 +168,24 @@ export default function StatsView({ entries }: StatsViewProps) {
           }`}
         >
           <Flame className="w-4 h-4" />
-          诱因分析
+          诱因
+        </button>
+        <button
+          onClick={() => setStatsTab("ai")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
+            statsTab === "ai"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          AI 分析
         </button>
       </div>
 
-      {statsTab === "triggers" ? (
+      {statsTab === "ai" ? (
+        <AIAnalysis entryCount={entries.length} />
+      ) : statsTab === "triggers" ? (
         <>
           <TriggerBubbleChart entries={filteredEntries} />
           <TriggerAnalysis entries={filteredEntries} />

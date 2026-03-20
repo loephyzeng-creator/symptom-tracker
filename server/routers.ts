@@ -27,6 +27,7 @@ import {
   saveCustomMetricValues,
 } from "./db";
 import { generateReportHTML } from "./report";
+import { analyzeSymptoms } from "./aiAnalysis";
 
 const medicationSchema = z.object({
   name: z.string(),
@@ -303,6 +304,18 @@ export const appRouter = router({
         const result = await restoreUserData(ctx.user.id, input);
         return result;
       }),
+  }),
+
+  ai: router({
+    /** Run AI-powered deep analysis on symptom data */
+    analyze: protectedProcedure.mutation(async ({ ctx }) => {
+      const entries = await getEntriesByUserId(ctx.user.id);
+      if (!entries || entries.length === 0) {
+        return { analysis: "暂无足够的数据进行分析。请至少记录几天的症状数据后再尝试 AI 分析。" };
+      }
+      const analysis = await analyzeSymptoms(entries as any);
+      return { analysis };
+    }),
   }),
 
   report: router({
