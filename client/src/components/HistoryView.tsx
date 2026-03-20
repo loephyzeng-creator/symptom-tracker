@@ -9,7 +9,7 @@ import type { SymptomEntry } from "@/hooks/useSymptomData";
 import { formatMedications } from "@/hooks/useSymptomData";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Trash2, Download, Upload, ChevronDown, ChevronUp, FileText,
+  Trash2, Download, Upload, ChevronDown, ChevronUp, FileText, FileSpreadsheet,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,6 +17,7 @@ interface HistoryViewProps {
   entries: SymptomEntry[];
   onDelete: (id: number) => void;
   onExport: () => void;
+  onExportCSV?: () => void;
   onImport: (json: string) => Promise<boolean> | boolean;
   onSelectDate: (date: string) => void;
 }
@@ -39,7 +40,7 @@ function getOverallScore(entry: SymptomEntry): { score: number; label: string; c
   return { score, label: "状态很差", color: "text-destructive" };
 }
 
-export default function HistoryView({ entries, onDelete, onExport, onImport, onSelectDate }: HistoryViewProps) {
+export default function HistoryView({ entries, onDelete, onExport, onExportCSV, onImport, onSelectDate }: HistoryViewProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -95,8 +96,13 @@ export default function HistoryView({ entries, onDelete, onExport, onImport, onS
             <Upload className="w-3 h-3 mr-1" /> 导入
           </Button>
           <Button variant="outline" size="sm" onClick={onExport} className="rounded-full text-xs">
-            <Download className="w-3 h-3 mr-1" /> 导出
+            <Download className="w-3 h-3 mr-1" /> JSON
           </Button>
+          {onExportCSV && (
+            <Button variant="outline" size="sm" onClick={onExportCSV} className="rounded-full text-xs">
+              <FileSpreadsheet className="w-3 h-3 mr-1" /> CSV
+            </Button>
+          )}
           <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleFileChange} />
         </div>
       </div>

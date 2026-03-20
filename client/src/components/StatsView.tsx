@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import type { SymptomEntry } from "@/hooks/useSymptomData";
 import TriggerAnalysis from "@/components/TriggerAnalysis";
+import SymptomSummary from "@/components/SymptomSummary";
 import { motion } from "framer-motion";
 import { Calendar, TrendingDown, TrendingUp, Minus, BarChart3, Flame } from "lucide-react";
 
@@ -327,6 +328,9 @@ export default function StatsView({ entries }: StatsViewProps) {
               </div>
             </motion.div>
           )}
+
+          {/* Symptom Summary */}
+          <SymptomSummary entries={entries} />
 
           {/* Record count */}
           <div className="text-center text-xs text-muted-foreground py-2">

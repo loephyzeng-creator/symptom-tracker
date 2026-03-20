@@ -43,6 +43,7 @@ export default function Home() {
     deleteEntry,
     getEntryByDate,
     exportData,
+    exportCSV,
     importData,
     isLoading: dataLoading,
   } = useSymptomData();
@@ -230,6 +231,7 @@ export default function Home() {
                   entries={entries}
                   onDelete={deleteEntry}
                   onExport={exportData}
+                  onExportCSV={exportCSV}
                   onImport={importData}
                   onSelectDate={handleSelectDateFromHistory}
                 />

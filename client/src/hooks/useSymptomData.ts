@@ -127,6 +127,46 @@ export function useSymptomData() {
     URL.revokeObjectURL(url);
   }, [entries]);
 
+  const exportCSV = useCallback(() => {
+    if (entries.length === 0) return;
+    const headers = [
+      "日期", "头晕", "头痛", "睡眠质量", "焦虑", "疲劳", "畏光",
+      "运动敏感", "心慌", "心情", "剧烈头痛", "用药", "诱因", "备注",
+    ];
+    const escapeCSV = (val: string) => {
+      if (val.includes(",") || val.includes('"') || val.includes("\n")) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    };
+    const rows = entries.map((e) => [
+      e.date,
+      String(e.dizziness),
+      String(e.headache),
+      String(e.sleepQuality),
+      String(e.anxiety),
+      String(e.fatigue),
+      String(e.photosensitivity),
+      String(e.motionSickness),
+      String(e.palpitations),
+      String(e.mood),
+      e.severeHeadache === 1 ? "是" : "否",
+      escapeCSV(formatMedications(e.medications)),
+      escapeCSV(Array.isArray(e.triggers) ? e.triggers.join("、") : ""),
+      escapeCSV(e.notes ?? ""),
+    ]);
+    // BOM for Excel UTF-8 compatibility
+    const bom = "\uFEFF";
+    const csvContent = bom + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `症状日记_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [entries]);
+
   const importData = useCallback(
     async (jsonStr: string) => {
       try {
@@ -166,6 +206,7 @@ export function useSymptomData() {
     deleteEntry,
     getEntryByDate,
     exportData,
+    exportCSV,
     importData,
     isLoading: entriesQuery.isLoading,
     isSaving: upsertMutation.isPending,

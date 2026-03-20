@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import type { SymptomEntry, MedicationItem } from "@/hooks/useSymptomData";
 import { normalizeMedications } from "@/hooks/useSymptomData";
 import MedicationAutocomplete from "@/components/MedicationAutocomplete";
+import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
 import { zhCN } from "date-fns/locale";
 import {
@@ -33,6 +34,7 @@ import {
   Pill,
   Loader2,
   AlertTriangle,
+  Zap,
 } from "lucide-react";
 
 interface SymptomFormProps {
@@ -213,6 +215,35 @@ export default function SymptomForm({
 
   const removeMedication = (index: number) => {
     setMedications((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // ─── Quick-fill frequent prescription ──────────────────────────────
+  const { data: medHistory } = trpc.medications.history.useQuery(undefined as any, {
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+  });
+
+  /** Build the "frequent prescription" — top N medications that appear in >50% of entries */
+  const frequentPrescription = useMemo(() => {
+    if (!medHistory || medHistory.length === 0) return [];
+    // Group by name, pick the most-used dosage per name
+    const nameMap = new Map<string, { name: string; dosage: string; count: number }>();
+    for (const item of medHistory) {
+      const existing = nameMap.get(item.name);
+      if (!existing || item.count > existing.count) {
+        nameMap.set(item.name, item);
+      }
+    }
+    // Sort by count descending, take top items (those used at least twice)
+    return Array.from(nameMap.values())
+      .filter((m) => m.count >= 2)
+      .sort((a, b) => b.count - a.count)
+      .map((m) => ({ name: m.name, dosage: m.dosage }));
+  }, [medHistory]);
+
+  const handleQuickFillPrescription = () => {
+    if (frequentPrescription.length === 0) return;
+    setMedications(frequentPrescription.map((m) => ({ name: m.name, dosage: m.dosage })));
   };
 
   const handleCalendarSelect = (day: Date | undefined) => {
@@ -453,23 +484,45 @@ export default function SymptomForm({
             </div>
             <h3 className="font-serif font-semibold text-sm">今日用药</h3>
           </div>
-          <button
-            onClick={addMedicationRow}
-            className="text-xs text-terracotta hover:text-terracotta/80 flex items-center gap-1 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            添加药品
-          </button>
+          <div className="flex items-center gap-2">
+            {frequentPrescription.length > 0 && (
+              <button
+                onClick={handleQuickFillPrescription}
+                className="text-xs text-dusty-blue hover:text-dusty-blue/80 flex items-center gap-1 transition-colors bg-dusty-blue/10 px-2.5 py-1 rounded-full"
+              >
+                <Zap className="w-3 h-3" />
+                常用药方
+              </button>
+            )}
+            <button
+              onClick={addMedicationRow}
+              className="text-xs text-terracotta hover:text-terracotta/80 flex items-center gap-1 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              添加药品
+            </button>
+          </div>
         </div>
 
         {medications.length === 0 ? (
-          <button
-            onClick={addMedicationRow}
-            className="w-full py-4 rounded-lg border-2 border-dashed border-border/60 text-muted-foreground hover:border-terracotta/40 hover:text-terracotta transition-colors flex items-center justify-center gap-2 text-sm"
-          >
-            <Plus className="w-4 h-4" />
-            点击添加今日用药
-          </button>
+          <div className="space-y-2">
+            {frequentPrescription.length > 0 && (
+              <button
+                onClick={handleQuickFillPrescription}
+                className="w-full py-3 rounded-lg border-2 border-dashed border-dusty-blue/40 text-dusty-blue hover:border-dusty-blue/60 hover:bg-dusty-blue/5 transition-colors flex items-center justify-center gap-2 text-sm"
+              >
+                <Zap className="w-4 h-4" />
+                一键填入常用药方（{frequentPrescription.length}种）
+              </button>
+            )}
+            <button
+              onClick={addMedicationRow}
+              className="w-full py-4 rounded-lg border-2 border-dashed border-border/60 text-muted-foreground hover:border-terracotta/40 hover:text-terracotta transition-colors flex items-center justify-center gap-2 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              点击添加今日用药
+            </button>
+          </div>
         ) : (
           <div className="space-y-2.5">
             <div className="grid grid-cols-[1fr_auto_auto] gap-2 text-[11px] text-muted-foreground px-1">
