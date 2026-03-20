@@ -6,6 +6,7 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { SymptomEntry } from "@/hooks/useSymptomData";
+import { formatMedications } from "@/hooks/useSymptomData";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Trash2, Download, Upload, ChevronDown, ChevronUp, FileText,
@@ -179,10 +180,10 @@ export default function HistoryView({ entries, onDelete, onExport, onImport, onS
                         )}
 
                         {/* Medications */}
-                        {entry.medications && (
+                        {formatMedications(entry.medications) && (
                           <div className="text-xs">
                             <span className="text-muted-foreground">用药：</span>
-                            <span className="ml-1">{entry.medications}</span>
+                            <span className="ml-1">{formatMedications(entry.medications)}</span>
                           </div>
                         )}
 

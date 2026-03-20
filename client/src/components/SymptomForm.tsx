@@ -3,14 +3,18 @@
  * Colors: warm cream bg, terracotta accents, sage green, dusty blue
  * Typography: Noto Serif SC (headings), Noto Sans SC (body)
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import type { SymptomEntry } from "@/hooks/useSymptomData";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { SymptomEntry, MedicationItem } from "@/hooks/useSymptomData";
+import { normalizeMedications } from "@/hooks/useSymptomData";
 import { motion } from "framer-motion";
+import { zhCN } from "date-fns/locale";
 import {
   Brain,
   Eye,
@@ -22,10 +26,10 @@ import {
   Smile,
   X,
   Save,
-  ChevronLeft,
-  ChevronRight,
   Plus,
   Trash2,
+  CalendarDays,
+  Pill,
 } from "lucide-react";
 
 interface SymptomFormProps {
@@ -85,10 +89,15 @@ function formatDateCN(dateStr: string): string {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 星期${weekdays[d.getDay()]}`;
 }
 
-function addDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+function dateStrToDate(dateStr: string): Date {
+  return new Date(dateStr + "T00:00:00");
+}
+
+function dateToDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export default function SymptomForm({
@@ -100,11 +109,18 @@ export default function SymptomForm({
     fatigue: 0, photosensitivity: 0, motionSickness: 0, palpitations: 0, mood: 5,
   });
   const [notes, setNotes] = useState("");
-  const [medications, setMedications] = useState("");
+  const [medications, setMedications] = useState<MedicationItem[]>([]);
   const [triggers, setTriggers] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [newTrigger, setNewTrigger] = useState("");
   const [showAddTrigger, setShowAddTrigger] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  const selectedDate = useMemo(() => dateStrToDate(date), [date]);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = dateToDateStr(today);
+  const isToday = date === todayStr;
 
   useEffect(() => {
     if (existingEntry) {
@@ -120,7 +136,7 @@ export default function SymptomForm({
         mood: existingEntry.mood,
       });
       setNotes(existingEntry.notes);
-      setMedications(existingEntry.medications);
+      setMedications(normalizeMedications(existingEntry.medications));
       setTriggers(existingEntry.triggers);
     } else {
       setValues({
@@ -128,13 +144,15 @@ export default function SymptomForm({
         fatigue: 0, photosensitivity: 0, motionSickness: 0, palpitations: 0, mood: 5,
       });
       setNotes("");
-      setMedications("");
+      setMedications([]);
       setTriggers([]);
     }
     setSaved(false);
   }, [existingEntry, date]);
 
   const handleSave = () => {
+    // Filter out empty medication rows
+    const cleanMeds = medications.filter((m) => m.name.trim());
     onSave({
       date,
       dizziness: values.dizziness,
@@ -147,7 +165,7 @@ export default function SymptomForm({
       palpitations: values.palpitations,
       mood: values.mood,
       notes,
-      medications,
+      medications: cleanMeds,
       triggers,
     });
     setSaved(true);
@@ -167,42 +185,74 @@ export default function SymptomForm({
     if (success) {
       setNewTrigger("");
       setShowAddTrigger(false);
-      // Auto-select the newly added trigger
       setTriggers((prev) => [...prev, trimmed]);
     }
   };
 
-  const today = new Date().toISOString().slice(0, 10);
-  const isToday = date === today;
+  // Medication helpers
+  const addMedicationRow = () => {
+    setMedications((prev) => [...prev, { name: "", dosage: "" }]);
+  };
+
+  const updateMedication = (index: number, field: keyof MedicationItem, value: string) => {
+    setMedications((prev) =>
+      prev.map((m, i) => (i === index ? { ...m, [field]: value } : m))
+    );
+  };
+
+  const removeMedication = (index: number) => {
+    setMedications((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleCalendarSelect = (day: Date | undefined) => {
+    if (day) {
+      onDateChange(dateToDateStr(day));
+      setCalendarOpen(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
-      {/* Date Navigation */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => onDateChange(addDays(date, -1))}
-          className="p-2 rounded-full hover:bg-muted transition-colors"
-        >
-          <ChevronLeft className="w-5 h-5 text-muted-foreground" />
-        </button>
-        <div className="text-center">
-          <h2 className="font-serif text-lg font-semibold text-foreground">
-            {formatDateCN(date)}
-          </h2>
-          {isToday && (
-            <span className="text-xs text-sage font-medium">今天</span>
-          )}
-          {existingEntry && (
-            <span className="text-xs text-terracotta font-medium ml-2">已记录</span>
-          )}
-        </div>
-        <button
-          onClick={() => onDateChange(addDays(date, 1))}
-          className="p-2 rounded-full hover:bg-muted transition-colors"
-          disabled={date >= today}
-        >
-          <ChevronRight className={`w-5 h-5 ${date >= today ? "text-border" : "text-muted-foreground"}`} />
-        </button>
+      {/* Date Calendar Picker */}
+      <div className="flex items-center justify-center">
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          <PopoverTrigger asChild>
+            <button className="group flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-card border border-border/50 shadow-sm hover:shadow-md transition-all">
+              <CalendarDays className="w-5 h-5 text-terracotta" />
+              <div className="text-center">
+                <h2 className="font-serif text-lg font-semibold text-foreground leading-tight">
+                  {formatDateCN(date)}
+                </h2>
+                <div className="flex items-center justify-center gap-2">
+                  {isToday && (
+                    <span className="text-xs text-sage font-medium">今天</span>
+                  )}
+                  {existingEntry && (
+                    <span className="text-xs text-terracotta font-medium">已记录</span>
+                  )}
+                  {!isToday && !existingEntry && (
+                    <span className="text-xs text-muted-foreground">点击选择日期</span>
+                  )}
+                </div>
+              </div>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="center" sideOffset={8}>
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={handleCalendarSelect}
+              locale={zhCN}
+              disabled={{ after: today }}
+              defaultMonth={selectedDate}
+              className="rounded-xl"
+              classNames={{
+                today: "bg-terracotta/15 text-terracotta font-bold rounded-md",
+                month_caption: "flex items-center justify-center h-10 w-full px-8 font-serif font-semibold",
+              }}
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Symptom Sliders */}
@@ -336,20 +386,84 @@ export default function SymptomForm({
         </div>
       </motion.div>
 
-      {/* Medications */}
+      {/* Medications — Structured Input */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.45 }}
         className="bg-card rounded-xl p-4 shadow-sm border border-border/50"
       >
-        <h3 className="font-serif font-semibold text-sm mb-3">今日用药</h3>
-        <Textarea
-          value={medications}
-          onChange={(e) => setMedications(e.target.value)}
-          placeholder="记录今天服用的药物和剂量..."
-          className="bg-muted/50 border-0 resize-none text-sm min-h-[60px]"
-        />
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-dusty-blue/10 flex items-center justify-center">
+              <Pill className="w-4 h-4 text-dusty-blue" />
+            </div>
+            <h3 className="font-serif font-semibold text-sm">今日用药</h3>
+          </div>
+          <button
+            onClick={addMedicationRow}
+            className="text-xs text-terracotta hover:text-terracotta/80 flex items-center gap-1 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            添加药品
+          </button>
+        </div>
+
+        {medications.length === 0 ? (
+          <button
+            onClick={addMedicationRow}
+            className="w-full py-4 rounded-lg border-2 border-dashed border-border/60 text-muted-foreground hover:border-terracotta/40 hover:text-terracotta transition-colors flex items-center justify-center gap-2 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            点击添加今日用药
+          </button>
+        ) : (
+          <div className="space-y-2.5">
+            {/* Header */}
+            <div className="grid grid-cols-[1fr_auto_auto] gap-2 text-[11px] text-muted-foreground px-1">
+              <span>药品名称</span>
+              <span className="w-24 text-center">用量</span>
+              <span className="w-8" />
+            </div>
+
+            {medications.map((med, idx) => (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="grid grid-cols-[1fr_auto_auto] gap-2 items-center"
+              >
+                <Input
+                  value={med.name}
+                  onChange={(e) => updateMedication(idx, "name", e.target.value)}
+                  placeholder="如：布洛芬"
+                  className="text-sm bg-muted/50 border-0 h-9"
+                />
+                <Input
+                  value={med.dosage}
+                  onChange={(e) => updateMedication(idx, "dosage", e.target.value)}
+                  placeholder="如：200mg"
+                  className="text-sm bg-muted/50 border-0 h-9 w-24"
+                />
+                <button
+                  onClick={() => removeMedication(idx)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </motion.div>
+            ))}
+
+            {/* Add more button */}
+            <button
+              onClick={addMedicationRow}
+              className="w-full py-2 rounded-lg border border-dashed border-border/60 text-muted-foreground hover:border-terracotta/40 hover:text-terracotta transition-colors flex items-center justify-center gap-1.5 text-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              继续添加
+            </button>
+          </div>
+        )}
       </motion.div>
 
       {/* Notes */}

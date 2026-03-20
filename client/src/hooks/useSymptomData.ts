@@ -1,5 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
 
+export interface MedicationItem {
+  name: string;
+  dosage: string;
+}
+
 export interface SymptomEntry {
   id: string;
   date: string; // YYYY-MM-DD
@@ -13,9 +18,29 @@ export interface SymptomEntry {
   palpitations: number; // 0-10
   mood: number; // 0-10 (10=best)
   notes: string;
-  medications: string;
+  medications: string | MedicationItem[]; // backward compatible: old=string, new=array
   triggers: string[];
   createdAt: string;
+}
+
+/** Normalize medications to always return MedicationItem[] */
+export function normalizeMedications(meds: string | MedicationItem[]): MedicationItem[] {
+  if (Array.isArray(meds)) return meds;
+  if (!meds || !meds.trim()) return [];
+  // Legacy string: try to parse each line as "name dosage"
+  return meds.split(/[,，\n]/).filter(Boolean).map((s) => {
+    const trimmed = s.trim();
+    return { name: trimmed, dosage: "" };
+  });
+}
+
+/** Format medications for display */
+export function formatMedications(meds: string | MedicationItem[]): string {
+  const items = normalizeMedications(meds);
+  if (items.length === 0) return "";
+  return items
+    .map((m) => (m.dosage ? `${m.name} ${m.dosage}` : m.name))
+    .join("、");
 }
 
 const STORAGE_KEY = "symptom-tracker-data";
