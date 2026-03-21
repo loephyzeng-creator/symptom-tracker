@@ -189,6 +189,7 @@ async function checkAndSendMedicationReminders() {
     const nowStr = getChinaTimeStr();
 
     const reminders = await getMedicationRemindersToSend(todayStr);
+    console.log(`[MedReminder] Found ${reminders.length} pending medication reminder(s) for ${todayStr}`);
 
     for (const reminder of reminders) {
       // --- Snooze check: if snoozed, check if snooze time has arrived ---
@@ -221,6 +222,7 @@ async function checkAndSendMedicationReminders() {
 
       // --- Day of week check ---
       if (!isDayActive(reminder.repeatDays, dayOfWeek)) {
+        console.log(`[MedReminder] Skipping ${reminder.medicationName}: not active on day ${dayOfWeek}`);
         continue;
       }
 
@@ -232,6 +234,7 @@ async function checkAndSendMedicationReminders() {
       );
 
       if (!isReminderTime(effective.hour, effective.minute, hour, minute)) {
+        console.log(`[MedReminder] Skipping ${reminder.medicationName}: not in time window (effective ${effective.hour}:${String(effective.minute).padStart(2, "0")}, current ${hour}:${String(minute).padStart(2, "0")})`);
         continue;
       }
 
@@ -269,31 +272,25 @@ async function checkAndSendMedicationReminders() {
  * Also checks medication-specific reminders.
  */
 async function checkAndSendReminders() {
+  const todayStr = getTodayStr();
+  const { hour, minute } = getChinaTime();
+
+  console.log(
+    `[Reminder] Checking reminders at ${hour}:${String(minute).padStart(2, "0")} (UTC+8), date: ${todayStr}`
+  );
+
+  // 1. Daily symptom recording reminders (isolated try-catch)
   try {
-    const todayStr = getTodayStr();
-    const { hour, minute } = getChinaTime();
-
-    console.log(
-      `[Reminder] Checking reminders at ${hour}:${String(minute).padStart(2, "0")} (UTC+8), date: ${todayStr}`
-    );
-
-    // 1. Daily symptom recording reminders
     const usersNeedingReminder = await getUsersNeedingReminder(todayStr);
 
     for (const user of usersNeedingReminder) {
-      // Skip if user already recorded today
       if (user.hasEntryToday) continue;
-
-      // Check if it's the right time for this user
       if (!isReminderTime(user.reminderHour, user.reminderMinute, hour, minute)) {
         continue;
       }
 
       const userName = user.userName || "用户";
-
-      console.log(
-        `[Reminder] Sending reminder to user ${user.userId} (${userName})`
-      );
+      console.log(`[Reminder] Sending reminder to user ${user.userId} (${userName})`);
 
       try {
         const sent = await sendWebPush(
@@ -301,37 +298,43 @@ async function checkAndSendReminders() {
           "📝 症状日记提醒",
           `${userName}，今天还没有记录症状哦！花几分钟记录一下今天的身体状况吧。`
         );
-
         if (sent) {
           await markUserNotified(user.userId, todayStr);
           console.log(`[Reminder] Successfully notified user ${user.userId} via Web Push`);
         } else {
-          console.warn(
-            `[Reminder] No active push subscriptions for user ${user.userId}`
-          );
+          console.warn(`[Reminder] No active push subscriptions for user ${user.userId}`);
         }
       } catch (error) {
-        console.error(
-          `[Reminder] Error notifying user ${user.userId}:`,
-          error
-        );
+        console.error(`[Reminder] Error notifying user ${user.userId}:`, error);
       }
     }
+  } catch (error) {
+    console.error("[Reminder] Error in daily symptom reminders (non-fatal):", error);
+  }
 
-    // 2. Medication-specific reminders
+  // 2. Medication-specific reminders (isolated try-catch)
+  try {
     await checkAndSendMedicationReminders();
+  } catch (error) {
+    console.error("[Reminder] Error in medication reminders (non-fatal):", error);
+  }
 
-    // 3. Missed medication alerts (check once daily at 10:00 AM)
+  // 3. Missed medication alerts (check once daily at 10:00 AM)
+  try {
     if (hour === 10 && minute < 15) {
       await checkAndSendMissedMedicationAlerts();
     }
+  } catch (error) {
+    console.error("[Reminder] Error in missed medication alerts (non-fatal):", error);
+  }
 
-    // 4. Low stock alerts (check once daily at 9:00 AM)
+  // 4. Low stock alerts (check once daily at 9:00 AM)
+  try {
     if (hour === 9 && minute < 15) {
       await checkAndSendLowStockAlerts();
     }
   } catch (error) {
-    console.error("[Reminder] Error in checkAndSendReminders:", error);
+    console.error("[Reminder] Error in low stock alerts (non-fatal):", error);
   }
 }
 

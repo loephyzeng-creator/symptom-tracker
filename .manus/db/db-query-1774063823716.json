@@ -1,0 +1,23 @@
+{
+  "query": "SELECT id, userId, medicationName, dosage, reminderHour, reminderMinute, enabled, lastNotifiedDate, repeatDays, offsetMinutes, snoozedUntil FROM medication_reminders WHERE userId = 4;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT id, userId, medicationName, dosage, reminderHour, reminderMinute, enabled, lastNotifiedDate, repeatDays, offsetMinutes, snoozedUntil FROM medication_reminders WHERE userId = 4;",
+  "rows": [
+    {
+      "id": "1",
+      "userId": "4",
+      "medicationName": "草酸艾司西酞普兰片",
+      "dosage": "f f",
+      "reminderHour": "23",
+      "reminderMinute": "13",
+      "enabled": "1",
+      "lastNotifiedDate": "NULL",
+      "repeatDays": "NULL",
+      "offsetMinutes": "0",
+      "snoozedUntil": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tmedicationName\tdosage\treminderHour\treminderMinute\tenabled\tlastNotifiedDate\trepeatDays\toffsetMinutes\tsnoozedUntil\n1\t4\t草酸艾司西酞普兰片\tf f\t23\t13\t1\tNULL\tNULL\t0\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}
