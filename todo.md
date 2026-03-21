@@ -301,3 +301,20 @@
 - [x] 前端：用药提醒列表添加批量编辑模式（多选复选框+全选+批量操作栏）
 - [x] 前端：支持批量调整提醒时间（TimePicker+应用按钮）、批量启用/禁用
 - [x] 测试验证（343个测试全部通过）
+
+## Bug: 提醒用药与今日用药数据库未打通
+- [x] 排查提醒药品(medication_reminders)与今日用药(symptom_entries.medications)的数据关系
+- [x] 修复数据打通问题：在medications JSON中增加reminderId字段建立结构化关联
+- [x] 统一药品匹配逻辑（medMatchHelper：buildEntryMedMap + wasMedTaken，优先reminderId匹配，回退名称匹配）
+- [x] 更新打卡日历/依从性统计/时间线/日详情等所有匹配逻辑
+- [x] 测试验证（371个测试全部通过）
+
+## 药品分组管理
+- [x] 数据库：新增medication_groups表（分组名、图标、颜色、用户ID、排序）
+- [x] 数据库：medication_reminders表添加groupId外键关联
+- [x] 后端：分组CRUD API（medGroups.list/create/update/delete/assign/grouped/confirmAll）
+- [x] 后端：add/update提醒接口支持groupId参数
+- [x] 前端：MedicationGroupManager组件（创建/编辑/删除分组+拖拽分配药品+一键确认）
+- [x] 前端：提醒表单添加分组选择器（GroupSelector组件）
+- [x] 前端：集成到设置页面（用药提醒和药品库存之间）
+- [x] 测试验证（371个测试全部通过）

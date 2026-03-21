@@ -216,14 +216,20 @@ export default function SymptomForm({
       }
       // Auto-deduct stock for medications that have reminders with stock tracking
       if (!existingEntry && cleanMeds.length > 0 && todayMeds && todayMeds.length > 0) {
+        const reminderMap = new Map(todayMeds.map((m) => [m.reminderId, m]));
         const reminderNames = new Set(todayMeds.map((m) => m.name.toLowerCase().trim()));
+        const deducted = new Set<number>();
         for (const med of cleanMeds) {
-          if (reminderNames.has(med.name.toLowerCase().trim())) {
+          // Prefer reminderId match, fallback to name match
+          if (med.reminderId && reminderMap.has(med.reminderId) && !deducted.has(med.reminderId)) {
+            deducted.add(med.reminderId);
+            try {
+              await deductStockMutation.mutateAsync({ medicationName: reminderMap.get(med.reminderId)!.name });
+            } catch { /* ignore */ }
+          } else if (!med.reminderId && reminderNames.has(med.name.toLowerCase().trim())) {
             try {
               await deductStockMutation.mutateAsync({ medicationName: med.name });
-            } catch {
-              // Silently ignore stock deduction errors
-            }
+            } catch { /* ignore */ }
           }
         }
       }
@@ -276,10 +282,12 @@ export default function SymptomForm({
   const handleFillFromReminders = () => {
     if (!todayMeds || todayMeds.length === 0) return;
     // Merge with existing: don't duplicate medications already in the list
+    // Use both reminderId and name for dedup
+    const existingReminderIds = new Set(medications.filter(m => m.reminderId).map(m => m.reminderId));
     const existingNames = new Set(medications.map((m) => m.name.toLowerCase().trim()));
     const newMeds = todayMeds
-      .filter((m) => !existingNames.has(m.name.toLowerCase().trim()))
-      .map((m) => ({ name: m.name, dosage: m.dosage }));
+      .filter((m) => !existingReminderIds.has(m.reminderId) && !existingNames.has(m.name.toLowerCase().trim()))
+      .map((m) => ({ name: m.name, dosage: m.dosage, reminderId: m.reminderId }));
     if (newMeds.length === 0) {
       toast.info("今日应服药品已全部在列表中");
       return;

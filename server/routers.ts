@@ -51,6 +51,14 @@ import {
   getExpiringMedications,
   getMedicationCheckInDayDetail,
   batchUpdateMedicationReminders,
+  getMedicationGroups,
+  createMedicationGroup,
+  updateMedicationGroup,
+  deleteMedicationGroup,
+  assignMedicationToGroup,
+  batchAssignMedicationsToGroup,
+  getMedicationRemindersGrouped,
+  confirmGroupMedicationsTaken,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -58,6 +66,7 @@ import { analyzeSymptoms } from "./aiAnalysis";
 const medicationSchema = z.object({
   name: z.string(),
   dosage: z.string(),
+  reminderId: z.number().optional(), // Links to medication_reminders.id
 });
 
 const entryInputSchema = z.object({
@@ -463,6 +472,7 @@ export const appRouter = router({
           instructionUrl: z.string().url().max(2000).nullable().optional(),
           expirationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
           expirationAlertDays: z.number().min(1).max(365).optional(),
+          groupId: z.number().nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -487,6 +497,7 @@ export const appRouter = router({
           instructionUrl: z.string().url().max(2000).nullable().optional(),
           expirationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
           expirationAlertDays: z.number().min(1).max(365).optional(),
+          groupId: z.number().nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -622,6 +633,89 @@ export const appRouter = router({
         const { ids, ...data } = input;
         await batchUpdateMedicationReminders(ctx.user.id, ids, data);
         return { success: true };
+      }),
+  }),
+
+  medGroups: router({
+    /** List all medication groups */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getMedicationGroups(ctx.user.id);
+    }),
+
+    /** Get reminders grouped by group */
+    grouped: protectedProcedure.query(async ({ ctx }) => {
+      return getMedicationRemindersGrouped(ctx.user.id);
+    }),
+
+    /** Create a new group */
+    create: protectedProcedure
+      .input(
+        z.object({
+          name: z.string().min(1).max(100),
+          icon: z.string().optional(),
+          color: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        return createMedicationGroup(ctx.user.id, input);
+      }),
+
+    /** Update a group */
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().min(1).max(100).optional(),
+          icon: z.string().optional(),
+          color: z.string().optional(),
+          sortOrder: z.number().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        await updateMedicationGroup(ctx.user.id, id, data);
+        return { success: true };
+      }),
+
+    /** Delete a group (medications become ungrouped) */
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteMedicationGroup(ctx.user.id, input.id);
+        return { success: true };
+      }),
+
+    /** Assign a medication to a group */
+    assign: protectedProcedure
+      .input(
+        z.object({
+          reminderId: z.number(),
+          groupId: z.number().nullable(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await assignMedicationToGroup(ctx.user.id, input.reminderId, input.groupId);
+        return { success: true };
+      }),
+
+    /** Batch assign medications to a group */
+    batchAssign: protectedProcedure
+      .input(
+        z.object({
+          reminderIds: z.array(z.number()),
+          groupId: z.number().nullable(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await batchAssignMedicationsToGroup(ctx.user.id, input.reminderIds, input.groupId);
+        return { success: true };
+      }),
+
+    /** One-tap confirm all group medications as taken */
+    confirmAll: protectedProcedure
+      .input(z.object({ groupId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return confirmGroupMedicationsTaken(ctx.user.id, input.groupId);
       }),
   }),
 

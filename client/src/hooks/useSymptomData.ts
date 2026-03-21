@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 export interface MedicationItem {
   name: string;
   dosage: string;
+  reminderId?: number; // Links to medication_reminders.id for data sync
 }
 
 export interface SymptomEntry {

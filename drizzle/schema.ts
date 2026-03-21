@@ -35,7 +35,7 @@ export const symptomEntries = mysqlTable("symptom_entries", {
   motionSickness: int("motionSickness").default(0).notNull(),
   palpitations: int("palpitations").default(0).notNull(),
   mood: int("mood").default(5).notNull(),
-  medications: json("medications").$type<{ name: string; dosage: string }[]>().default([]).notNull(),
+  medications: json("medications").$type<{ name: string; dosage: string; reminderId?: number }[]>().default([]).notNull(),
   triggers: json("triggers").$type<string[]>().default([]).notNull(),
   severeHeadache: int("severeHeadache").default(0).notNull(), // 1 = yes, 0 = no
   notes: text("notes"),
@@ -186,9 +186,28 @@ export const medicationReminders = mysqlTable("medication_reminders", {
   expirationAlertDays: int("expirationAlertDays").default(30), // alert N days before expiration
   lastExpirationAlertDate: varchar("lastExpirationAlertDate", { length: 10 }), // prevent duplicate expiration alerts
   lastNotifiedDate: varchar("lastNotifiedDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate
+  groupId: int("groupId"), // FK to medication_groups.id, null = ungrouped
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export type MedicationReminder = typeof medicationReminders.$inferSelect;
 export type InsertMedicationReminder = typeof medicationReminders.$inferInsert;
+
+/**
+ * Medication groups per user — group multiple medications together
+ * (e.g., "早晨药组", "晚间药组") for batch management and one-tap confirmation.
+ */
+export const medicationGroups = mysqlTable("medication_groups", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  icon: varchar("icon", { length: 50 }).default("Pill"), // Lucide icon name
+  color: varchar("color", { length: 20 }).default("sage"), // Theme color key
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MedicationGroup = typeof medicationGroups.$inferSelect;
+export type InsertMedicationGroup = typeof medicationGroups.$inferInsert;

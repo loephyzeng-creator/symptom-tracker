@@ -26,6 +26,7 @@ import {
   Square,
   Power,
   PowerOff,
+  Folder,
 } from "lucide-react";
 import TimePicker from "@/components/TimePicker";
 import { exportSingleReminder, exportAllReminders } from "@/lib/icsExport";
@@ -58,6 +59,7 @@ interface ReminderForm {
   instructionUrl: string;
   expirationDate: string;
   expirationAlertDays: number;
+  groupId: number | null;
 }
 
 const EMPTY_FORM: ReminderForm = {
@@ -74,6 +76,7 @@ const EMPTY_FORM: ReminderForm = {
   instructionUrl: "",
   expirationDate: "",
   expirationAlertDays: 30,
+  groupId: null,
 };
 
 function DaySelector({
@@ -169,6 +172,44 @@ function OffsetSelector({
         {OFFSET_OPTIONS.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/* ─── GroupSelector: Select a medication group for the reminder ─── */
+function GroupSelector({
+  groupId,
+  onChange,
+}: {
+  groupId: number | null;
+  onChange: (gId: number | null) => void;
+}) {
+  const { data: groups = [] } = trpc.medGroups.list.useQuery(undefined);
+
+  if (groups.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Folder className="w-4 h-4 text-muted-foreground" />
+        <span className="text-sm font-medium text-foreground">药品分组</span>
+        <span className="text-xs text-muted-foreground">(可选)</span>
+      </div>
+      <select
+        value={groupId ?? ""}
+        onChange={(e) => {
+          const val = e.target.value;
+          onChange(val ? Number(val) : null);
+        }}
+        className="bg-transparent border border-border rounded-md px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-terracotta"
+      >
+        <option value="">未分组</option>
+        {groups.map((g: any) => (
+          <option key={g.id} value={g.id}>
+            {g.name}
           </option>
         ))}
       </select>
@@ -363,6 +404,11 @@ function ReminderFormFields({
           </div>
         </div>
       </div>
+      {/* 药品分组选择 */}
+      <GroupSelector
+        groupId={formData.groupId}
+        onChange={(gId) => setFormData({ ...formData, groupId: gId })}
+      />
       <div className="flex gap-2 pt-1">
         <Button
           size="sm"
@@ -601,6 +647,7 @@ export default function MedicationReminders() {
       instructionUrl: form.instructionUrl.trim() || null,
       expirationDate: form.expirationDate || null,
       expirationAlertDays: form.expirationAlertDays,
+      groupId: form.groupId,
     });
   };
 
@@ -624,6 +671,7 @@ export default function MedicationReminders() {
       instructionUrl: editForm.instructionUrl.trim() || null,
       expirationDate: editForm.expirationDate || null,
       expirationAlertDays: editForm.expirationAlertDays,
+      groupId: editForm.groupId,
     });
   };
 
@@ -643,6 +691,7 @@ export default function MedicationReminders() {
       instructionUrl: reminder.instructionUrl ?? "",
       expirationDate: reminder.expirationDate ?? "",
       expirationAlertDays: reminder.expirationAlertDays ?? 30,
+      groupId: reminder.groupId ?? null,
     });
   };
 

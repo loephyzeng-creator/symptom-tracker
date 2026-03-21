@@ -19,6 +19,7 @@ import DailyReminder from "@/components/DailyReminder";
 import NotificationSettings from "@/components/NotificationSettings";
 import AlertSettings from "@/components/AlertSettings";
 import MedicationReminders from "@/components/MedicationReminders";
+import MedicationGroupManager from "@/components/MedicationGroupManager";
 import MissedMedicationAlert from "@/components/MissedMedicationAlert";
 import MedicationStock from "@/components/MedicationStock";
 import MedicationCheckInCalendar from "@/components/MedicationCheckInCalendar";
@@ -240,6 +241,10 @@ function SettingsView({
 
       <SettingsSection title="用药提醒" icon={Clock} defaultOpen={false}>
         <MedicationReminders />
+      </SettingsSection>
+
+      <SettingsSection title="药品分组" icon={Database} defaultOpen={false}>
+        <MedicationGroupManager />
       </SettingsSection>
 
       <SettingsSection title="药品库存" icon={Shield} defaultOpen={false}>

@@ -12,8 +12,10 @@ import {
   customMetrics,
   customMetricValues,
   medicationReminders,
+  medicationGroups,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { buildEntryMedMap, wasMedTaken } from "./medMatchHelper";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1003,6 +1005,7 @@ export async function addMedicationReminder(
     instructionUrl?: string | null;
     expirationDate?: string | null;
     expirationAlertDays?: number;
+    groupId?: number | null;
   }
 ) {
   const db = await getDb();
@@ -1021,6 +1024,7 @@ export async function addMedicationReminder(
     instructionUrl: data.instructionUrl ?? null,
     expirationDate: data.expirationDate ?? null,
     expirationAlertDays: data.expirationAlertDays ?? 30,
+    groupId: data.groupId ?? null,
     enabled: 1,
   });
   return { id: result.insertId };
@@ -1046,6 +1050,7 @@ export async function updateMedicationReminder(
     stockAlertDays: number;
     expirationDate: string | null;
     expirationAlertDays: number;
+    groupId: number | null;
   }>
 ) {
   const db = await getDb();
@@ -1270,20 +1275,8 @@ export async function getMedicationAdherence(
     )
     .orderBy(symptomEntries.date);
 
-  // Build a map of date -> recorded medication names (lowercased for matching)
-  const entryMap = new Map<string, Set<string>>();
-  for (const entry of entries) {
-    const meds = entry.medications;
-    const names = new Set<string>();
-    if (Array.isArray(meds)) {
-      for (const m of meds) {
-        if (m.name && m.name.trim()) {
-          names.add(m.name.trim().toLowerCase());
-        }
-      }
-    }
-    entryMap.set(entry.date, names);
-  }
+  // Build a map of date -> recorded medication info (names + reminderIds)
+  const entryMap = buildEntryMedMap(entries);
 
   // 3. For each day in range, check which reminders were expected and which were fulfilled
   const start = new Date(startDate + "T00:00:00Z");
@@ -1320,9 +1313,9 @@ export async function getMedicationAdherence(
 
       const medName = reminder.medicationName.trim().toLowerCase();
       const recordedMeds = entryMap.get(dateStr);
-      const wasTaken = recordedMeds ? recordedMeds.has(medName) : false;
+      const taken = wasMedTaken(recordedMeds, reminder.id, reminder.medicationName);
 
-      if (wasTaken) {
+      if (taken) {
         dayTaken++;
       }
 
@@ -1330,12 +1323,12 @@ export async function getMedicationAdherence(
       const existing = perMedMap.get(medName);
       if (existing) {
         existing.expected++;
-        if (wasTaken) existing.taken++;
+        if (taken) existing.taken++;
       } else {
         perMedMap.set(medName, {
           name: reminder.medicationName,
           expected: 1,
-          taken: wasTaken ? 1 : 0,
+          taken: taken ? 1 : 0,
         });
       }
     }
@@ -1565,15 +1558,15 @@ export async function confirmMedicationTaken(
   // Check if there's already an entry for today
   const existing = await getEntryByUserAndDate(userId, todayStr);
 
-  const newMed = { name: med.medicationName, dosage: med.dosage };
+  const newMed = { name: med.medicationName, dosage: med.dosage, reminderId: med.id };
 
   if (existing) {
     // Append medication if not already recorded
-    const currentMeds: { name: string; dosage: string }[] = Array.isArray(existing.medications)
+    const currentMeds: { name: string; dosage: string; reminderId?: number }[] = Array.isArray(existing.medications)
       ? existing.medications
       : [];
     const alreadyRecorded = currentMeds.some(
-      (m) => m.name.toLowerCase() === newMed.name.toLowerCase()
+      (m) => m.reminderId === med.id || m.name.toLowerCase() === newMed.name.toLowerCase()
     );
     if (!alreadyRecorded) {
       const updatedMeds = [...currentMeds, newMed];
@@ -1652,20 +1645,8 @@ export async function getMedicationTimeline(
     )
     .orderBy(symptomEntries.date);
 
-  // Build a map of date -> recorded medication names (lowercased)
-  const entryMap = new Map<string, Set<string>>();
-  for (const entry of entries) {
-    const meds = entry.medications;
-    const names = new Set<string>();
-    if (Array.isArray(meds)) {
-      for (const m of meds) {
-        if (m.name && m.name.trim()) {
-          names.add(m.name.trim().toLowerCase());
-        }
-      }
-    }
-    entryMap.set(entry.date, names);
-  }
+  // Build a map of date -> recorded medication info (names + reminderIds)
+  const entryMap = buildEntryMedMap(entries);
 
   // Unique medication names
   const medicationNames = reminders.map((r) => r.medicationName);
@@ -1700,12 +1681,11 @@ export async function getMedicationTimeline(
         };
       }
 
-      const medName = reminder.medicationName.trim().toLowerCase();
-      const wasTaken = recordedMeds ? recordedMeds.has(medName) : false;
+      const taken = wasMedTaken(recordedMeds, reminder.id, reminder.medicationName);
 
       return {
         name: reminder.medicationName,
-        status: wasTaken ? ("taken" as const) : ("missed" as const),
+        status: taken ? ("taken" as const) : ("missed" as const),
       };
     });
 
@@ -1763,20 +1743,8 @@ export async function getMedicationCheckInCalendar(
       )
     );
 
-  // Build a map of date -> recorded medication names (lowercased)
-  const entryMap = new Map<string, Set<string>>();
-  for (const entry of entries) {
-    const meds = entry.medications;
-    const names = new Set<string>();
-    if (Array.isArray(meds)) {
-      for (const m of meds) {
-        if (m.name && m.name.trim()) {
-          names.add(m.name.trim().toLowerCase());
-        }
-      }
-    }
-    entryMap.set(entry.date, names);
-  }
+  // Build a map of date -> recorded medication info (names + reminderIds)
+  const entryMap = buildEntryMedMap(entries);
 
   // Today's date string for limiting future dates
   const today = new Date();
@@ -1806,35 +1774,35 @@ export async function getMedicationCheckInCalendar(
     }
 
     // Count scheduled medications for this day
-    const scheduledMeds: string[] = [];
+    const scheduledReminders: { id: number; name: string }[] = [];
     for (const reminder of reminders) {
       const repeatDays: number[] | null = reminder.repeatDays as number[] | null;
       const isScheduled =
         !repeatDays || repeatDays.length === 0 || repeatDays.includes(dayOfWeek);
       if (isScheduled) {
-        scheduledMeds.push(reminder.medicationName.trim().toLowerCase());
+        scheduledReminders.push({ id: reminder.id, name: reminder.medicationName });
       }
     }
 
-    if (scheduledMeds.length === 0) {
+    if (scheduledReminders.length === 0) {
       days.push({ date: dateStr, status: "no-schedule", scheduledCount: 0, takenCount: 0 });
       continue;
     }
 
-    // Count taken medications
+    // Count taken medications using reminderId + name matching
     const recordedMeds = entryMap.get(dateStr);
     let takenCount = 0;
-    for (const medName of scheduledMeds) {
-      if (recordedMeds && recordedMeds.has(medName)) {
+    for (const med of scheduledReminders) {
+      if (wasMedTaken(recordedMeds, med.id, med.name)) {
         takenCount++;
       }
     }
 
-    totalScheduled += scheduledMeds.length;
+    totalScheduled += scheduledReminders.length;
     totalCompleted += takenCount;
 
     let status: "all-taken" | "partial" | "missed";
-    if (takenCount === scheduledMeds.length) {
+    if (takenCount === scheduledReminders.length) {
       status = "all-taken";
     } else if (takenCount > 0) {
       status = "partial";
@@ -1842,7 +1810,7 @@ export async function getMedicationCheckInCalendar(
       status = "missed";
     }
 
-    days.push({ date: dateStr, status, scheduledCount: scheduledMeds.length, takenCount });
+    days.push({ date: dateStr, status, scheduledCount: scheduledReminders.length, takenCount });
   }
 
   // Calculate streak: consecutive "all-taken" days ending at today (or yesterday if today has no data yet)
@@ -2038,20 +2006,27 @@ export async function getMedicationCheckInDayDetail(
     )
     .limit(1);
 
-  const recordedMeds = new Set<string>();
+  // Build match info from recorded medications
+  const recordedNames = new Set<string>();
+  const recordedReminderIds = new Set<number>();
   if (entries.length > 0 && Array.isArray(entries[0].medications)) {
-    for (const m of entries[0].medications as { name: string; dosage: string }[]) {
+    for (const m of entries[0].medications as { name: string; dosage: string; reminderId?: number }[]) {
       if (m.name && m.name.trim()) {
-        recordedMeds.add(m.name.trim().toLowerCase());
+        recordedNames.add(m.name.trim().toLowerCase());
+      }
+      if (m.reminderId) {
+        recordedReminderIds.add(m.reminderId);
       }
     }
   }
+
+  const matchInfo = { names: recordedNames, reminderIds: recordedReminderIds };
 
   const taken: { name: string; dosage: string; id: number }[] = [];
   const missed: { name: string; dosage: string; id: number }[] = [];
 
   for (const med of scheduled) {
-    if (recordedMeds.has(med.name.trim().toLowerCase())) {
+    if (wasMedTaken(matchInfo, med.id, med.name)) {
       taken.push(med);
     } else {
       missed.push(med);
@@ -2087,4 +2062,277 @@ export async function batchUpdateMedicationReminders(
         inArray(medicationReminders.id, ids)
       )
     );
+}
+
+// ─── Medication Groups ──────────────────────────────────────────────────
+
+/**
+ * Get all medication groups for a user, ordered by sortOrder.
+ */
+export async function getMedicationGroups(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(medicationGroups)
+    .where(eq(medicationGroups.userId, userId))
+    .orderBy(medicationGroups.sortOrder, medicationGroups.createdAt);
+}
+
+/**
+ * Create a new medication group.
+ */
+export async function createMedicationGroup(
+  userId: number,
+  data: { name: string; icon?: string; color?: string }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get max sortOrder for this user
+  const existing = await db
+    .select({ maxSort: sql<number>`COALESCE(MAX(${medicationGroups.sortOrder}), 0)` })
+    .from(medicationGroups)
+    .where(eq(medicationGroups.userId, userId));
+  const nextSort = (existing[0]?.maxSort ?? 0) + 1;
+
+  const result = await db.insert(medicationGroups).values({
+    userId,
+    name: data.name,
+    icon: data.icon ?? "Pill",
+    color: data.color ?? "sage",
+    sortOrder: nextSort,
+  });
+
+  return { id: result[0].insertId, name: data.name };
+}
+
+/**
+ * Update a medication group.
+ */
+export async function updateMedicationGroup(
+  userId: number,
+  groupId: number,
+  data: Partial<{ name: string; icon: string; color: string; sortOrder: number }>
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(medicationGroups)
+    .set(data)
+    .where(
+      and(
+        eq(medicationGroups.id, groupId),
+        eq(medicationGroups.userId, userId)
+      )
+    );
+}
+
+/**
+ * Delete a medication group and ungroup its medications.
+ */
+export async function deleteMedicationGroup(userId: number, groupId: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  // Ungroup all medications in this group
+  await db
+    .update(medicationReminders)
+    .set({ groupId: null })
+    .where(
+      and(
+        eq(medicationReminders.userId, userId),
+        eq(medicationReminders.groupId, groupId)
+      )
+    );
+
+  // Delete the group
+  await db
+    .delete(medicationGroups)
+    .where(
+      and(
+        eq(medicationGroups.id, groupId),
+        eq(medicationGroups.userId, userId)
+      )
+    );
+}
+
+/**
+ * Assign a medication reminder to a group (or ungroup by passing null).
+ */
+export async function assignMedicationToGroup(
+  userId: number,
+  reminderId: number,
+  groupId: number | null
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(medicationReminders)
+    .set({ groupId })
+    .where(
+      and(
+        eq(medicationReminders.id, reminderId),
+        eq(medicationReminders.userId, userId)
+      )
+    );
+}
+
+/**
+ * Batch assign multiple medications to a group.
+ */
+export async function batchAssignMedicationsToGroup(
+  userId: number,
+  reminderIds: number[],
+  groupId: number | null
+) {
+  const db = await getDb();
+  if (!db) return;
+  if (reminderIds.length === 0) return;
+  await db
+    .update(medicationReminders)
+    .set({ groupId })
+    .where(
+      and(
+        eq(medicationReminders.userId, userId),
+        inArray(medicationReminders.id, reminderIds)
+      )
+    );
+}
+
+/**
+ * Get medication reminders grouped by their group.
+ * Returns groups with their medications, plus an "ungrouped" list.
+ */
+export async function getMedicationRemindersGrouped(userId: number) {
+  const db = await getDb();
+  if (!db) return { groups: [], ungrouped: [] };
+
+  const [groups, reminders] = await Promise.all([
+    db
+      .select()
+      .from(medicationGroups)
+      .where(eq(medicationGroups.userId, userId))
+      .orderBy(medicationGroups.sortOrder, medicationGroups.createdAt),
+    db
+      .select()
+      .from(medicationReminders)
+      .where(eq(medicationReminders.userId, userId))
+      .orderBy(medicationReminders.reminderHour, medicationReminders.reminderMinute),
+  ]);
+
+  const grouped = groups.map((g) => ({
+    ...g,
+    medications: reminders.filter((r) => r.groupId === g.id),
+  }));
+
+  const ungrouped = reminders.filter((r) => !r.groupId);
+
+  return { groups: grouped, ungrouped };
+}
+
+/**
+ * Confirm all medications in a group as taken for today.
+ * Creates/updates symptom entry and deducts stock for each medication.
+ */
+export async function confirmGroupMedicationsTaken(
+  userId: number,
+  groupId: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get all enabled medications in this group
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.userId, userId),
+        eq(medicationReminders.groupId, groupId),
+        eq(medicationReminders.enabled, 1)
+      )
+    );
+
+  if (reminders.length === 0) {
+    return { confirmed: 0, skipped: 0 };
+  }
+
+  const todayStr = (() => {
+    const now = new Date();
+    const offset = 8 * 60 * 60 * 1000;
+    const chinaTime = new Date(now.getTime() + offset);
+    return chinaTime.toISOString().slice(0, 10);
+  })();
+
+  // Check today's day of week
+  const todayDate = new Date(todayStr + "T00:00:00");
+  const dayOfWeek = todayDate.getDay();
+
+  // Filter to medications scheduled for today
+  const scheduledReminders = reminders.filter((r) => {
+    const days = r.repeatDays as number[] | null;
+    if (!days || days.length === 0) return true;
+    return days.includes(dayOfWeek);
+  });
+
+  if (scheduledReminders.length === 0) {
+    return { confirmed: 0, skipped: 0 };
+  }
+
+  // Get or create today's entry
+  const existing = await getEntryByUserAndDate(userId, todayStr);
+  const currentMeds: { name: string; dosage: string; reminderId?: number }[] = existing
+    ? (Array.isArray(existing.medications) ? existing.medications as any : [])
+    : [];
+
+  let confirmed = 0;
+  let skipped = 0;
+
+  for (const med of scheduledReminders) {
+    const alreadyRecorded = currentMeds.some(
+      (m) => m.reminderId === med.id || m.name.toLowerCase() === med.medicationName.toLowerCase()
+    );
+    if (alreadyRecorded) {
+      skipped++;
+      continue;
+    }
+    currentMeds.push({
+      name: med.medicationName,
+      dosage: med.dosage,
+      reminderId: med.id,
+    });
+    confirmed++;
+    // Deduct stock
+    await deductMedicationStock(userId, med.medicationName);
+  }
+
+  if (confirmed > 0) {
+    if (existing) {
+      await db
+        .update(symptomEntries)
+        .set({ medications: currentMeds })
+        .where(eq(symptomEntries.id, existing.id));
+    } else {
+      await db.insert(symptomEntries).values({
+        userId,
+        date: todayStr,
+        dizziness: 0,
+        headache: 0,
+        sleepQuality: 5,
+        anxiety: 0,
+        fatigue: 0,
+        photosensitivity: 0,
+        motionSickness: 0,
+        palpitations: 0,
+        mood: 5,
+        medications: currentMeds,
+        triggers: [],
+        severeHeadache: 0,
+        notes: null,
+      });
+    }
+  }
+
+  return { confirmed, skipped };
 }
