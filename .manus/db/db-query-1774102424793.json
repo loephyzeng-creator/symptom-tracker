@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, userId, date, painkillerTaken, severeHeadache FROM symptom_entries WHERE userId = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT id, userId, date, painkillerTaken, severeHeadache FROM symptom_entries WHERE userId = 1;",
+  "rows": [
+    {
+      "id": "2",
+      "userId": "1",
+      "date": "2026-03-20",
+      "painkillerTaken": "0",
+      "severeHeadache": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tdate\tpainkillerTaken\tsevereHeadache\n2\t1\t2026-03-20\t0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}

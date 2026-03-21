@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, openId, name, email, loginMethod, createdAt, lastSignedIn FROM users;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT id, openId, name, email, loginMethod, createdAt, lastSignedIn FROM users;",
+  "rows": [
+    {
+      "id": "1",
+      "openId": "AJ4akVbYyhoTU8AncGWAtd",
+      "name": "Longfei ZENG",
+      "email": "lfzeng@autelrobotics.com",
+      "loginMethod": "google",
+      "createdAt": "2026-03-20 06:07:42",
+      "lastSignedIn": "2026-03-21 14:05:09"
+    },
+    {
+      "id": "4",
+      "openId": "UwYp8Lr4sKvhpPW4y3ps4S",
+      "name": "Loephy Zeng",
+      "email": "loephyzeng@gmail.com",
+      "loginMethod": "google",
+      "createdAt": "2026-03-20 06:14:20",
+      "lastSignedIn": "2026-03-21 14:11:48"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\topenId\tname\temail\tloginMethod\tcreatedAt\tlastSignedIn\n1\tAJ4akVbYyhoTU8AncGWAtd\tLongfei ZENG\tlfzeng@autelrobotics.com\tgoogle\t2026-03-20 06:07:42\t2026-03-21 14:05:09\n4\tUwYp8Lr4sKvhpPW4y3ps4S\tLoephy Zeng\tloephyzeng@gmail.com\tgoogle\t2026-03-20 06:14:20\t2026-03-21 14:11:48\n",
+  "stderr": "",
+  "execution_time_ms": 107
+}

@@ -67,12 +67,14 @@ export function useSymptomData() {
   const upsertMutation = trpc.entries.upsert.useMutation({
     onSuccess: () => {
       utils.entries.list.invalidate();
+      utils.entries.painkillerUsage.invalidate();
     },
   });
 
   const deleteMutation = trpc.entries.delete.useMutation({
     onSuccess: () => {
       utils.entries.list.invalidate();
+      utils.entries.painkillerUsage.invalidate();
     },
   });
 
@@ -198,6 +200,7 @@ export function useSymptomData() {
           });
         }
         await utils.entries.list.invalidate();
+        await utils.entries.painkillerUsage.invalidate();
         return true;
       } catch {
         return false;

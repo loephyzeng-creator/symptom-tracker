@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, name, email FROM users;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT id, name, email FROM users;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Longfei ZENG",
+      "email": "lfzeng@autelrobotics.com"
+    },
+    {
+      "id": "4",
+      "name": "Loephy Zeng",
+      "email": "loephyzeng@gmail.com"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\n1\tLongfei ZENG\tlfzeng@autelrobotics.com\n4\tLoephy Zeng\tloephyzeng@gmail.com\n",
+  "stderr": "",
+  "execution_time_ms": 60
+}
