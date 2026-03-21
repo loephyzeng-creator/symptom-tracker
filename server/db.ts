@@ -13,6 +13,7 @@ import {
   customMetricValues,
   medicationReminders,
   medicationGroups,
+  drugInteractions,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { buildEntryMedMap, wasMedTaken } from "./medMatchHelper";
@@ -1527,6 +1528,8 @@ export async function getTodayMedications(userId: number, dateStr: string) {
     taken: boolean;
     timeIndex: number;
     totalTimes: number;
+    intervalHours: number | null;
+    lastTakenAt: string | null;
   }> = [];
 
   for (const r of reminders) {
@@ -1554,6 +1557,8 @@ export async function getTodayMedications(userId: number, dateStr: string) {
         taken,
         timeIndex: ti,
         totalTimes: allTimes.length,
+        intervalHours: r.intervalHours,
+        lastTakenAt: r.lastTakenAt,
       });
     }
   }
@@ -1665,6 +1670,13 @@ export async function confirmMedicationTaken(
 
   // Deduct stock (one dose per confirmation)
   await deductMedicationStock(userId, med.medicationName);
+
+  // Update lastTakenAt for interval-based reminders
+  const nowISO = new Date().toISOString();
+  await db
+    .update(medicationReminders)
+    .set({ lastTakenAt: nowISO })
+    .where(eq(medicationReminders.id, reminderId));
 
   return {
     success: true,
@@ -2482,4 +2494,142 @@ export async function confirmGroupMedicationsTaken(
   }
 
   return { confirmed, skipped };
+}
+
+
+// ========== Interval-based Reminders ==========
+
+/**
+ * Get the next dose time for an interval-based medication.
+ * Returns null if not in interval mode.
+ */
+export function getNextIntervalDoseTime(
+  intervalHours: number | null,
+  lastTakenAt: string | null
+): { nextDoseAt: Date; minutesUntil: number } | null {
+  if (!intervalHours) return null;
+
+  const now = new Date();
+
+  if (!lastTakenAt) {
+    // Never taken — next dose is NOW
+    return { nextDoseAt: now, minutesUntil: 0 };
+  }
+
+  const lastTaken = new Date(lastTakenAt);
+  const nextDoseAt = new Date(lastTaken.getTime() + intervalHours * 60 * 60 * 1000);
+  const minutesUntil = Math.round((nextDoseAt.getTime() - now.getTime()) / (1000 * 60));
+
+  return { nextDoseAt, minutesUntil };
+}
+
+/**
+ * Get today's medications with interval info for the user.
+ * Enhances the existing todayMeds with interval countdown data.
+ */
+export async function getIntervalMedicationStatus(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.userId, userId),
+        eq(medicationReminders.enabled, 1)
+      )
+    );
+
+  return reminders
+    .filter((r) => r.intervalHours !== null && r.intervalHours > 0)
+    .map((r) => {
+      const intervalInfo = getNextIntervalDoseTime(r.intervalHours, r.lastTakenAt);
+      return {
+        reminderId: r.id,
+        medicationName: r.medicationName,
+        dosage: r.dosage,
+        intervalHours: r.intervalHours!,
+        lastTakenAt: r.lastTakenAt,
+        nextDoseAt: intervalInfo?.nextDoseAt.toISOString() ?? null,
+        minutesUntil: intervalInfo?.minutesUntil ?? 0,
+        isOverdue: (intervalInfo?.minutesUntil ?? 0) <= 0,
+        groupId: r.groupId,
+      };
+    });
+}
+
+// ========== Drug Interactions ==========
+
+/**
+ * Get all drug interactions for a user.
+ */
+export async function getDrugInteractions(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(drugInteractions)
+    .where(eq(drugInteractions.userId, userId))
+    .orderBy(drugInteractions.severity);
+}
+
+/**
+ * Save drug interactions (replace all for a user).
+ */
+export async function saveDrugInteractions(
+  userId: number,
+  interactions: Array<{
+    drugA: string;
+    drugB: string;
+    severity: "mild" | "moderate" | "severe";
+    description: string;
+    recommendation?: string;
+    source?: string;
+  }>
+) {
+  const db = await getDb();
+  if (!db) return;
+
+  // Delete existing interactions for this user
+  await db
+    .delete(drugInteractions)
+    .where(eq(drugInteractions.userId, userId));
+
+  // Insert new interactions
+  if (interactions.length > 0) {
+    await db.insert(drugInteractions).values(
+      interactions.map((i) => ({
+        userId,
+        drugA: i.drugA,
+        drugB: i.drugB,
+        severity: i.severity,
+        description: i.description,
+        recommendation: i.recommendation ?? null,
+        source: i.source ?? "ai",
+      }))
+    );
+  }
+}
+
+/**
+ * Check for interactions between a specific drug and all other active medications.
+ * Returns matching interactions from the database.
+ */
+export async function checkDrugInteractionsForMed(
+  userId: number,
+  medicationName: string
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const allInteractions = await getDrugInteractions(userId);
+  const normalizedName = medicationName.trim().toLowerCase();
+
+  return allInteractions.filter(
+    (i) =>
+      i.drugA.trim().toLowerCase() === normalizedName ||
+      i.drugB.trim().toLowerCase() === normalizedName
+  );
 }

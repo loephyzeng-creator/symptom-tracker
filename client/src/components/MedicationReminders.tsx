@@ -61,6 +61,7 @@ interface ReminderForm {
   expirationDate: string;
   expirationAlertDays: number;
   groupId: number | null;
+  intervalHours: number | null;
 }
 
 const EMPTY_FORM: ReminderForm = {
@@ -79,6 +80,7 @@ const EMPTY_FORM: ReminderForm = {
   expirationDate: "",
   expirationAlertDays: 30,
   groupId: null,
+  intervalHours: null,
 };
 
 function DaySelector({
@@ -513,6 +515,47 @@ function ReminderFormFields({
           </div>
         </div>
       </div>
+      {/* 服药间隔模式 */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Timer className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-foreground">服药间隔</span>
+          <span className="text-xs text-muted-foreground">(可选，如每8小时一次)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={formData.intervalHours !== null}
+            onCheckedChange={(checked) => {
+              setFormData({
+                ...formData,
+                intervalHours: checked ? 8 : null,
+              });
+            }}
+          />
+          <span className="text-xs text-muted-foreground">
+            {formData.intervalHours !== null ? "已开启间隔提醒" : "关闭"}
+          </span>
+        </div>
+        {formData.intervalHours !== null && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">每</span>
+            <Input
+              type="number"
+              value={formData.intervalHours}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  intervalHours: Math.max(1, Math.min(72, parseInt(e.target.value) || 8)),
+                })
+              }
+              className="h-8 text-sm w-20"
+              min={1}
+              max={72}
+            />
+            <span className="text-xs text-muted-foreground">小时服用一次</span>
+          </div>
+        )}
+      </div>
       {/* 药品分组选择 */}
       <GroupSelector
         groupId={formData.groupId}
@@ -758,6 +801,7 @@ export default function MedicationReminders() {
       expirationDate: form.expirationDate || null,
       expirationAlertDays: form.expirationAlertDays,
       groupId: form.groupId,
+      intervalHours: form.intervalHours,
     });
   };
 
@@ -783,6 +827,7 @@ export default function MedicationReminders() {
       expirationDate: editForm.expirationDate || null,
       expirationAlertDays: editForm.expirationAlertDays,
       groupId: editForm.groupId,
+      intervalHours: editForm.intervalHours,
     });
   };
 
@@ -804,6 +849,7 @@ export default function MedicationReminders() {
       expirationDate: reminder.expirationDate ?? "",
       expirationAlertDays: reminder.expirationAlertDays ?? 30,
       groupId: reminder.groupId ?? null,
+      intervalHours: reminder.intervalHours ?? null,
     });
   };
 
@@ -1155,6 +1201,12 @@ export default function MedicationReminders() {
                               );
                             }
                           })()}
+                          {reminder.intervalHours && (
+                            <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <Timer className="w-3 h-3" />
+                              每{reminder.intervalHours}小时
+                            </span>
+                          )}
                           {reminder.enabled === 1 && !reminder.snoozedUntil && (
                             <button
                               onClick={() =>

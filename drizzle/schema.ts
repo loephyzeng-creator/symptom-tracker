@@ -188,6 +188,8 @@ export const medicationReminders = mysqlTable("medication_reminders", {
   lastExpirationAlertDate: varchar("lastExpirationAlertDate", { length: 10 }), // prevent duplicate expiration alerts
   lastNotifiedDate: varchar("lastNotifiedDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate
   groupId: int("groupId"), // FK to medication_groups.id, null = ungrouped
+  intervalHours: int("intervalHours"), // null = fixed-time mode, number = interval mode (e.g. 8 = every 8 hours)
+  lastTakenAt: varchar("lastTakenAt", { length: 30 }), // ISO datetime of last actual dose taken, for interval calculation
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -212,3 +214,23 @@ export const medicationGroups = mysqlTable("medication_groups", {
 
 export type MedicationGroup = typeof medicationGroups.$inferSelect;
 export type InsertMedicationGroup = typeof medicationGroups.$inferInsert;
+
+/**
+ * Drug interactions — stores known drug-drug interaction data.
+ * severity: mild (informational), moderate (caution), severe (avoid)
+ */
+export const drugInteractions = mysqlTable("drug_interactions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // user-specific interactions (from LLM analysis)
+  drugA: varchar("drugA", { length: 200 }).notNull(),
+  drugB: varchar("drugB", { length: 200 }).notNull(),
+  severity: mysqlEnum("severity", ["mild", "moderate", "severe"]).default("moderate").notNull(),
+  description: text("description").notNull(), // interaction description
+  recommendation: text("recommendation"), // what to do about it
+  source: varchar("source", { length: 50 }).default("ai"), // 'ai' or 'manual'
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DrugInteraction = typeof drugInteractions.$inferSelect;
+export type InsertDrugInteraction = typeof drugInteractions.$inferInsert;

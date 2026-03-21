@@ -201,18 +201,18 @@ async function checkAndSendMedicationReminders() {
           console.log(
             `[MedReminder] Snooze expired for ${reminder.medicationName}, sending now`
           );
-      try {
-        const sent = await sendWebPush(
-          reminder.userId,
-          `💊 用药提醒（稍后提醒）：${reminder.medicationName}`,
-          `请服用 ${reminder.medicationName} ${reminder.dosage}`,
-          `med-reminder-${reminder.id}`,
-          [
-            { action: "confirm-taken", title: "✅ 已服药" },
-            { action: "snooze", title: "⏰ 再等15分钟" },
-          ],
-          { reminderId: reminder.id, userId: reminder.userId }
-        );
+          try {
+            const sent = await sendWebPush(
+              reminder.userId,
+              `💊 用药提醒（稍后提醒）：${reminder.medicationName}`,
+              `请服用 ${reminder.medicationName} ${reminder.dosage}`,
+              `med-reminder-${reminder.id}`,
+              [
+                { action: "confirm-taken", title: "✅ 已服药" },
+                { action: "snooze", title: "⏰ 再等15分钟" },
+              ],
+              { reminderId: reminder.id, userId: reminder.userId }
+            );
             if (sent) {
               await markMedicationReminderNotified(reminder.id, todayStr);
               await clearMedicationSnooze(reminder.id);

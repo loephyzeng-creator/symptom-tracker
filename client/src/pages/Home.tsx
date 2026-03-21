@@ -23,6 +23,7 @@ import MedicationGroupManager from "@/components/MedicationGroupManager";
 import MissedMedicationAlert from "@/components/MissedMedicationAlert";
 import MedicationStock from "@/components/MedicationStock";
 import MedicationCheckInCalendar from "@/components/MedicationCheckInCalendar";
+import DrugInteractionChecker from "@/components/DrugInteractionChecker";
 import BackupRestore from "@/components/BackupRestore";
 import SyncStatus from "@/components/SyncStatus";
 import CustomMetricsManager from "@/components/CustomMetricsManager";
@@ -436,6 +437,12 @@ export default function Home() {
                   {/* Today Widget - overview card */}
                   {selectedDate === todayStr && !dataLoading && (
                     <TodayWidget entries={entries} />
+                  )}
+                  {/* Drug Interaction Checker */}
+                  {selectedDate === todayStr && !dataLoading && isAuthenticated && (
+                    <div className="mb-4 bg-card rounded-2xl p-4 shadow-sm border border-border/40">
+                      <DrugInteractionChecker />
+                    </div>
                   )}
                   {/* Medication Check-in Calendar */}
                   {selectedDate === todayStr && !dataLoading && (

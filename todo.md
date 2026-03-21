@@ -342,3 +342,21 @@
 - [x] 前端：今日用药区域按时间点分别显示勾选（含“第N次”标签）
 - [x] 前端：打卡日历通过medMatchHelper自动适配多次服药逻辑
 - [x] 测试验证（389个测试全部通过）
+
+## 服药间隔智能提醒
+- [x] 数据库：medication_reminders表添加intervalHours和lastTakenAt字段
+- [x] 后端：confirmMedicationTaken自动更新lastTakenAt时间戳
+- [x] 后端：todayMeds API返回intervalHours和lastTakenAt用于前端倒计时
+- [x] 后端：add/update接口支持intervalHours参数
+- [x] 前端：提醒表单添加“间隔模式”选项（固定时间 vs 间隔模式，支持4/6/8/12/24小时）
+- [x] 前端：提醒卡片显示“每Nh”间隔标签
+- [x] 前端：今日用药区域显示倒计时（“X小时Y分钟后”/“可以服药了”）
+- [x] 测试验证（406个测试全部通过）
+
+## 药品交互检查
+- [x] 数据库：新增drug_interactions表（药品A、药品B、严重程度mild/moderate/severe、描述、建议）
+- [x] 后端：LLM辅助的药品交互检查API（drugInteractions.analyze，用户药品列表→AI分析交互风险）
+- [x] 后端：交互记录CRUD API（list/add/delete）
+- [x] 前端：DrugInteractionChecker组件（一键分析+严重程度颜色标记+建议显示）
+- [x] 前端：集成到记录页面（打卡日历下方）
+- [x] 测试验证（406个测试全部通过）

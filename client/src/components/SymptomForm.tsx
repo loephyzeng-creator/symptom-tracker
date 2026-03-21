@@ -41,6 +41,7 @@ import {
   CheckCircle2,
   Circle,
   Clock,
+  Timer,
 } from "lucide-react";
 
 interface SymptomFormProps {
@@ -582,6 +583,28 @@ export default function SymptomForm({
                           第{med.timeIndex + 1}次
                         </span>
                       )}
+                      {med.intervalHours && (
+                        <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1 py-0.5 rounded flex items-center gap-0.5">
+                          <Timer className="w-2.5 h-2.5" />
+                          每{med.intervalHours}h
+                        </span>
+                      )}
+                      {med.lastTakenAt && !med.taken && (() => {
+                        const lastTime = new Date(med.lastTakenAt);
+                        const nextTime = new Date(lastTime.getTime() + (med.intervalHours || 0) * 3600000);
+                        const now = new Date();
+                        const diffMs = nextTime.getTime() - now.getTime();
+                        if (diffMs > 0) {
+                          const hours = Math.floor(diffMs / 3600000);
+                          const mins = Math.floor((diffMs % 3600000) / 60000);
+                          return (
+                            <span className="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1 py-0.5 rounded">
+                              {hours}h{mins}m后可服
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                   {/* Status badge */}
