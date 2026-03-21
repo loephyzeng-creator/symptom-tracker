@@ -368,17 +368,7 @@ export default function MedicationCheckInCalendar() {
                 </span>
               </div>
             )}
-            {/* Monthly rate */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-800/30">
-              <Trophy className="w-3.5 h-3.5 text-emerald-500" />
-              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                本月 {data.monthlyRate}%
-              </span>
-            </div>
-            {/* Completed / Total */}
-            <span className="text-xs text-muted-foreground">
-              {data.totalCompleted}/{data.totalScheduled}
-            </span>
+
             {/* Monthly painkiller count */}
             {monthlyPainkillerCount > 0 && (
               <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${
