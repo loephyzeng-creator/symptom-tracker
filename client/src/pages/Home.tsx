@@ -86,8 +86,12 @@ function DatePicker({ date, onDateChange, existingEntry }: {
     }
   };
 
+  const handleBackToToday = () => {
+    onDateChange(todayStr);
+  };
+
   return (
-    <div className="flex items-center justify-center mb-4">
+    <div className="flex items-center justify-center gap-2 mb-4">
       <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
         <PopoverTrigger asChild>
           <button className="group flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-card border border-border/50 shadow-sm hover:shadow-md transition-all">
@@ -126,6 +130,15 @@ function DatePicker({ date, onDateChange, existingEntry }: {
           />
         </PopoverContent>
       </Popover>
+      {!isToday && (
+        <button
+          onClick={handleBackToToday}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-terracotta/10 border border-terracotta/20 text-terracotta text-xs font-medium hover:bg-terracotta/20 transition-colors whitespace-nowrap"
+        >
+          <Sun className="w-3.5 h-3.5" />
+          今天
+        </button>
+      )}
     </div>
   );
 }
