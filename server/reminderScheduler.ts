@@ -3,6 +3,8 @@ import {
   markUserNotified,
   getPushSubscriptionsByUserId,
   removePushSubscriptionById,
+  getMedicationRemindersToSend,
+  markMedicationReminderNotified,
 } from "./db";
 import webpush from "web-push";
 import { ENV } from "./_core/env";
@@ -72,7 +74,7 @@ function isReminderTime(
  * Send Web Push notification to all subscriptions of a user.
  * Returns true if at least one push was sent successfully.
  */
-async function sendWebPush(userId: number, title: string, body: string): Promise<boolean> {
+async function sendWebPush(userId: number, title: string, body: string, tag?: string): Promise<boolean> {
   const subscriptions = await getPushSubscriptionsByUserId(userId);
   if (subscriptions.length === 0) {
     console.log(`[Reminder] No push subscriptions for user ${userId}`);
@@ -84,7 +86,7 @@ async function sendWebPush(userId: number, title: string, body: string): Promise
     body,
     icon: "/pwa-icon-192.png",
     badge: "/pwa-icon-192.png",
-    tag: "daily-reminder",
+    tag: tag || "daily-reminder",
     data: {
       url: "/",
     },
@@ -121,7 +123,53 @@ async function sendWebPush(userId: number, title: string, body: string): Promise
 }
 
 /**
+ * Check and send medication reminders.
+ * Each medication has its own schedule — different meds can fire at different times.
+ */
+async function checkAndSendMedicationReminders() {
+  try {
+    const todayStr = getTodayStr();
+    const { hour, minute } = getChinaTime();
+
+    const reminders = await getMedicationRemindersToSend(todayStr);
+
+    for (const reminder of reminders) {
+      // Check if it's the right time for this medication
+      if (!isReminderTime(reminder.reminderHour, reminder.reminderMinute, hour, minute)) {
+        continue;
+      }
+
+      console.log(
+        `[MedReminder] Sending medication reminder: ${reminder.medicationName} ${reminder.dosage} to user ${reminder.userId}`
+      );
+
+      try {
+        const sent = await sendWebPush(
+          reminder.userId,
+          `💊 用药提醒：${reminder.medicationName}`,
+          `请服用 ${reminder.medicationName} ${reminder.dosage}`,
+          `med-reminder-${reminder.id}`
+        );
+
+        if (sent) {
+          await markMedicationReminderNotified(reminder.id, todayStr);
+          console.log(`[MedReminder] Successfully notified for medication ${reminder.medicationName} (id: ${reminder.id})`);
+        }
+      } catch (error) {
+        console.error(
+          `[MedReminder] Error sending reminder for ${reminder.medicationName}:`,
+          error
+        );
+      }
+    }
+  } catch (error) {
+    console.error("[MedReminder] Error in checkAndSendMedicationReminders:", error);
+  }
+}
+
+/**
  * Run the reminder check: find users who need reminders and send notifications.
+ * Also checks medication-specific reminders.
  */
 async function checkAndSendReminders() {
   try {
@@ -132,6 +180,7 @@ async function checkAndSendReminders() {
       `[Reminder] Checking reminders at ${hour}:${String(minute).padStart(2, "0")} (UTC+8), date: ${todayStr}`
     );
 
+    // 1. Daily symptom recording reminders
     const usersNeedingReminder = await getUsersNeedingReminder(todayStr);
 
     for (const user of usersNeedingReminder) {
@@ -171,6 +220,9 @@ async function checkAndSendReminders() {
         );
       }
     }
+
+    // 2. Medication-specific reminders
+    await checkAndSendMedicationReminders();
   } catch (error) {
     console.error("[Reminder] Error in checkAndSendReminders:", error);
   }
@@ -206,4 +258,4 @@ export function stopReminderScheduler() {
 }
 
 // Export for testing
-export { checkAndSendReminders, isReminderTime, getTodayStr, getChinaTime, sendWebPush, configureWebPush };
+export { checkAndSendReminders, checkAndSendMedicationReminders, isReminderTime, getTodayStr, getChinaTime, sendWebPush, configureWebPush };

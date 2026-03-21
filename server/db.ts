@@ -11,6 +11,7 @@ import {
   pushSubscriptions,
   customMetrics,
   customMetricValues,
+  medicationReminders,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -967,4 +968,114 @@ export async function getSyncStatus(userId: number) {
     lastDate: latestResult[0]?.date ?? null,
     firstDate: firstResult[0]?.date ?? null,
   };
+}
+
+// ─── Medication Reminders ──────────────────────────────────────────
+
+/**
+ * Get all medication reminders for a user.
+ */
+export async function getMedicationReminders(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(medicationReminders)
+    .where(eq(medicationReminders.userId, userId))
+    .orderBy(medicationReminders.reminderHour, medicationReminders.reminderMinute);
+}
+
+/**
+ * Add a new medication reminder.
+ */
+export async function addMedicationReminder(
+  userId: number,
+  data: {
+    medicationName: string;
+    dosage: string;
+    reminderHour: number;
+    reminderMinute: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) return null;
+  const [result] = await db.insert(medicationReminders).values({
+    userId,
+    medicationName: data.medicationName,
+    dosage: data.dosage,
+    reminderHour: data.reminderHour,
+    reminderMinute: data.reminderMinute,
+    enabled: 1,
+  });
+  return { id: result.insertId };
+}
+
+/**
+ * Update a medication reminder.
+ */
+export async function updateMedicationReminder(
+  id: number,
+  userId: number,
+  data: Partial<{
+    medicationName: string;
+    dosage: string;
+    reminderHour: number;
+    reminderMinute: number;
+    enabled: number;
+  }>
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(medicationReminders)
+    .set(data)
+    .where(and(eq(medicationReminders.id, id), eq(medicationReminders.userId, userId)));
+}
+
+/**
+ * Delete a medication reminder.
+ */
+export async function deleteMedicationReminder(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(medicationReminders)
+    .where(and(eq(medicationReminders.id, id), eq(medicationReminders.userId, userId)));
+}
+
+/**
+ * Get all enabled medication reminders that need to be sent (not yet notified today).
+ */
+export async function getMedicationRemindersToSend(todayStr: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: medicationReminders.id,
+      userId: medicationReminders.userId,
+      medicationName: medicationReminders.medicationName,
+      dosage: medicationReminders.dosage,
+      reminderHour: medicationReminders.reminderHour,
+      reminderMinute: medicationReminders.reminderMinute,
+      lastNotifiedDate: medicationReminders.lastNotifiedDate,
+    })
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.enabled, 1),
+        sql`(${medicationReminders.lastNotifiedDate} IS NULL OR ${medicationReminders.lastNotifiedDate} != ${todayStr})`
+      )
+    );
+}
+
+/**
+ * Mark a medication reminder as notified for today.
+ */
+export async function markMedicationReminderNotified(id: number, todayStr: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(medicationReminders)
+    .set({ lastNotifiedDate: todayStr })
+    .where(eq(medicationReminders.id, id));
 }

@@ -161,3 +161,23 @@ export const alertHistory = mysqlTable("alert_history", {
 
 export type AlertHistoryRow = typeof alertHistory.$inferSelect;
 export type InsertAlertHistoryRow = typeof alertHistory.$inferInsert;
+
+/**
+ * Medication reminders per user — each row is one medication with its own schedule.
+ * Different medications can have different dosages and reminder times.
+ */
+export const medicationReminders = mysqlTable("medication_reminders", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  medicationName: varchar("medicationName", { length: 200 }).notNull(),
+  dosage: varchar("dosage", { length: 100 }).notNull(),
+  reminderHour: int("reminderHour").notNull(), // 0-23
+  reminderMinute: int("reminderMinute").notNull(), // 0-59
+  enabled: int("enabled").default(1).notNull(), // 1 = on, 0 = off
+  lastNotifiedDate: varchar("lastNotifiedDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MedicationReminder = typeof medicationReminders.$inferSelect;
+export type InsertMedicationReminder = typeof medicationReminders.$inferInsert;

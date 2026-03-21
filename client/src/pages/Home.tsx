@@ -18,6 +18,7 @@ import ReportView from "@/components/ReportView";
 import DailyReminder from "@/components/DailyReminder";
 import NotificationSettings from "@/components/NotificationSettings";
 import AlertSettings from "@/components/AlertSettings";
+import MedicationReminders from "@/components/MedicationReminders";
 import BackupRestore from "@/components/BackupRestore";
 import SyncStatus from "@/components/SyncStatus";
 import CustomMetricsManager from "@/components/CustomMetricsManager";
@@ -296,6 +297,9 @@ export default function Home() {
               </button>
             </div>
             <NotificationSettings />
+            <div className="mt-4 pt-4 border-t border-border/30">
+              <MedicationReminders />
+            </div>
             <div className="mt-4 pt-4 border-t border-border/30">
               <AlertSettings />
             </div>

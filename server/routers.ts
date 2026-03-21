@@ -34,6 +34,10 @@ import {
   getAlertHistory,
   markAlertsRead,
   getUnreadAlertCount,
+  getMedicationReminders,
+  addMedicationReminder,
+  updateMedicationReminder,
+  deleteMedicationReminder,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -406,6 +410,53 @@ export const appRouter = router({
       await markAlertsRead(ctx.user.id);
       return { success: true };
     }),
+  }),
+
+  medReminders: router({
+    /** List all medication reminders for the current user */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getMedicationReminders(ctx.user.id);
+    }),
+
+    /** Add a new medication reminder */
+    add: protectedProcedure
+      .input(
+        z.object({
+          medicationName: z.string().min(1).max(200),
+          dosage: z.string().min(1).max(100),
+          reminderHour: z.number().min(0).max(23),
+          reminderMinute: z.number().min(0).max(59),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        return addMedicationReminder(ctx.user.id, input);
+      }),
+
+    /** Update a medication reminder */
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          medicationName: z.string().min(1).max(200).optional(),
+          dosage: z.string().min(1).max(100).optional(),
+          reminderHour: z.number().min(0).max(23).optional(),
+          reminderMinute: z.number().min(0).max(59).optional(),
+          enabled: z.number().min(0).max(1).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        await updateMedicationReminder(id, ctx.user.id, data);
+        return { success: true };
+      }),
+
+    /** Delete a medication reminder */
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteMedicationReminder(input.id, ctx.user.id);
+        return { success: true };
+      }),
   }),
 
   report: router({
