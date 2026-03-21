@@ -1588,7 +1588,8 @@ export function getAllReminderTimes(reminder: { reminderHour: number; reminderMi
 export async function confirmMedicationTaken(
   userId: number,
   reminderId: number,
-  timeIndex?: number
+  timeIndex?: number,
+  note?: string
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1623,11 +1624,12 @@ export async function confirmMedicationTaken(
   // Check if there's already an entry for today
   const existing = await getEntryByUserAndDate(userId, todayStr);
 
-  const newMed: { name: string; dosage: string; reminderId: number; timeIndex?: number } = {
+  const newMed: { name: string; dosage: string; reminderId: number; timeIndex?: number; note?: string } = {
     name: med.medicationName,
     dosage: med.dosage,
     reminderId: med.id,
     ...(allTimes.length > 1 ? { timeIndex: effectiveTimeIndex } : {}),
+    ...(note ? { note } : {}),
   };
 
   if (existing) {
@@ -2632,4 +2634,95 @@ export async function checkDrugInteractionsForMed(
       i.drugA.trim().toLowerCase() === normalizedName ||
       i.drugB.trim().toLowerCase() === normalizedName
   );
+}
+
+
+/**
+ * Get medication completion status for a list of dates.
+ * Returns a map of date -> status ("all-taken" | "partial" | "missed" | "no-schedule").
+ * Used by history view to filter entries by medication completion.
+ */
+export async function getMedCompletionByDates(
+  userId: number,
+  dates: string[]
+): Promise<Record<string, "all-taken" | "partial" | "missed" | "no-schedule">> {
+  const db = await getDb();
+  if (!db || dates.length === 0) return {};
+
+  // Get all enabled medication reminders
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.userId, userId),
+        eq(medicationReminders.enabled, 1)
+      )
+    );
+
+  if (reminders.length === 0) {
+    const result: Record<string, "no-schedule"> = {};
+    dates.forEach((d) => (result[d] = "no-schedule"));
+    return result;
+  }
+
+  // Get all symptom entries for these dates
+  const minDate = dates.reduce((a, b) => (a < b ? a : b));
+  const maxDate = dates.reduce((a, b) => (a > b ? a : b));
+  const entries = await db
+    .select({
+      date: symptomEntries.date,
+      medications: symptomEntries.medications,
+    })
+    .from(symptomEntries)
+    .where(
+      and(
+        eq(symptomEntries.userId, userId),
+        gte(symptomEntries.date, minDate),
+        lte(symptomEntries.date, maxDate)
+      )
+    );
+
+  const entryMap = buildEntryMedMap(entries);
+  const dateSet = new Set(dates);
+  const result: Record<string, "all-taken" | "partial" | "missed" | "no-schedule"> = {};
+
+  for (const dateStr of Array.from(dateSet)) {
+    const dayDate = new Date(dateStr + "T00:00:00");
+    const dayOfWeek = dayDate.getDay();
+
+    // Count scheduled medications for this day
+    const scheduledReminders: { id: number; name: string }[] = [];
+    for (const reminder of reminders) {
+      const repeatDays: number[] | null = reminder.repeatDays as number[] | null;
+      const isScheduled =
+        !repeatDays || repeatDays.length === 0 || repeatDays.includes(dayOfWeek);
+      if (isScheduled) {
+        scheduledReminders.push({ id: reminder.id, name: reminder.medicationName });
+      }
+    }
+
+    if (scheduledReminders.length === 0) {
+      result[dateStr] = "no-schedule";
+      continue;
+    }
+
+    const recordedMeds = entryMap.get(dateStr);
+    let takenCount = 0;
+    for (const med of scheduledReminders) {
+      if (wasMedTaken(recordedMeds, med.id, med.name)) {
+        takenCount++;
+      }
+    }
+
+    if (takenCount === scheduledReminders.length) {
+      result[dateStr] = "all-taken";
+    } else if (takenCount > 0) {
+      result[dateStr] = "partial";
+    } else {
+      result[dateStr] = "missed";
+    }
+  }
+
+  return result;
 }

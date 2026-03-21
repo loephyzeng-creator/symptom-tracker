@@ -76,9 +76,10 @@ interface QuickRecordProps {
   date: string;
   existingEntry?: SymptomEntry;
   onSave: (entry: Omit<SymptomEntry, "id" | "userId" | "createdAt" | "updatedAt">) => Promise<any>;
+  onSwitchToMedication?: () => void;
 }
 
-export default function QuickRecord({ date, existingEntry, onSave }: QuickRecordProps) {
+export default function QuickRecord({ date, existingEntry, onSave, onSwitchToMedication }: QuickRecordProps) {
   const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -153,7 +154,13 @@ export default function QuickRecord({ date, existingEntry, onSave }: QuickRecord
       }
       await onSave(entry);
       setSaved(true);
-      toast.success("快捷记录已保存");
+      toast.success("快捷记录已保存", {
+        description: "别忘了去用药 tab 打卡哦",
+        action: onSwitchToMedication
+          ? { label: "去打卡", onClick: onSwitchToMedication }
+          : undefined,
+        duration: 4000,
+      });
     } catch (err) {
       toast.error("保存失败，请重试");
     } finally {

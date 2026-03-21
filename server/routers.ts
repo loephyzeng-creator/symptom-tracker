@@ -64,6 +64,7 @@ import {
   getDrugInteractions,
   saveDrugInteractions,
   checkDrugInteractionsForMed,
+  getMedCompletionByDates,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -606,9 +607,9 @@ export const appRouter = router({
 
     /** Confirm medication taken (from push notification action) */
     confirmTaken: protectedProcedure
-      .input(z.object({ reminderId: z.number(), timeIndex: z.number().optional() }))
+      .input(z.object({ reminderId: z.number(), timeIndex: z.number().optional(), note: z.string().max(200).optional() }))
       .mutation(async ({ ctx, input }) => {
-        return confirmMedicationTaken(ctx.user.id, input.reminderId, input.timeIndex);
+        return confirmMedicationTaken(ctx.user.id, input.reminderId, input.timeIndex, input.note);
       }),
 
     /** Unconfirm medication taken (remove from today's entry and restore stock) */
@@ -635,6 +636,13 @@ export const appRouter = router({
       .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
       .query(async ({ ctx, input }) => {
         return getMedicationCheckInDayDetail(ctx.user.id, input.date);
+      }),
+
+    /** Get medication completion status for multiple dates (for history filtering) */
+    completionByDates: protectedProcedure
+      .input(z.object({ dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(366) }))
+      .query(async ({ ctx, input }) => {
+        return getMedCompletionByDates(ctx.user.id, input.dates);
       }),
 
     /** Batch update multiple medication reminders */

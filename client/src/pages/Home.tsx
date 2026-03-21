@@ -472,6 +472,7 @@ export default function Home() {
                       date={selectedDate}
                       existingEntry={existingEntry}
                       onSave={addEntry}
+                      onSwitchToMedication={() => setActiveTab("medication")}
                     />
                   ) : (
                     <SymptomForm

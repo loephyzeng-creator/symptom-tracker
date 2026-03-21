@@ -388,3 +388,9 @@
 
 ## 移除用药tab顶部的漏服提醒
 - [x] 从MedicationView中移除MissedMedicationAlert组件
+
+## 用药体验优化第二批
+- [x] 快捷记录保存后弹出提示引导去用药tab打卡
+- [x] 药品列表按时间段分组显示（早/中/晚）
+- [x] 服药备注功能（打卡时可选填备注，后端confirmTaken支持note字段）
+- [x] 历史记录按服药完成度筛选（新增completionByDates批量接口）

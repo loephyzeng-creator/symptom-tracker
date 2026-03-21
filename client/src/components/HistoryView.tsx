@@ -2,14 +2,15 @@
  * Design: Warm Healing Journal — Scandinavian + Wabi-sabi
  * History list with card-based entries
  */
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { SymptomEntry } from "@/hooks/useSymptomData";
 import { formatMedications } from "@/hooks/useSymptomData";
+import { trpc } from "@/lib/trpc";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Trash2, Download, Upload, ChevronDown, ChevronUp, FileText, FileSpreadsheet, CalendarDays, List, Pill,
+  Trash2, Download, Upload, ChevronDown, ChevronUp, FileText, FileSpreadsheet, CalendarDays, List, Pill, Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import CalendarView from "./CalendarView";
@@ -43,10 +44,37 @@ function getOverallScore(entry: SymptomEntry): { score: number; label: string; c
   return { score, label: "状态很差", color: "text-destructive" };
 }
 
+type MedFilter = "all" | "full" | "partial" | "missed";
+
+const FILTER_OPTIONS: { key: MedFilter; label: string }[] = [
+  { key: "all", label: "全部" },
+  { key: "full", label: "全部已服" },
+  { key: "partial", label: "部分漏服" },
+  { key: "missed", label: "全部漏服" },
+];
+
 export default function HistoryView({ entries, onDelete, onExport, onExportCSV, onImport, onSelectDate }: HistoryViewProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "calendar" | "medication">("list");
+  const [medFilter, setMedFilter] = useState<MedFilter>("all");
+  const [showFilter, setShowFilter] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Collect all dates from entries for the batch query
+  const allDates = useMemo(() => entries.map((e) => e.date), [entries]);
+
+  // Query medication completion for all entry dates
+  const { data: completionData, isLoading: isCompletionLoading } =
+    trpc.medReminders.completionByDates.useQuery(
+      { dates: allDates },
+      {
+        enabled: allDates.length > 0,
+        refetchOnWindowFocus: false,
+        staleTime: 60_000,
+      }
+    );
+
+  const isFilterLoading = medFilter !== "all" && isCompletionLoading;
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -68,7 +96,29 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
     e.target.value = "";
   };
 
-  const reversedEntries = [...entries].reverse();
+  const reversedEntries = useMemo(() => [...entries].reverse(), [entries]);
+
+  // Apply medication filter
+  const filteredEntries = useMemo(() => {
+    if (medFilter === "all" || !completionData) return reversedEntries;
+    return reversedEntries.filter((entry) => {
+      const status = completionData[entry.date];
+      if (!status || status === "no-schedule") {
+        // No schedule = not relevant for med filtering, hide when filtering
+        return false;
+      }
+      switch (medFilter) {
+        case "full":
+          return status === "all-taken";
+        case "partial":
+          return status === "partial";
+        case "missed":
+          return status === "missed";
+        default:
+          return true;
+      }
+    });
+  }, [reversedEntries, medFilter, completionData]);
 
   if (entries.length === 0) {
     return (
@@ -151,10 +201,68 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
       {/* Entry List */}
       {viewMode === "list" && (
       <div className="space-y-3">
+        {/* Medication completion filter */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowFilter(!showFilter)}
+            className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+              medFilter !== "all"
+                ? "border-terracotta/40 bg-terracotta/5 text-terracotta"
+                : "border-border/50 text-muted-foreground hover:border-border"
+            }`}
+          >
+            <Filter className="w-3 h-3" />
+            服药筛选
+            {medFilter !== "all" && (
+              <span className="text-[10px] bg-terracotta/20 px-1 rounded">
+                {FILTER_OPTIONS.find((f) => f.key === medFilter)?.label}
+              </span>
+            )}
+          </button>
+          {showFilter && (
+            <motion.div
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex items-center gap-1"
+            >
+              {FILTER_OPTIONS.map((opt) => (
+                <button
+                  key={opt.key}
+                  onClick={() => {
+                    setMedFilter(opt.key);
+                    if (opt.key === "all") setShowFilter(false);
+                  }}
+                  className={`text-[11px] px-2 py-1 rounded-md transition-colors ${
+                    medFilter === opt.key
+                      ? "bg-foreground/10 text-foreground font-medium"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </div>
+
+        {isFilterLoading && (
+          <div className="text-center py-4 text-xs text-muted-foreground">
+            加载服药数据中...
+          </div>
+        )}
+
+        {!isFilterLoading && medFilter !== "all" && filteredEntries.length === 0 && (
+          <div className="text-center py-8 text-sm text-muted-foreground">
+            没有符合筛选条件的记录
+          </div>
+        )}
+
+        {!isFilterLoading && (
         <AnimatePresence>
-          {reversedEntries.map((entry) => {
+          {filteredEntries.map((entry) => {
             const overall = getOverallScore(entry);
             const isExpanded = expandedId === entry.id;
+            const medStatus = completionData?.[entry.date];
             return (
               <motion.div
                 key={entry.id}
@@ -178,6 +286,18 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
+                    {/* Medication status badge in list */}
+                    {medStatus && medStatus !== "no-schedule" && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${
+                        medStatus === "all-taken"
+                          ? "bg-sage/10 text-sage"
+                          : medStatus === "partial"
+                            ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                            : "bg-destructive/10 text-destructive"
+                      }`}>
+                        {medStatus === "all-taken" ? "全服" : medStatus === "partial" ? "部分" : "漏服"}
+                      </span>
+                    )}
                     <div className="text-right text-xs text-muted-foreground hidden sm:block">
                       <div>头晕 {entry.dizziness} · 头痛 {entry.headache}</div>
                       <div>睡眠 {entry.sleepQuality} · 焦虑 {entry.anxiety}</div>
@@ -283,6 +403,7 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
             );
           })}
         </AnimatePresence>
+        )}
       </div>
       )}
     </div>
