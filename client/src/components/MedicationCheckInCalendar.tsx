@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -13,9 +13,19 @@ import {
   Pill,
   Loader2,
   MessageSquare,
+  Brain,
+  AlertTriangle,
 } from "lucide-react";
+import { toast } from "sonner";
 
 const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
+
+const HEADACHE_LABELS: Record<number, { label: string; color: string }> = {
+  0: { label: "无", color: "text-muted-foreground" },
+  1: { label: "轻微", color: "text-amber-600 dark:text-amber-400" },
+  2: { label: "明显", color: "text-orange-600 dark:text-orange-400" },
+  3: { label: "严重", color: "text-red-600 dark:text-red-400" },
+};
 
 type DayStatus = "all-taken" | "partial" | "missed" | "no-schedule" | "future";
 
@@ -84,6 +94,10 @@ function DayDetailPanel({
           ? "bg-red-400"
           : "bg-muted";
 
+  const headacheLevel = detail?.headacheAttack ?? 0;
+  const headacheInfo = HEADACHE_LABELS[headacheLevel] ?? HEADACHE_LABELS[0];
+  const painkillerTaken = detail?.painkillerTaken ?? false;
+
   return (
     <div className="px-4 py-3 border-t border-border/50 bg-muted/30">
       <div className="flex items-center justify-between mb-2">
@@ -96,7 +110,37 @@ function DayDetailPanel({
         </div>
       </div>
 
-      {status === "no-schedule" ? (
+      {/* Headache & Painkiller correlation display */}
+      {detail && (headacheLevel > 0 || painkillerTaken) && (
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          {headacheLevel > 0 && (
+            <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${
+              headacheLevel === 3
+                ? "bg-red-50 dark:bg-red-950/30 border-red-200/50 dark:border-red-800/30"
+                : headacheLevel === 2
+                  ? "bg-orange-50 dark:bg-orange-950/30 border-orange-200/50 dark:border-orange-800/30"
+                  : "bg-amber-50 dark:bg-amber-950/30 border-amber-200/50 dark:border-amber-800/30"
+            }`}>
+              <Brain className={`w-3 h-3 ${headacheInfo.color}`} />
+              <span className={headacheInfo.color}>头痛: {headacheInfo.label}</span>
+            </div>
+          )}
+          {painkillerTaken && (
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 dark:bg-rose-950/30 border border-rose-200/50 dark:border-rose-800/30 text-rose-600 dark:text-rose-400">
+              <Pill className="w-3 h-3" />
+              已服止疼药
+            </div>
+          )}
+          {headacheLevel > 0 && painkillerTaken && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <AlertTriangle className="w-3 h-3" />
+              头痛+止疼药
+            </div>
+          )}
+        </div>
+      )}
+
+      {status === "no-schedule" && !detail?.headacheAttack && !detail?.painkillerTaken ? (
         <p className="text-xs text-muted-foreground">当日无用药安排</p>
       ) : isLoading ? (
         <div className="flex items-center justify-center py-2">
@@ -162,10 +206,57 @@ export default function MedicationCheckInCalendar() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
+  // Long-press state
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggeredRef = useRef(false);
+
+  const utils = trpc.useUtils();
+
   const { data, isLoading } = trpc.medReminders.checkInCalendar.useQuery(
     { year, month },
     { staleTime: 60_000 }
   );
+
+  const togglePainkillerMutation = trpc.entries.togglePainkiller.useMutation({
+    onSuccess: (result, variables) => {
+      // Invalidate calendar and painkiller usage queries
+      utils.medReminders.checkInCalendar.invalidate();
+      utils.medReminders.dayDetail.invalidate();
+      utils.entries.painkillerUsage.invalidate();
+      if (result.painkillerTaken) {
+        toast.success(`${variables.date} 已标记服用止疼药`);
+      } else {
+        toast.success(`${variables.date} 已取消止疼药标记`);
+      }
+    },
+    onError: () => {
+      toast.error("操作失败，请重试");
+    },
+  });
+
+  // Long-press handlers
+  const handlePointerDown = useCallback((date: string, status: DayStatus) => {
+    if (status === "future") return;
+    longPressTriggeredRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      togglePainkillerMutation.mutate({ date });
+    }, 600); // 600ms long press
+  }, [togglePainkillerMutation]);
+
+  const handlePointerUp = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handlePointerLeave = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
 
   // Build calendar grid
   const calendarGrid = useMemo(() => {
@@ -202,6 +293,11 @@ export default function MedicationCheckInCalendar() {
 
     return grid;
   }, [year, month, data]);
+
+  // Monthly painkiller count
+  const monthlyPainkillerCount = useMemo(() => {
+    return calendarGrid.filter((cell) => cell?.painkillerTaken).length;
+  }, [calendarGrid]);
 
   const handlePrevMonth = () => {
     if (month === 1) {
@@ -262,7 +358,7 @@ export default function MedicationCheckInCalendar() {
 
         {/* Stats row */}
         {data && !isLoading && (
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
             {/* Streak */}
             {data.streak > 0 && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-950/30 border border-orange-200/50 dark:border-orange-800/30">
@@ -283,6 +379,33 @@ export default function MedicationCheckInCalendar() {
             <span className="text-xs text-muted-foreground">
               {data.totalCompleted}/{data.totalScheduled}
             </span>
+            {/* Monthly painkiller count */}
+            {monthlyPainkillerCount > 0 && (
+              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${
+                monthlyPainkillerCount >= 10
+                  ? "bg-red-50 dark:bg-red-950/30 border-red-200/50 dark:border-red-800/30"
+                  : monthlyPainkillerCount >= 7
+                    ? "bg-orange-50 dark:bg-orange-950/30 border-orange-200/50 dark:border-orange-800/30"
+                    : "bg-rose-50 dark:bg-rose-950/30 border-rose-200/50 dark:border-rose-800/30"
+              }`}>
+                <Pill className={`w-3.5 h-3.5 ${
+                  monthlyPainkillerCount >= 10
+                    ? "text-red-500"
+                    : monthlyPainkillerCount >= 7
+                      ? "text-orange-500"
+                      : "text-rose-500"
+                }`} />
+                <span className={`text-xs font-semibold ${
+                  monthlyPainkillerCount >= 10
+                    ? "text-red-600 dark:text-red-400"
+                    : monthlyPainkillerCount >= 7
+                      ? "text-orange-600 dark:text-orange-400"
+                      : "text-rose-600 dark:text-rose-400"
+                }`}>
+                  止疼药 {monthlyPainkillerCount}天
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -318,6 +441,13 @@ export default function MedicationCheckInCalendar() {
         </button>
       </div>
 
+      {/* Long-press hint */}
+      <div className="px-4 pb-2">
+        <p className="text-[10px] text-muted-foreground/60 text-center">
+          长按日期可快速标记/取消止疼药
+        </p>
+      </div>
+
       {/* Calendar grid */}
       <div className="px-3 pb-3">
         {/* Weekday headers */}
@@ -351,13 +481,20 @@ export default function MedicationCheckInCalendar() {
                 <motion.button
                   key={cell.date}
                   whileTap={{ scale: 0.9 }}
-                  onClick={() =>
-                    setSelectedDay(
-                      selectedDay === cell.date ? null : cell.date
-                    )
-                  }
+                  onClick={() => {
+                    // Only handle click if long press wasn't triggered
+                    if (!longPressTriggeredRef.current) {
+                      setSelectedDay(
+                        selectedDay === cell.date ? null : cell.date
+                      );
+                    }
+                  }}
+                  onPointerDown={() => handlePointerDown(cell.date, cell.status)}
+                  onPointerUp={handlePointerUp}
+                  onPointerLeave={handlePointerLeave}
+                  onContextMenu={(e) => e.preventDefault()}
                   className={`
-                    aspect-square rounded-lg flex flex-col items-center justify-center relative transition-all
+                    aspect-square rounded-lg flex flex-col items-center justify-center relative transition-all select-none touch-none
                     ${getStatusColor(cell.status)}
                     ${isToday ? "ring-2 ring-terracotta ring-offset-1 ring-offset-card" : ""}
                     ${isSelected ? "ring-2 ring-foreground/40 ring-offset-1 ring-offset-card" : ""}

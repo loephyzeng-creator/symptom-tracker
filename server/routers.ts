@@ -68,6 +68,7 @@ import {
   getPainkillerUsageLast30Days,
   getPainkillerDayLimit,
   updatePainkillerDayLimit,
+  togglePainkillerForDate,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -152,6 +153,14 @@ export const appRouter = router({
         const count = await getPainkillerUsageLast30Days(ctx.user.id, input.date);
         const limit = await getPainkillerDayLimit(ctx.user.id);
         return { days: count, limit };
+      }),
+
+    /** Toggle painkillerTaken for a specific date (long-press quick action) */
+    togglePainkiller: protectedProcedure
+      .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+      .mutation(async ({ ctx, input }) => {
+        const newState = await togglePainkillerForDate(ctx.user.id, input.date);
+        return { painkillerTaken: newState };
       }),
 
     /** Delete an entry by id */

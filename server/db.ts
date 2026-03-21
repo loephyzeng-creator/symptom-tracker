@@ -165,6 +165,52 @@ export async function getPainkillerUsageLast30Days(userId: number, fromDate: str
   return rows.length;
 }
 
+/**
+ * Toggle painkillerTaken for a specific date. Creates entry if it doesn't exist.
+ */
+export async function togglePainkillerForDate(userId: number, date: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  const existing = await db
+    .select({ id: symptomEntries.id, painkillerTaken: symptomEntries.painkillerTaken })
+    .from(symptomEntries)
+    .where(
+      and(eq(symptomEntries.userId, userId), eq(symptomEntries.date, date))
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    const newVal = existing[0].painkillerTaken === 1 ? 0 : 1;
+    await db
+      .update(symptomEntries)
+      .set({ painkillerTaken: newVal })
+      .where(eq(symptomEntries.id, existing[0].id));
+    return newVal === 1;
+  } else {
+    // Create a minimal entry for this date with painkillerTaken=1
+    await db.insert(symptomEntries).values({
+      userId,
+      date,
+      dizziness: 0,
+      headache: 0,
+      sleepQuality: 5,
+      anxiety: 0,
+      mood: 5,
+      fatigue: 0,
+      photosensitivity: 0,
+      motionSickness: 0,
+      palpitations: 0,
+      severeHeadache: 0,
+      painkillerTaken: 1,
+      triggers: [],
+      medications: [],
+      notes: null,
+    });
+    return true;
+  }
+}
+
 export async function getEntryByUserAndDate(userId: number, date: string) {
   const db = await getDb();
   if (!db) return undefined;
@@ -2247,12 +2293,32 @@ export async function getMedicationCheckInDayDetail(
   }
 
   if (scheduled.length === 0) {
-    return { scheduled: [], taken: [], missed: [] };
+    // Even with no scheduled meds, we still want headache/painkiller data
+    const noSchedEntries = await db
+      .select({
+        headacheAttack: symptomEntries.severeHeadache,
+        painkillerTaken: symptomEntries.painkillerTaken,
+      })
+      .from(symptomEntries)
+      .where(
+        and(
+          eq(symptomEntries.userId, userId),
+          eq(symptomEntries.date, date)
+        )
+      )
+      .limit(1);
+    const ha = noSchedEntries.length > 0 ? (noSchedEntries[0].headacheAttack ?? 0) : 0;
+    const pt = noSchedEntries.length > 0 ? (noSchedEntries[0].painkillerTaken === 1) : false;
+    return { scheduled: [], taken: [], missed: [], headacheAttack: ha, painkillerTaken: pt };
   }
 
   // Get the symptom entry for this date
   const entries = await db
-    .select({ medications: symptomEntries.medications })
+    .select({
+      medications: symptomEntries.medications,
+      headacheAttack: symptomEntries.severeHeadache,
+      painkillerTaken: symptomEntries.painkillerTaken,
+    })
     .from(symptomEntries)
     .where(
       and(
@@ -2294,7 +2360,10 @@ export async function getMedicationCheckInDayDetail(
     }
   }
 
-  return { scheduled, taken, missed };
+  const headacheAttack = entries.length > 0 ? (entries[0].headacheAttack ?? 0) : 0;
+  const painkillerTaken = entries.length > 0 ? (entries[0].painkillerTaken === 1) : false;
+
+  return { scheduled, taken, missed, headacheAttack, painkillerTaken };
 }
 
 /**
