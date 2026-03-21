@@ -6,6 +6,10 @@ import {
   getMedicationRemindersToSend,
   markMedicationReminderNotified,
   clearMedicationSnooze,
+  getMissedMedicationAlerts,
+  getMedicationReminders,
+  getLowStockAlerts,
+  markStockAlertSent,
 } from "./db";
 import webpush from "web-push";
 import { ENV } from "./_core/env";
@@ -316,8 +320,108 @@ async function checkAndSendReminders() {
 
     // 2. Medication-specific reminders
     await checkAndSendMedicationReminders();
+
+    // 3. Missed medication alerts (check once daily at 10:00 AM)
+    if (hour === 10 && minute < 15) {
+      await checkAndSendMissedMedicationAlerts();
+    }
+
+    // 4. Low stock alerts (check once daily at 9:00 AM)
+    if (hour === 9 && minute < 15) {
+      await checkAndSendLowStockAlerts();
+    }
   } catch (error) {
     console.error("[Reminder] Error in checkAndSendReminders:", error);
+  }
+}
+
+/**
+ * Check for consecutive missed medications and send push alerts.
+ * Runs once daily. Collects unique user IDs from all active reminders,
+ * then checks each user for missed medications.
+ */
+async function checkAndSendMissedMedicationAlerts() {
+  try {
+    const db = await import("./db");
+    const allReminders = await db.getDb().then(async (d) => {
+      if (!d) return [];
+      const { medicationReminders } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      return d.select({ userId: medicationReminders.userId })
+        .from(medicationReminders)
+        .where(eq(medicationReminders.enabled, 1));
+    });
+
+    // Get unique user IDs
+    const userIds = Array.from(new Set(allReminders.map((r) => r.userId)));
+
+    for (const userId of userIds) {
+      const alerts = await getMissedMedicationAlerts(userId, 3);
+      if (alerts.length === 0) continue;
+
+      const medNames = alerts.map((a) => a.medicationName).join("、");
+      const maxMissed = Math.max(...alerts.map((a) => a.missedDays));
+
+      await sendWebPush(
+        userId,
+        `⚠️ 漏服警告`,
+        `${medNames} 已连续 ${maxMissed} 天未服用，请注意按时服药。`,
+        "missed-medication-alert"
+      );
+
+      console.log(`[MissedMed] Sent missed medication alert to user ${userId}: ${medNames}`);
+    }
+  } catch (error) {
+    console.error("[MissedMed] Error checking missed medications:", error);
+  }
+}
+
+/**
+ * Check for low medication stock and send push alerts.
+ * Runs once daily. Checks each user's reminders for low stock.
+ */
+async function checkAndSendLowStockAlerts() {
+  try {
+    const dbModule = await import("./db");
+    const allReminders = await dbModule.getDb().then(async (d) => {
+      if (!d) return [];
+      const { medicationReminders } = await import("../drizzle/schema");
+      const { eq, and, isNotNull } = await import("drizzle-orm");
+      return d.select({ userId: medicationReminders.userId })
+        .from(medicationReminders)
+        .where(
+          and(
+            eq(medicationReminders.enabled, 1),
+            isNotNull(medicationReminders.stockQuantity)
+          )
+        );
+    });
+
+    const userIds = Array.from(new Set(allReminders.map((r) => r.userId)));
+
+    for (const userId of userIds) {
+      const alerts = await getLowStockAlerts(userId);
+      if (alerts.length === 0) continue;
+
+      for (const alert of alerts) {
+        const body = alert.daysRemaining <= 0
+          ? `${alert.medicationName} 已用完，请尽快补药。`
+          : `${alert.medicationName} 剩余 ${alert.stockQuantity} 剂，预计 ${alert.daysRemaining} 天后用完，请及时补药。`;
+
+        await sendWebPush(
+          userId,
+          `💊 药品库存不足`,
+          body,
+          `low-stock-${alert.reminderId}`
+        );
+
+        await markStockAlertSent(alert.reminderId);
+      }
+
+      console.log(`[LowStock] Sent low stock alerts to user ${userId}: ${alerts.map(a => a.medicationName).join(", ")}`);
+    }
+  } catch (error) {
+    console.error("[LowStock] Error checking low stock:", error);
   }
 }
 

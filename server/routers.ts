@@ -40,6 +40,10 @@ import {
   deleteMedicationReminder,
   snoozeMedicationReminder,
   getMedicationAdherence,
+  getMissedMedicationAlerts,
+  getMedicationStockStatus,
+  deductMedicationStock,
+  getLowStockAlerts,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -342,7 +346,23 @@ export const appRouter = router({
       if (!entries || entries.length === 0) {
         return { analysis: "暂无足够的数据进行分析。请至少记录几天的症状数据后再尝试 AI 分析。" };
       }
-      const analysis = await analyzeSymptoms(entries as any);
+
+      // Fetch medication adherence data for the analysis period
+      const sortedEntries = [...entries].sort((a: any, b: any) => a.date.localeCompare(b.date));
+      const startDate = (sortedEntries[0] as any).date;
+      const endDate = (sortedEntries[sortedEntries.length - 1] as any).date;
+      let adherenceData = null;
+      try {
+        adherenceData = await getMedicationAdherence(ctx.user.id, startDate, endDate);
+      } catch { /* ignore if no adherence data */ }
+
+      // Fetch stock status
+      let stockData = null;
+      try {
+        stockData = await getMedicationStockStatus(ctx.user.id);
+      } catch { /* ignore */ }
+
+      const analysis = await analyzeSymptoms(entries as any, adherenceData, stockData);
       return { analysis };
     }),
   }),
@@ -430,6 +450,9 @@ export const appRouter = router({
           reminderMinute: z.number().min(0).max(59),
           repeatDays: z.array(z.number().min(0).max(6)).optional(),
           offsetMinutes: z.number().min(-120).max(120).optional(),
+          stockQuantity: z.number().min(0).nullable().optional(),
+          dailyDosageCount: z.number().min(1).max(20).optional(),
+          stockAlertDays: z.number().min(1).max(90).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -448,6 +471,9 @@ export const appRouter = router({
           enabled: z.number().min(0).max(1).optional(),
           repeatDays: z.array(z.number().min(0).max(6)).optional(),
           offsetMinutes: z.number().min(-120).max(120).optional(),
+          stockQuantity: z.number().min(0).nullable().optional(),
+          dailyDosageCount: z.number().min(1).max(20).optional(),
+          stockAlertDays: z.number().min(1).max(90).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -482,6 +508,17 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    /** Get missed medication alerts (consecutive days missed) */
+    missedAlerts: protectedProcedure
+      .input(
+        z.object({
+          threshold: z.number().min(1).max(14).optional(),
+        }).optional()
+      )
+      .query(async ({ ctx, input }) => {
+        return getMissedMedicationAlerts(ctx.user.id, input?.threshold ?? 3);
+      }),
+
     /** Get medication adherence statistics */
     adherence: protectedProcedure
       .input(
@@ -492,6 +529,20 @@ export const appRouter = router({
       )
       .query(async ({ ctx, input }) => {
         return getMedicationAdherence(ctx.user.id, input.startDate, input.endDate);
+      }),
+
+    /** Get medication stock status */
+    stockStatus: protectedProcedure
+      .query(async ({ ctx }) => {
+        return getMedicationStockStatus(ctx.user.id);
+      }),
+
+    /** Deduct stock for a medication (when user records taking it) */
+    deductStock: protectedProcedure
+      .input(z.object({ medicationName: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        await deductMedicationStock(ctx.user.id, input.medicationName);
+        return { success: true };
       }),
   }),
 

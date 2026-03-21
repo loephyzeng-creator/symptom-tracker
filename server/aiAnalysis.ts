@@ -142,15 +142,74 @@ function buildDataSummary(entries: SymptomEntryForAnalysis[]): string {
 常用药物：${medStr}${trendSection}${dataTable}`;
 }
 
+interface AdherenceData {
+  overallRate: number;
+  perMedication: Array<{ name: string; expected: number; taken: number; rate: number }>;
+  dailyData: Array<{ date: string; expected: number; taken: number; rate: number }>;
+}
+
+interface StockItem {
+  reminderId: number;
+  medicationName: string;
+  dosage: string;
+  stockQuantity: number;
+  dailyDosageCount: number;
+  daysRemaining: number;
+  estimatedRunOutDate: string;
+  alertDays: number;
+  isLow: boolean;
+  enabled: number;
+}
+
+/** Build medication adherence summary for AI prompt */
+function buildAdherenceSummary(adherence: AdherenceData | null): string {
+  if (!adherence || adherence.perMedication.length === 0) return "";
+
+  let summary = "\n\n用药依从性数据：\n";
+  summary += `- 总体依从率：${adherence.overallRate}%\n`;
+  summary += "- 各药品依从率：\n";
+  for (const med of adherence.perMedication) {
+    summary += `  ${med.name}: ${med.rate}% (${med.taken}/${med.expected}天)\n`;
+  }
+
+  // Identify periods of poor adherence
+  const poorDays = adherence.dailyData.filter(d => d.rate < 50);
+  if (poorDays.length > 0) {
+    summary += `- 依从率低于50%的天数：${poorDays.length}天\n`;
+    if (poorDays.length <= 10) {
+      summary += `  日期：${poorDays.map(d => d.date).join(", ")}\n`;
+    }
+  }
+
+  return summary;
+}
+
+/** Build stock status summary for AI prompt */
+function buildStockSummary(stockData: StockItem[] | null): string {
+  if (!stockData || stockData.length === 0) return "";
+
+  let summary = "\n\n药品库存状态：\n";
+  for (const item of stockData) {
+    const status = item.isLow ? "⚠️ 库存不足" : "✅ 充足";
+    summary += `- ${item.medicationName}: 剩余${item.stockQuantity}剂，预计${item.daysRemaining}天后用完 (${status})\n`;
+  }
+  return summary;
+}
+
 /** Run AI analysis on symptom data */
 export async function analyzeSymptoms(
-  entries: SymptomEntryForAnalysis[]
+  entries: SymptomEntryForAnalysis[],
+  adherenceData?: AdherenceData | null,
+  stockData?: StockItem[] | null
 ): Promise<string> {
   if (entries.length === 0) {
     return "暂无足够的数据进行分析。请至少记录几天的症状数据后再尝试 AI 分析。";
   }
 
   const dataSummary = buildDataSummary(entries);
+
+  const adherenceSummary = buildAdherenceSummary(adherenceData ?? null);
+  const stockSummary = buildStockSummary(stockData ?? null);
 
   const systemPrompt = `你是一位专业的健康数据分析助手，擅长分析症状日记数据并提供有价值的洞察。
 
@@ -164,21 +223,26 @@ export async function analyzeSymptoms(
 
 1. **症状模式识别**：发现症状之间的关联模式（如哪些症状经常同时出现或此消彼长）
 2. **诱因关联分析**：分析特定诱因出现时各症状的变化规律
-3. **用药效果评估**：如果有用药记录，分析用药前后症状的变化趋势
-4. **时间规律发现**：发现是否存在周期性波动（如周末vs工作日、月初vs月末等）
-5. **个性化建议**：基于数据给出具体、可操作的健康管理建议
+3. **用药效果评估**：分析用药前后症状的变化趋势
+4. **用药依从性与症状关联**：如果有依从性数据，分析服药规律与症状改善之间的相关性。特别关注：
+   - 漏服天数与症状加重的时间关系
+   - 依从率较低的药品是否影响了治疗效果
+   - 连续服药期间与间断服药期间的症状对比
+5. **时间规律发现**：发现是否存在周期性波动（如周末vs工作日、月初vs月末等）
+6. **个性化建议**：基于数据给出具体、可操作的健康管理建议，包括用药依从性改善建议
 
 ## 输出格式
 
-请使用 Markdown 格式输出，包含清晰的标题和段落。语言风格应温和、专业、鼓励性。
-不要使用过于绝对的医学诊断语言，而是用"数据显示"、"可能存在"、"建议关注"等表述。
+请使用 Markdown 格式输出，包含清暙的标题和段落。语言风格应温和、专业、鼓励性。
+不要使用过于绝对的医学诊断语言，而是用“数据显示”、“可能存在”、“建议关注”等表述。
 如果数据量较少，请如实说明分析的局限性。
+如果提供了用药依从性数据，请在报告中单独设置一个“用药依从性与症状关联分析”章节。
 
 重要：你是数据分析助手，不是医生。请在报告末尾提醒用户，AI分析仅供参考，不能替代专业医疗建议。`;
 
   const userPrompt = `请分析以下症状日记数据并提供深度分析报告：
 
-${dataSummary}`;
+${dataSummary}${adherenceSummary}${stockSummary}`;
 
   const result = await invokeLLM({
     messages: [

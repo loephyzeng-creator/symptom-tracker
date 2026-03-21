@@ -997,6 +997,9 @@ export async function addMedicationReminder(
     reminderMinute: number;
     repeatDays?: number[] | null;
     offsetMinutes?: number;
+    stockQuantity?: number | null;
+    dailyDosageCount?: number;
+    stockAlertDays?: number;
   }
 ) {
   const db = await getDb();
@@ -1009,6 +1012,9 @@ export async function addMedicationReminder(
     reminderMinute: data.reminderMinute,
     repeatDays: data.repeatDays ?? [0, 1, 2, 3, 4, 5, 6],
     offsetMinutes: data.offsetMinutes ?? 0,
+    stockQuantity: data.stockQuantity ?? null,
+    dailyDosageCount: data.dailyDosageCount ?? 1,
+    stockAlertDays: data.stockAlertDays ?? 7,
     enabled: 1,
   });
   return { id: result.insertId };
@@ -1029,6 +1035,9 @@ export async function updateMedicationReminder(
     repeatDays: number[] | null;
     offsetMinutes: number;
     snoozedUntil: string | null;
+    stockQuantity: number | null;
+    dailyDosageCount: number;
+    stockAlertDays: number;
   }>
 ) {
   const db = await getDb();
@@ -1113,6 +1122,99 @@ export async function markMedicationReminderNotified(id: number, todayStr: strin
     .update(medicationReminders)
     .set({ lastNotifiedDate: todayStr })
     .where(eq(medicationReminders.id, id));
+}
+
+// ─── Missed Medication Alerts ──────────────────────────────────────────
+
+/**
+ * Detect consecutive missed medications.
+ * For each active reminder, check the last N days to see if the medication was recorded.
+ * Returns alerts for medications missed >= `threshold` consecutive days.
+ */
+export async function getMissedMedicationAlerts(
+  userId: number,
+  threshold: number = 3
+): Promise<Array<{ reminderId: number; medicationName: string; dosage: string; missedDays: number }>> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Get active reminders
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(and(eq(medicationReminders.userId, userId), eq(medicationReminders.enabled, 1)));
+
+  if (reminders.length === 0) return [];
+
+  // Get recent entries (last 14 days should be enough)
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 14);
+  const startStr = startDate.toISOString().slice(0, 10);
+  const endStr = endDate.toISOString().slice(0, 10);
+
+  const entries = await db
+    .select({ date: symptomEntries.date, medications: symptomEntries.medications })
+    .from(symptomEntries)
+    .where(
+      and(
+        eq(symptomEntries.userId, userId),
+        gte(symptomEntries.date, startStr),
+        lte(symptomEntries.date, endStr)
+      )
+    );
+
+  // Build date -> medication names map
+  const entryMap = new Map<string, Set<string>>();
+  for (const entry of entries) {
+    const meds = entry.medications;
+    const names = new Set<string>();
+    if (Array.isArray(meds)) {
+      for (const m of meds) {
+        if (m.name && m.name.trim()) names.add(m.name.trim().toLowerCase());
+      }
+    }
+    entryMap.set(entry.date, names);
+  }
+
+  const alerts: Array<{ reminderId: number; medicationName: string; dosage: string; missedDays: number }> = [];
+
+  for (const reminder of reminders) {
+    let consecutiveMissed = 0;
+    const medName = reminder.medicationName.trim().toLowerCase();
+    const repeatDays: number[] | null = reminder.repeatDays as number[] | null;
+
+    // Check backwards from yesterday (today might not be recorded yet)
+    for (let i = 1; i <= 14; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().slice(0, 10);
+      const dayOfWeek = d.getDay();
+
+      // Skip days not in repeat schedule
+      if (repeatDays && repeatDays.length > 0 && !repeatDays.includes(dayOfWeek)) {
+        continue;
+      }
+
+      const recordedMeds = entryMap.get(dateStr);
+      if (recordedMeds && recordedMeds.has(medName)) {
+        break; // Found a day where medication was taken, stop counting
+      }
+
+      consecutiveMissed++;
+    }
+
+    if (consecutiveMissed >= threshold) {
+      alerts.push({
+        reminderId: reminder.id,
+        medicationName: reminder.medicationName,
+        dosage: reminder.dosage,
+        missedDays: consecutiveMissed,
+      });
+    }
+  }
+
+  return alerts;
 }
 
 // ─── Medication Adherence Statistics ──────────────────────────────────
@@ -1254,4 +1356,126 @@ export async function getMedicationAdherence(
   }));
 
   return { overallRate, perMedication, dailyData };
+}
+
+// ─── Medication Stock Management ──────────────────────────────────────
+
+/**
+ * Get stock status for all medication reminders of a user.
+ * Returns reminders with stock tracking enabled, plus estimated days remaining.
+ */
+export async function getMedicationStockStatus(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(eq(medicationReminders.userId, userId));
+
+  return reminders
+    .filter((r) => r.stockQuantity !== null)
+    .map((r) => {
+      const dailyCount = r.dailyDosageCount ?? 1;
+      const daysRemaining = dailyCount > 0 ? Math.floor((r.stockQuantity ?? 0) / dailyCount) : 999;
+      const alertDays = r.stockAlertDays ?? 7;
+      const isLow = daysRemaining <= alertDays;
+      const estimatedRunOutDate = new Date();
+      estimatedRunOutDate.setDate(estimatedRunOutDate.getDate() + daysRemaining);
+
+      return {
+        reminderId: r.id,
+        medicationName: r.medicationName,
+        dosage: r.dosage,
+        stockQuantity: r.stockQuantity ?? 0,
+        dailyDosageCount: dailyCount,
+        daysRemaining,
+        estimatedRunOutDate: estimatedRunOutDate.toISOString().slice(0, 10),
+        alertDays,
+        isLow,
+        enabled: r.enabled,
+      };
+    });
+}
+
+/**
+ * Deduct stock for a medication (called when user records taking medication).
+ * Decrements stockQuantity by the dailyDosageCount.
+ */
+export async function deductMedicationStock(userId: number, medicationName: string) {
+  const db = await getDb();
+  if (!db) return;
+
+  // Find matching reminders with stock tracking
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.userId, userId),
+        sql`LOWER(${medicationReminders.medicationName}) = LOWER(${medicationName})`
+      )
+    );
+
+  for (const r of reminders) {
+    if (r.stockQuantity === null) continue; // Not tracking stock
+    const deductAmount = r.dailyDosageCount ?? 1;
+    const newQuantity = Math.max(0, (r.stockQuantity ?? 0) - deductAmount);
+    await db
+      .update(medicationReminders)
+      .set({ stockQuantity: newQuantity })
+      .where(eq(medicationReminders.id, r.id));
+  }
+}
+
+/**
+ * Get low-stock medication alerts for push notifications.
+ * Returns medications where stock will run out within alertDays.
+ */
+export async function getLowStockAlerts(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.userId, userId),
+        eq(medicationReminders.enabled, 1)
+      )
+    );
+
+  return reminders
+    .filter((r) => {
+      if (r.stockQuantity === null) return false;
+      if (r.lastStockAlertDate === todayStr) return false; // Already alerted today
+      const dailyCount = r.dailyDosageCount ?? 1;
+      const daysRemaining = dailyCount > 0 ? Math.floor(r.stockQuantity / dailyCount) : 999;
+      return daysRemaining <= (r.stockAlertDays ?? 7);
+    })
+    .map((r) => ({
+      reminderId: r.id,
+      medicationName: r.medicationName,
+      stockQuantity: r.stockQuantity ?? 0,
+      dailyDosageCount: r.dailyDosageCount ?? 1,
+      daysRemaining: (r.dailyDosageCount ?? 1) > 0
+        ? Math.floor((r.stockQuantity ?? 0) / (r.dailyDosageCount ?? 1))
+        : 999,
+    }));
+}
+
+/**
+ * Mark a medication reminder's stock alert as sent for today.
+ */
+export async function markStockAlertSent(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  await db
+    .update(medicationReminders)
+    .set({ lastStockAlertDate: todayStr })
+    .where(eq(medicationReminders.id, id));
 }

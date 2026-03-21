@@ -177,6 +177,10 @@ export const medicationReminders = mysqlTable("medication_reminders", {
   repeatDays: json("repeatDays").$type<number[]>(), // 0=Sun..6=Sat, null means every day
   offsetMinutes: int("offsetMinutes").default(0).notNull(), // negative=before, positive=after
   snoozedUntil: varchar("snoozedUntil", { length: 20 }), // ISO datetime for snooze, e.g. "2026-03-21T08:15"
+  stockQuantity: int("stockQuantity"), // remaining quantity (null = not tracking)
+  dailyDosageCount: int("dailyDosageCount").default(1), // how many doses per day
+  stockAlertDays: int("stockAlertDays").default(7), // alert when stock runs out within N days
+  lastStockAlertDate: varchar("lastStockAlertDate", { length: 10 }), // prevent duplicate stock alerts
   lastNotifiedDate: varchar("lastNotifiedDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

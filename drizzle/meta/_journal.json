@@ -71,6 +71,13 @@
       "when": 1774062253414,
       "tag": "0009_chemical_mantis",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1774062999834,
+      "tag": "0010_cuddly_loners",
+      "breakpoints": true
     }
   ]
 }

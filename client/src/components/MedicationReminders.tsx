@@ -15,6 +15,7 @@ import {
   Bell,
   CalendarDays,
   Timer,
+  Package,
 } from "lucide-react";
 
 const DAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
@@ -38,6 +39,10 @@ interface ReminderForm {
   reminderMinute: number;
   repeatDays: number[];
   offsetMinutes: number;
+  trackStock: boolean;
+  stockQuantity: number;
+  dailyDosageCount: number;
+  stockAlertDays: number;
 }
 
 const EMPTY_FORM: ReminderForm = {
@@ -47,6 +52,10 @@ const EMPTY_FORM: ReminderForm = {
   reminderMinute: 0,
   repeatDays: [...ALL_DAYS],
   offsetMinutes: 0,
+  trackStock: false,
+  stockQuantity: 30,
+  dailyDosageCount: 1,
+  stockAlertDays: 7,
 };
 
 function DaySelector({
@@ -244,6 +253,9 @@ export default function MedicationReminders() {
       reminderMinute: form.reminderMinute,
       repeatDays: form.repeatDays,
       offsetMinutes: form.offsetMinutes,
+      stockQuantity: form.trackStock ? form.stockQuantity : null,
+      dailyDosageCount: form.dailyDosageCount,
+      stockAlertDays: form.stockAlertDays,
     });
   };
 
@@ -261,6 +273,9 @@ export default function MedicationReminders() {
       reminderMinute: editForm.reminderMinute,
       repeatDays: editForm.repeatDays,
       offsetMinutes: editForm.offsetMinutes,
+      stockQuantity: editForm.trackStock ? editForm.stockQuantity : null,
+      dailyDosageCount: editForm.dailyDosageCount,
+      stockAlertDays: editForm.stockAlertDays,
     });
   };
 
@@ -273,6 +288,10 @@ export default function MedicationReminders() {
       reminderMinute: reminder.reminderMinute,
       repeatDays: reminder.repeatDays ?? [...ALL_DAYS],
       offsetMinutes: reminder.offsetMinutes ?? 0,
+      trackStock: reminder.stockQuantity !== null && reminder.stockQuantity !== undefined,
+      stockQuantity: reminder.stockQuantity ?? 30,
+      dailyDosageCount: reminder.dailyDosageCount ?? 1,
+      stockAlertDays: reminder.stockAlertDays ?? 7,
     });
   };
 
@@ -374,6 +393,58 @@ export default function MedicationReminders() {
         value={formData.offsetMinutes}
         onChange={(v) => setFormData({ ...formData, offsetMinutes: v })}
       />
+      {/* Stock tracking section */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Package className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-foreground">库存跟踪</span>
+          <label className="ml-auto flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formData.trackStock}
+              onChange={(e) => setFormData({ ...formData, trackStock: e.target.checked })}
+              className="rounded border-border accent-terracotta"
+            />
+            <span className="text-xs text-muted-foreground">启用</span>
+          </label>
+        </div>
+        {formData.trackStock && (
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-xs text-muted-foreground">当前库存</label>
+              <Input
+                type="number"
+                value={formData.stockQuantity}
+                onChange={(e) => setFormData({ ...formData, stockQuantity: Math.max(0, parseInt(e.target.value) || 0) })}
+                className="h-8 text-sm mt-1"
+                min={0}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">每日用量</label>
+              <Input
+                type="number"
+                value={formData.dailyDosageCount}
+                onChange={(e) => setFormData({ ...formData, dailyDosageCount: Math.max(1, parseInt(e.target.value) || 1) })}
+                className="h-8 text-sm mt-1"
+                min={1}
+                max={20}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">提前提醒(天)</label>
+              <Input
+                type="number"
+                value={formData.stockAlertDays}
+                onChange={(e) => setFormData({ ...formData, stockAlertDays: Math.max(1, parseInt(e.target.value) || 7) })}
+                className="h-8 text-sm mt-1"
+                min={1}
+                max={90}
+              />
+            </div>
+          </div>
+        )}
+      </div>
       <div className="flex gap-2 pt-1">
         <Button
           size="sm"
@@ -527,6 +598,20 @@ export default function MedicationReminders() {
                         {reminder.snoozedUntil && (
                           <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full">
                             已暂停至 {reminder.snoozedUntil.slice(11)}
+                          </span>
+                        )}
+                        {reminder.stockQuantity !== null && reminder.stockQuantity !== undefined && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            (() => {
+                              const daily = reminder.dailyDosageCount ?? 1;
+                              const days = daily > 0 ? Math.floor(reminder.stockQuantity / daily) : 999;
+                              const alertDays = reminder.stockAlertDays ?? 7;
+                              return days <= alertDays
+                                ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                                : "bg-muted/60 text-muted-foreground";
+                            })()
+                          }`}>
+                            库存 {reminder.stockQuantity}
                           </span>
                         )}
                         {reminder.enabled === 1 && !reminder.snoozedUntil && (

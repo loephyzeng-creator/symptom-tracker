@@ -193,3 +193,24 @@
 - [x] 前端：提醒编辑界面添加"提前/延后"选项（-60到+60分钟）
 - [x] 前端：推送通知添加"稍后提醒"交互按钮
 - [x] 测试验证
+
+## 依从性提醒
+- [x] 后端：检测连续多天漏服某药品的逻辑（getMissedMedicationAlerts）
+- [x] 后端：集成到定时调度器，连续漏服≥3天时推送Web Push警告
+- [x] 前端：首页显示漏服警告卡片（MissedMedicationAlert组件，红色警告+药品名+连续漏服天数）
+- [x] 测试验证（241个测试全部通过，含42个新增测试）
+
+## 药品库存管理
+- [x] 数据库：medication_reminders表添加库存相关字段（stockQuantity/dailyDosageCount/stockAlertDays/lastStockAlertDate）
+- [x] 后端：计算预计用完日期的API（getMedicationStockStatus）
+- [x] 后端：集成到调度器，库存不足时推送补药提醒（checkAndSendLowStockAlerts）
+- [x] 前端：用药提醒管理中添加库存设置（剩余数量+每日用量+提前提醒天数）
+- [x] 前端：MedicationStock组件（库存状态卡片+进度条+快捷调整+低库存警告）
+- [x] 测试验证
+
+## 用药与症状关联分析
+- [x] 后端：增强AI分析prompt，加入用药依从性数据和药品库存状态
+- [x] 后端：analyzeSymptoms函数接受adherenceData和stockData参数
+- [x] 后端：AI prompt新增"用药依从性与症状关联"分析要求
+- [x] 前端：AI分析结果自动包含用药关联分析章节
+- [x] 测试验证（241个测试全部通过）

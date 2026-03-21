@@ -19,6 +19,8 @@ import DailyReminder from "@/components/DailyReminder";
 import NotificationSettings from "@/components/NotificationSettings";
 import AlertSettings from "@/components/AlertSettings";
 import MedicationReminders from "@/components/MedicationReminders";
+import MissedMedicationAlert from "@/components/MissedMedicationAlert";
+import MedicationStock from "@/components/MedicationStock";
 import BackupRestore from "@/components/BackupRestore";
 import SyncStatus from "@/components/SyncStatus";
 import CustomMetricsManager from "@/components/CustomMetricsManager";
@@ -301,6 +303,9 @@ export default function Home() {
               <MedicationReminders />
             </div>
             <div className="mt-4 pt-4 border-t border-border/30">
+              <MedicationStock />
+            </div>
+            <div className="mt-4 pt-4 border-t border-border/30">
               <AlertSettings />
             </div>
           </motion.div>
@@ -362,6 +367,10 @@ export default function Home() {
             >
               {activeTab === "record" && (
                 <>
+                  {/* Missed Medication Alert */}
+                  {selectedDate === todayStr && !dataLoading && (
+                    <MissedMedicationAlert />
+                  )}
                   {/* Today Widget - overview card */}
                   {selectedDate === todayStr && !dataLoading && (
                     <TodayWidget entries={entries} />
