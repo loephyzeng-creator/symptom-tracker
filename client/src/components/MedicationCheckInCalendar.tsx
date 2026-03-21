@@ -12,6 +12,7 @@ import {
   Trophy,
   Pill,
   Loader2,
+  MessageSquare,
 } from "lucide-react";
 
 const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
@@ -110,7 +111,7 @@ function DayDetailPanel({
                 已服药 ({detail.taken.length})
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {detail.taken.map((med, i) => (
+                {detail.taken.map((med: any, i: number) => (
                   <span
                     key={i}
                     className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/30 flex items-center gap-1"
@@ -118,6 +119,12 @@ function DayDetailPanel({
                     <Pill className="w-3 h-3" />
                     {med.name}
                     <span className="text-emerald-500/60 text-[10px]">{med.dosage}</span>
+                    {med.note && (
+                      <span className="text-emerald-500/70 text-[10px] flex items-center gap-0.5 ml-0.5">
+                        <MessageSquare className="w-2.5 h-2.5" />
+                        {med.note}
+                      </span>
+                    )}
                   </span>
                 ))}
               </div>

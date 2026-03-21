@@ -352,25 +352,25 @@ export default function MedicationView() {
                                       handleConfirmWithNote(med.reminderId, med.timeIndex);
                                     }
                                   }}
-                                  placeholder="可选备注，如“饭后服用”“有不适感”"
-                                  className="flex-1 text-xs bg-background/80 border border-border/40 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-terracotta/40 placeholder:text-muted-foreground/50"
+                                  placeholder='可选备注，如"饭后服用"'
+                                  className="flex-1 min-w-0 text-xs bg-background/80 border border-border/40 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-terracotta/40 placeholder:text-muted-foreground/50"
                                   autoFocus
                                 />
                                 <button
                                   onClick={() => handleConfirmWithNote(med.reminderId, med.timeIndex)}
-                                  className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-sage text-white hover:bg-sage/90 transition-colors font-medium"
+                                  className="shrink-0 flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-sage text-white hover:bg-sage/90 transition-colors font-medium whitespace-nowrap"
                                 >
                                   <Send className="w-3 h-3" />
                                   确认
                                 </button>
                                 <button
                                   onClick={() => { setExpandedNote(null); setNoteText(""); }}
-                                  className="text-muted-foreground hover:text-foreground p-1"
+                                  className="shrink-0 text-muted-foreground hover:text-foreground p-1"
                                 >
                                   <X className="w-3.5 h-3.5" />
                                 </button>
                               </div>
-                              <p className="text-[10px] text-muted-foreground/60 mt-1">直接点击“确认”可不填备注</p>
+                              <p className="text-[10px] text-muted-foreground/60 mt-1">直接点击确认可不填备注</p>
                             </motion.div>
                           )}
                         </div>

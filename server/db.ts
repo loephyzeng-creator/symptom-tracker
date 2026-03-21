@@ -1534,6 +1534,7 @@ export async function getTodayMedications(userId: number, dateStr: string) {
     totalTimes: number;
     intervalHours: number | null;
     lastTakenAt: string | null;
+    note: string | null;
   }> = [];
 
   for (const r of reminders) {
@@ -1545,11 +1546,12 @@ export async function getTodayMedications(userId: number, dateStr: string) {
     for (let ti = 0; ti < allTimes.length; ti++) {
       const t = allTimes[ti];
       // Check if this specific time slot was taken
-      const taken = takenMeds.some(
+      const matchedMed = takenMeds.find(
         (m) =>
           (m.reminderId === r.id || m.name.toLowerCase() === r.medicationName.toLowerCase()) &&
           (allTimes.length === 1 || m.timeIndex === ti)
       );
+      const taken = !!matchedMed;
       result.push({
         name: r.medicationName,
         dosage: r.dosage,
@@ -1562,6 +1564,7 @@ export async function getTodayMedications(userId: number, dateStr: string) {
         totalTimes: allTimes.length,
         intervalHours: r.intervalHours,
         lastTakenAt: r.lastTakenAt,
+        note: (matchedMed as any)?.note || null,
       });
     }
   }
@@ -2184,28 +2187,33 @@ export async function getMedicationCheckInDayDetail(
     )
     .limit(1);
 
-  // Build match info from recorded medications
+  // Build match info from recorded medications and collect notes
   const recordedNames = new Set<string>();
   const recordedReminderIds = new Set<number>();
+  const notesByReminderId = new Map<number, string>();
+  const notesByName = new Map<string, string>();
   if (entries.length > 0 && Array.isArray(entries[0].medications)) {
-    for (const m of entries[0].medications as { name: string; dosage: string; reminderId?: number }[]) {
+    for (const m of entries[0].medications as { name: string; dosage: string; reminderId?: number; note?: string }[]) {
       if (m.name && m.name.trim()) {
         recordedNames.add(m.name.trim().toLowerCase());
+        if (m.note) notesByName.set(m.name.trim().toLowerCase(), m.note);
       }
       if (m.reminderId) {
         recordedReminderIds.add(m.reminderId);
+        if (m.note) notesByReminderId.set(m.reminderId, m.note);
       }
     }
   }
 
   const matchInfo = { names: recordedNames, reminderIds: recordedReminderIds, reminderTimeKeys: new Set<string>() };
 
-  const taken: { name: string; dosage: string; id: number }[] = [];
+  const taken: { name: string; dosage: string; id: number; note?: string }[] = [];
   const missed: { name: string; dosage: string; id: number }[] = [];
 
   for (const med of scheduled) {
     if (wasMedTaken(matchInfo, med.id, med.name)) {
-      taken.push(med);
+      const note = notesByReminderId.get(med.id) || notesByName.get(med.name.trim().toLowerCase());
+      taken.push({ ...med, ...(note ? { note } : {}) });
     } else {
       missed.push(med);
     }

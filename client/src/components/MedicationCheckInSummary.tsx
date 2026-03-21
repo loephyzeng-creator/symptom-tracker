@@ -3,7 +3,7 @@
  * Used in HistoryView to display which medications were taken/missed on that day.
  */
 import { trpc } from "@/lib/trpc";
-import { CheckCircle2, Circle, Pill, Loader2 } from "lucide-react";
+import { CheckCircle2, Circle, Pill, Loader2, MessageSquare } from "lucide-react";
 
 interface MedicationCheckInSummaryProps {
   date: string; // YYYY-MM-DD
@@ -69,6 +69,12 @@ export default function MedicationCheckInSummary({ date }: MedicationCheckInSumm
               {med.name}
               {med.totalTimes > 1 && (
                 <span className="opacity-60">#{med.timeIndex + 1}</span>
+              )}
+              {med.taken && med.note && (
+                <span className="opacity-70 flex items-center gap-0.5">
+                  <MessageSquare className="w-2 h-2" />
+                  {med.note}
+                </span>
               )}
             </span>
           );
