@@ -1,0 +1,8 @@
+{
+  "query": "SELECT * FROM medication_check_ins WHERE date = '2026-03-21';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT * FROM medication_check_ins WHERE date = '2026-03-21';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table '7cnbegxybasxbkljvrjzxx.medication_check_ins' doesn't exist"
+  ]
+}

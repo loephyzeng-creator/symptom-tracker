@@ -659,16 +659,16 @@ export const appRouter = router({
 
     /** Confirm medication taken (from push notification action) */
     confirmTaken: protectedProcedure
-      .input(z.object({ reminderId: z.number(), timeIndex: z.number().optional(), note: z.string().max(200).optional() }))
+      .input(z.object({ reminderId: z.number(), timeIndex: z.number().optional(), note: z.string().max(200).optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }))
       .mutation(async ({ ctx, input }) => {
-        return confirmMedicationTaken(ctx.user.id, input.reminderId, input.timeIndex, input.note);
+        return confirmMedicationTaken(ctx.user.id, input.reminderId, input.timeIndex, input.note, input.date);
       }),
 
     /** Unconfirm medication taken (remove from today's entry and restore stock) */
     unconfirmTaken: protectedProcedure
-      .input(z.object({ reminderId: z.number(), timeIndex: z.number().optional() }))
+      .input(z.object({ reminderId: z.number(), timeIndex: z.number().optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }))
       .mutation(async ({ ctx, input }) => {
-        return unconfirmMedicationTaken(ctx.user.id, input.reminderId, input.timeIndex);
+        return unconfirmMedicationTaken(ctx.user.id, input.reminderId, input.timeIndex, input.date);
       }),
 
     /** Get today's medications from reminders (for auto-filling symptom form) */

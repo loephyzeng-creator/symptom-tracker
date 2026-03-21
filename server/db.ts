@@ -1732,7 +1732,8 @@ export async function confirmMedicationTaken(
   userId: number,
   reminderId: number,
   timeIndex?: number,
-  note?: string
+  note?: string,
+  date?: string
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1754,7 +1755,7 @@ export async function confirmMedicationTaken(
   }
 
   const med = reminder[0];
-  const todayStr = (() => {
+  const todayStr = date || (() => {
     const now = new Date();
     const offset = 8 * 60 * 60 * 1000;
     const chinaTime = new Date(now.getTime() + offset);
@@ -1764,7 +1765,7 @@ export async function confirmMedicationTaken(
   const allTimes = getAllReminderTimes(med);
   const effectiveTimeIndex = timeIndex ?? 0;
 
-  // Check if there's already an entry for today
+  // Check if there's already an entry for the target date
   const existing = await getEntryByUserAndDate(userId, todayStr);
 
   const newMed: { name: string; dosage: string; reminderId: number; timeIndex?: number; note?: string } = {
@@ -1840,7 +1841,8 @@ export async function confirmMedicationTaken(
 export async function unconfirmMedicationTaken(
   userId: number,
   reminderId: number,
-  timeIndex?: number
+  timeIndex?: number,
+  date?: string
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1865,14 +1867,14 @@ export async function unconfirmMedicationTaken(
   const allTimes = getAllReminderTimes(med);
   const effectiveTimeIndex = timeIndex ?? 0;
 
-  const todayStr = (() => {
+  const todayStr = date || (() => {
     const now = new Date();
     const offset = 8 * 60 * 60 * 1000;
     const chinaTime = new Date(now.getTime() + offset);
     return chinaTime.toISOString().slice(0, 10);
   })();
 
-  // Get today's entry
+  // Get the target date's entry
   const existing = await getEntryByUserAndDate(userId, todayStr);
   if (!existing) {
     return { success: true, medicationName: med.medicationName };

@@ -1,14 +1,14 @@
 /**
  * MedicationView — Standalone medication management tab
- * Includes: Missed medication alerts, today's medication checklist,
+ * Includes: Date selector for retroactive check-ins, medication checklist,
  * medication check-in calendar, and drug interaction checker.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import MedicationCheckInCalendar from "@/components/MedicationCheckInCalendar";
 import DrugInteractionChecker from "@/components/DrugInteractionChecker";
 import PainkillerTrendChart from "@/components/PainkillerTrendChart";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   Pill,
@@ -26,29 +26,109 @@ import {
   Moon,
   MessageSquare,
   Send,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
+  RotateCcw,
 } from "lucide-react";
 import MedicationAutocomplete from "@/components/MedicationAutocomplete";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { zhCN } from "date-fns/locale";
+
+/* ─── Date helpers ─── */
+function dateStrToDate(dateStr: string): Date {
+  return new Date(dateStr + "T00:00:00");
+}
+
+function dateToDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function getTodayStr(): string {
+  const now = new Date();
+  return dateToDateStr(now);
+}
 
 export default function MedicationView() {
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [selectedDate, setSelectedDate] = useState(() => getTodayStr());
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
-  // ─── Today's medications from reminders ──────
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+  const todayStr = useMemo(() => dateToDateStr(today), [today]);
+  const isToday = selectedDate === todayStr;
+
+  const handleCalendarSelect = useCallback((day: Date | undefined) => {
+    if (day) {
+      setSelectedDate(dateToDateStr(day));
+      setCalendarOpen(false);
+    }
+  }, []);
+
+  const handlePrevDay = useCallback(() => {
+    const d = dateStrToDate(selectedDate);
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(dateToDateStr(d));
+  }, [selectedDate]);
+
+  const handleNextDay = useCallback(() => {
+    const d = dateStrToDate(selectedDate);
+    d.setDate(d.getDate() + 1);
+    if (d <= today) {
+      setSelectedDate(dateToDateStr(d));
+    }
+  }, [selectedDate, today]);
+
+  const handleBackToToday = useCallback(() => {
+    setSelectedDate(todayStr);
+  }, [todayStr]);
+
+  const canGoNext = useMemo(() => {
+    const next = dateStrToDate(selectedDate);
+    next.setDate(next.getDate() + 1);
+    return next <= today;
+  }, [selectedDate, today]);
+
+  // Format date parts for display
+  const dateDisplay = useMemo(() => {
+    const d = new Date(selectedDate + "T00:00:00");
+    const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
+    return {
+      monthDay: `${d.getMonth() + 1}月${d.getDate()}日`,
+      weekday: `星期${weekdays[d.getDay()]}`,
+    };
+  }, [selectedDate]);
+
+  const selectedDateObj = useMemo(() => dateStrToDate(selectedDate), [selectedDate]);
+
+  // ─── Medications from reminders for selected date ──────
   const utils = trpc.useUtils();
   const { data: todayMeds, isLoading: todayMedsLoading } =
     trpc.medReminders.todayMeds.useQuery(
-      { date: todayStr },
+      { date: selectedDate },
       { refetchOnWindowFocus: false, staleTime: 30_000 }
     );
 
   const confirmTakenMutation = trpc.medReminders.confirmTaken.useMutation({
     onSuccess: () => {
-      utils.medReminders.todayMeds.invalidate({ date: todayStr });
+      utils.medReminders.todayMeds.invalidate({ date: selectedDate });
+      utils.medReminders.checkInCalendar.invalidate();
+      utils.medReminders.dayDetail.invalidate();
     },
   });
 
   const unconfirmTakenMutation = trpc.medReminders.unconfirmTaken.useMutation({
     onSuccess: () => {
-      utils.medReminders.todayMeds.invalidate({ date: todayStr });
+      utils.medReminders.todayMeds.invalidate({ date: selectedDate });
+      utils.medReminders.checkInCalendar.invalidate();
+      utils.medReminders.dayDetail.invalidate();
     },
   });
 
@@ -65,10 +145,19 @@ export default function MedicationView() {
   ) => {
     try {
       if (currentlyTaken) {
-        await unconfirmTakenMutation.mutateAsync({ reminderId, timeIndex });
+        await unconfirmTakenMutation.mutateAsync({
+          reminderId,
+          timeIndex,
+          date: selectedDate,
+        });
         toast.success("已取消服药记录");
       } else {
-        await confirmTakenMutation.mutateAsync({ reminderId, timeIndex, note: note || undefined });
+        await confirmTakenMutation.mutateAsync({
+          reminderId,
+          timeIndex,
+          note: note || undefined,
+          date: selectedDate,
+        });
         toast.success("已确认服药");
       }
       setExpandedNote(null);
@@ -102,7 +191,7 @@ export default function MedicationView() {
     if (!todayMeds || todayMeds.length === 0) return;
     const untaken = todayMeds.filter((m: any) => !m.taken);
     if (untaken.length === 0) {
-      toast.success("今日药品已全部服用");
+      toast.success(isToday ? "今日药品已全部服用" : "该日药品已全部服用");
       return;
     }
     setConfirmingAll(true);
@@ -111,6 +200,7 @@ export default function MedicationView() {
         await confirmTakenMutation.mutateAsync({
           reminderId: med.reminderId,
           timeIndex: med.timeIndex,
+          date: selectedDate,
         });
       }
       toast.success(`已确认 ${untaken.length} 项药品全部服用`);
@@ -169,7 +259,97 @@ export default function MedicationView() {
 
   return (
     <div className="space-y-4">
-      {/* Today's Medication Checklist */}
+      {/* ─── Date Selector ─── */}
+      <div className="flex flex-col items-center gap-2">
+        {/* Main date row */}
+        <div className="flex items-center gap-1">
+          {/* Prev day arrow */}
+          <button
+            onClick={handlePrevDay}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground/60 hover:text-dusty-blue hover:bg-dusty-blue/10 transition-all active:scale-90"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          {/* Date display - clickable to open calendar */}
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <button className="group flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-card border border-border/40 shadow-sm hover:shadow-md hover:border-dusty-blue/20 transition-all active:scale-[0.98]">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-dusty-blue/15 to-dusty-blue/5 flex items-center justify-center">
+                  <Pill className="w-[18px] h-[18px] text-dusty-blue" />
+                </div>
+                <div className="text-left">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-serif text-[17px] font-semibold text-foreground tracking-tight">
+                      {dateDisplay.monthDay}
+                    </span>
+                    <span className="text-xs text-muted-foreground font-medium">
+                      {dateDisplay.weekday}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {isToday && (
+                      <span className="text-[10px] px-1.5 py-px rounded-full bg-sage/15 text-sage font-semibold">今天</span>
+                    )}
+                    {!isToday && (
+                      <span className="text-[10px] px-1.5 py-px rounded-full bg-dusty-blue/10 text-dusty-blue font-semibold">补打卡</span>
+                    )}
+                    {totalMedCount > 0 && takenCount === totalMedCount && (
+                      <span className="text-[10px] px-1.5 py-px rounded-full bg-sage/15 text-sage font-semibold">✓ 全部已服</span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 rounded-2xl shadow-lg border-border/40" align="center" sideOffset={8}>
+              <Calendar
+                mode="single"
+                selected={selectedDateObj}
+                onSelect={handleCalendarSelect}
+                locale={zhCN}
+                disabled={{ after: today }}
+                defaultMonth={selectedDateObj}
+                className="rounded-2xl"
+                classNames={{
+                  today: "bg-dusty-blue/15 text-dusty-blue font-bold rounded-lg",
+                  month_caption: "flex items-center justify-center h-10 w-full px-8 font-serif font-semibold",
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+
+          {/* Next day arrow */}
+          <button
+            onClick={handleNextDay}
+            disabled={!canGoNext}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 ${
+              canGoNext
+                ? "text-muted-foreground/60 hover:text-dusty-blue hover:bg-dusty-blue/10"
+                : "text-muted-foreground/20 cursor-not-allowed"
+            }`}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Back to today pill */}
+        <AnimatePresence>
+          {!isToday && (
+            <motion.button
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              onClick={handleBackToToday}
+              className="flex items-center gap-1 px-3 py-1 rounded-full bg-dusty-blue/8 text-dusty-blue text-[11px] font-medium hover:bg-dusty-blue/15 transition-colors active:scale-95"
+            >
+              <RotateCcw className="w-3 h-3" />
+              返回今天
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Medication Checklist */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -181,7 +361,9 @@ export default function MedicationView() {
             <div className="w-8 h-8 rounded-lg bg-dusty-blue/10 flex items-center justify-center">
               <Pill className="w-4 h-4 text-dusty-blue" />
             </div>
-            <h3 className="font-serif font-semibold text-sm">今日用药</h3>
+            <h3 className="font-serif font-semibold text-sm">
+              {isToday ? "今日用药" : `${dateDisplay.monthDay} 用药`}
+            </h3>
           </div>
           <div className="flex items-center gap-2">
             {totalMedCount > 0 && takenCount < totalMedCount && (

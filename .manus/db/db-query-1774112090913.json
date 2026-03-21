@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, userId, date, medications FROM symptom_entries WHERE userId = 4 AND date = '2026-03-21';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT id, userId, date, medications FROM symptom_entries WHERE userId = 4 AND date = '2026-03-21';",
+  "rows": [
+    {
+      "id": "30001",
+      "userId": "4",
+      "date": "2026-03-21",
+      "medications": "[]"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tdate\tmedications\n30001\t4\t2026-03-21\t[]\n",
+  "stderr": "",
+  "execution_time_ms": 64
+}
