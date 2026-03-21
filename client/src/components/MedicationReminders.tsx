@@ -16,8 +16,11 @@ import {
   CalendarDays,
   Timer,
   Package,
+  CalendarPlus,
+  Download,
 } from "lucide-react";
 import TimePicker from "@/components/TimePicker";
+import { exportSingleReminder, exportAllReminders } from "@/lib/icsExport";
 
 const DAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
@@ -450,19 +453,41 @@ export default function MedicationReminders() {
             用药提醒
           </h3>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowAdd(!showAdd)}
-          className="gap-1"
-        >
-          <Plus className="w-4 h-4" />
-          添加
-        </Button>
+        <div className="flex items-center gap-2">
+          {reminders.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const enabledReminders = reminders.filter((r: any) => r.enabled === 1);
+                if (enabledReminders.length === 0) {
+                  toast.error("没有已启用的提醒可导出");
+                  return;
+                }
+                exportAllReminders(enabledReminders);
+                toast.success("已生成日历文件，请在弹出的对话框中添加到日历");
+              }}
+              className="gap-1"
+              title="导出全部提醒到系统日历"
+            >
+              <CalendarPlus className="w-4 h-4" />
+              导入日历
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAdd(!showAdd)}
+            className="gap-1"
+          >
+            <Plus className="w-4 h-4" />
+            添加
+          </Button>
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        为每种药品设置独立的提醒时间、剂量和重复日，到时间自动推送通知。支持提前/延后提醒和稍后提醒。
+        为每种药品设置独立的提醒时间、剂量和重复日，到时间自动推送通知。点击"导入日历"可将提醒添加到 iPhone 系统日历，即使关闭应用也能收到提醒。
       </p>
 
       {/* Add form */}
@@ -550,6 +575,18 @@ export default function MedicationReminders() {
                             onClick={() => startEdit(reminder)}
                           >
                             <Edit2 className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => {
+                              exportSingleReminder(reminder);
+                              toast.success("已生成日历文件");
+                            }}
+                            title="导出到系统日历"
+                          >
+                            <CalendarPlus className="w-3.5 h-3.5" />
                           </Button>
                           <Button
                             variant="ghost"
