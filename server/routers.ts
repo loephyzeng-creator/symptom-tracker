@@ -96,6 +96,8 @@ const entryInputSchema = z.object({
   triggers: z.array(z.string()).default([]),
   severeHeadache: z.number().min(0).max(3).default(0), // 0=无, 1=轻微, 2=明显, 3=严重
   painkillerTaken: z.number().min(0).max(1).default(0), // 0=否, 1=是
+  painkillerBrand: z.string().optional().nullable(),
+  painkillerDosage: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
 
@@ -135,6 +137,8 @@ export const appRouter = router({
           triggers: input.triggers,
           severeHeadache: input.severeHeadache,
           painkillerTaken: input.painkillerTaken,
+          painkillerBrand: input.painkillerBrand ?? null,
+          painkillerDosage: input.painkillerDosage ?? null,
           notes: input.notes ?? null,
         });
 
@@ -161,6 +165,19 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const newState = await togglePainkillerForDate(ctx.user.id, input.date);
         return { painkillerTaken: newState };
+      }),
+
+    /** Update painkiller brand and dosage for an entry */
+    updatePainkillerDetail: protectedProcedure
+      .input(z.object({
+        entryId: z.number(),
+        painkillerBrand: z.string(),
+        painkillerDosage: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { updatePainkillerDetail } = await import("./db");
+        await updatePainkillerDetail(ctx.user.id, input.entryId, input.painkillerBrand, input.painkillerDosage);
+        return { success: true };
       }),
 
     /** Delete an entry by id */

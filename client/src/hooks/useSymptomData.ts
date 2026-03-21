@@ -23,6 +23,8 @@ export interface SymptomEntry {
   mood: number;
   severeHeadache: number; // 0=无, 1=轻微, 2=明显, 3=严重
   painkillerTaken: number; // 0=否, 1=是
+  painkillerBrand?: string | null;
+  painkillerDosage?: string | null;
   notes: string | null;
   medications: MedicationItem[];
   triggers: string[];
@@ -104,6 +106,8 @@ export function useSymptomData() {
         triggers: entry.triggers,
         severeHeadache: entry.severeHeadache ?? 0,
         painkillerTaken: entry.painkillerTaken ?? 0,
+        painkillerBrand: entry.painkillerBrand ?? undefined,
+        painkillerDosage: entry.painkillerDosage ?? undefined,
         notes: entry.notes ?? undefined,
       });
       return result;

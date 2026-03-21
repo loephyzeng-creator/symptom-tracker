@@ -252,6 +252,8 @@ export async function upsertEntry(
         triggers: data.triggers,
         severeHeadache: data.severeHeadache,
         painkillerTaken: data.painkillerTaken,
+        painkillerBrand: data.painkillerBrand ?? null,
+        painkillerDosage: data.painkillerDosage ?? null,
         notes: data.notes,
       })
       .where(eq(symptomEntries.id, existing.id));
@@ -2882,6 +2884,38 @@ export async function getMedCompletionByDates(
       result[dateStr] = "missed";
     }
   }
+
+  return result;
+}
+
+
+// ========== Painkiller Detail ==========
+
+/**
+ * Update painkiller brand and dosage for a specific entry.
+ * Verifies ownership before updating.
+ */
+export async function updatePainkillerDetail(
+  userId: number,
+  entryId: number,
+  painkillerBrand: string,
+  painkillerDosage: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .update(symptomEntries)
+    .set({
+      painkillerBrand: painkillerBrand || null,
+      painkillerDosage: painkillerDosage || null,
+    })
+    .where(
+      and(
+        eq(symptomEntries.id, entryId),
+        eq(symptomEntries.userId, userId)
+      )
+    );
 
   return result;
 }

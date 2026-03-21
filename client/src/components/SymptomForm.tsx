@@ -13,6 +13,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { SymptomEntry } from "@/hooks/useSymptomData";
 import CustomMetricSliders from "@/components/CustomMetricSliders";
+import PainkillerDetailDialog from "@/components/PainkillerDetailDialog";
 import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
 import { zhCN } from "date-fns/locale";
@@ -125,6 +126,8 @@ export default function SymptomForm({
   const [showAddTrigger, setShowAddTrigger] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [customMetricValues, setCustomMetricValues] = useState<Record<number, number>>({});
+  const [painkillerDialogOpen, setPainkillerDialogOpen] = useState(false);
+  const [pendingSavedEntryId, setPendingSavedEntryId] = useState<number | null>(null);
 
   // Painkiller usage check
   const painkillerUsageCheck = trpc.entries.painkillerUsage.useQuery(
@@ -145,6 +148,7 @@ export default function SymptomForm({
   );
 
   const saveCustomMetrics = trpc.customMetrics.saveValues.useMutation();
+  const updatePainkillerDetail = trpc.entries.updatePainkillerDetail.useMutation();
 
   useEffect(() => {
     if (existingEntry) {
@@ -221,10 +225,17 @@ export default function SymptomForm({
       }
       // Stock deduction is now handled by confirmTaken/unconfirmTaken
       setSaved(true);
+
+      // If painkiller is taken, show detail dialog to record brand/dosage
+      if (painkillerTaken && savedEntry && typeof (savedEntry as any).id === "number") {
+        setPendingSavedEntryId((savedEntry as any).id);
+        setPainkillerDialogOpen(true);
+      }
+
       // Show toast with link to medication tab
       toast.success("记录已保存", {
-        description: "别忘了去用药 tab 打卡哦",
-        action: onSwitchToMedication
+        description: painkillerTaken ? "请记录止疼药详情" : "别忘了去用药 tab 打卡哦",
+        action: !painkillerTaken && onSwitchToMedication
           ? { label: "去打卡", onClick: onSwitchToMedication }
           : undefined,
         duration: 4000,
@@ -556,6 +567,32 @@ export default function SymptomForm({
           {saving ? "保存中..." : saved ? "已保存" : existingEntry ? "更新记录" : "保存记录"}
         </Button>
       </motion.div>
+
+      {/* Painkiller Detail Dialog */}
+      <PainkillerDetailDialog
+        open={painkillerDialogOpen}
+        onClose={() => setPainkillerDialogOpen(false)}
+        onSave={async (brand, dosage) => {
+          if (pendingSavedEntryId) {
+            try {
+              await updatePainkillerDetail.mutateAsync({
+                entryId: pendingSavedEntryId,
+                painkillerBrand: brand,
+                painkillerDosage: dosage,
+              });
+              toast.success("止疼药详情已保存", {
+                description: `${brand}${dosage ? " " + dosage : ""}`,
+              });
+            } catch {
+              toast.error("保存失败", { description: "请稍后重试" });
+            }
+          }
+          setPainkillerDialogOpen(false);
+          setPendingSavedEntryId(null);
+        }}
+        initialBrand={existingEntry?.painkillerBrand ?? ""}
+        initialDosage={existingEntry?.painkillerDosage ?? ""}
+      />
     </div>
   );
 }

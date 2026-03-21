@@ -6,8 +6,10 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Loader2, RefreshCw, Copy, Check, AlertCircle } from "lucide-react";
+import { Sparkles, Loader2, RefreshCw, Copy, Check, AlertCircle, FileDown } from "lucide-react";
+import { exportAnalysisPdf } from "@/lib/exportAnalysisPdf";
 import { Streamdown } from "streamdown";
+import { toast } from "sonner";
 
 interface AIAnalysisProps {
   entryCount: number;
@@ -17,6 +19,7 @@ export default function AIAnalysis({ entryCount }: AIAnalysisProps) {
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const analyzeMutation = trpc.ai.analyze.useMutation({
     onSuccess: (data) => {
@@ -32,6 +35,20 @@ export default function AIAnalysis({ entryCount }: AIAnalysisProps) {
   const handleAnalyze = () => {
     setError(null);
     analyzeMutation.mutate();
+  };
+
+  const handleExportPdf = async () => {
+    if (!analysis) return;
+    setExporting(true);
+    try {
+      await exportAnalysisPdf(analysis);
+      toast.success("PDF 已生成", { description: "文件已下载，可打印给医生参考" });
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      toast.error("导出失败", { description: "请稍后重试" });
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleCopy = async () => {
@@ -195,22 +212,41 @@ export default function AIAnalysis({ entryCount }: AIAnalysisProps) {
                   分析报告
                 </span>
               </div>
-              <button
-                onClick={handleCopy}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted/50"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-sage" />
-                    <span className="text-sage">已复制</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>复制</span>
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleExportPdf}
+                  disabled={exporting}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted/50 disabled:opacity-50"
+                >
+                  {exporting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>导出中...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileDown className="w-3.5 h-3.5" />
+                      <span>导出PDF</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleCopy}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted/50"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-sage" />
+                      <span className="text-sage">已复制</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>复制</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Markdown Content */}
