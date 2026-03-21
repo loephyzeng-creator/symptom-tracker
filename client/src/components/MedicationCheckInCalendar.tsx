@@ -178,6 +178,7 @@ export default function MedicationCheckInCalendar() {
       status: DayStatus;
       scheduledCount: number;
       takenCount: number;
+      painkillerTaken: boolean;
     } | null> = [];
 
     // Fill leading empty cells
@@ -195,6 +196,7 @@ export default function MedicationCheckInCalendar() {
         status: dayData?.status ?? "future",
         scheduledCount: dayData?.scheduledCount ?? 0,
         takenCount: dayData?.takenCount ?? 0,
+        painkillerTaken: dayData?.painkillerTaken ?? false,
       });
     }
 
@@ -378,6 +380,9 @@ export default function MedicationCheckInCalendar() {
                         {getStatusIcon(cell.status, 10)}
                       </span>
                     )}
+                  {cell.painkillerTaken && (
+                    <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-rose-500 border border-white/80 shadow-sm" title="服用止疼药" />
+                  )}
                 </motion.button>
               );
             })}
@@ -422,6 +427,10 @@ export default function MedicationCheckInCalendar() {
         <div className="flex items-center gap-1">
           <div className="w-2.5 h-2.5 rounded-sm bg-muted/50 border border-border/50" />
           <span className="text-[10px] text-muted-foreground">无安排</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+          <span className="text-[10px] text-muted-foreground">止疼药</span>
         </div>
       </div>
     </div>

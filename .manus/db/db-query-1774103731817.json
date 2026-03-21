@@ -1,0 +1,50 @@
+{
+  "query": "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE COLUMN_NAME = 'userId' AND TABLE_SCHEMA = DATABASE();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE COLUMN_NAME = 'userId' AND TABLE_SCHEMA = DATABASE();",
+  "rows": [
+    {
+      "TABLE_NAME": "custom_triggers",
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "TABLE_NAME": "symptom_entries",
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "TABLE_NAME": "notification_settings",
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "TABLE_NAME": "push_subscriptions",
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "TABLE_NAME": "custom_metrics",
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "TABLE_NAME": "alert_history",
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "TABLE_NAME": "alert_rules",
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "TABLE_NAME": "medication_reminders",
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "TABLE_NAME": "medication_groups",
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "TABLE_NAME": "drug_interactions",
+      "COLUMN_NAME": "userId"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\tCOLUMN_NAME\ncustom_triggers\tuserId\nsymptom_entries\tuserId\nnotification_settings\tuserId\npush_subscriptions\tuserId\ncustom_metrics\tuserId\nalert_history\tuserId\nalert_rules\tuserId\nmedication_reminders\tuserId\nmedication_groups\tuserId\ndrug_interactions\tuserId\n",
+  "stderr": "",
+  "execution_time_ms": 145
+}

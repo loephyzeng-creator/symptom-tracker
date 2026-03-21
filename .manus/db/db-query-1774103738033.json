@@ -1,0 +1,50 @@
+{
+  "query": "\nSELECT 'symptom_entries' as tbl, COUNT(*) as cnt FROM symptom_entries WHERE userId = 1\nUNION ALL SELECT 'custom_triggers', COUNT(*) FROM custom_triggers WHERE userId = 1\nUNION ALL SELECT 'notification_settings', COUNT(*) FROM notification_settings WHERE userId = 1\nUNION ALL SELECT 'push_subscriptions', COUNT(*) FROM push_subscriptions WHERE userId = 1\nUNION ALL SELECT 'custom_metrics', COUNT(*) FROM custom_metrics WHERE userId = 1\nUNION ALL SELECT 'alert_history', COUNT(*) FROM alert_history WHERE userId = 1\nUNION ALL SELECT 'alert_rules', COUNT(*) FROM alert_rules WHERE userId = 1\nUNION ALL SELECT 'medication_reminders', COUNT(*) FROM medication_reminders WHERE userId = 1\nUNION ALL SELECT 'medication_groups', COUNT(*) FROM medication_groups WHERE userId = 1\nUNION ALL SELECT 'drug_interactions', COUNT(*) FROM drug_interactions WHERE userId = 1;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute \nSELECT 'symptom_entries' as tbl, COUNT(*) as cnt FROM symptom_entries WHERE userId = 1\nUNION ALL SELECT 'custom_triggers', COUNT(*) FROM custom_triggers WHERE userId = 1\nUNION ALL SELECT 'notification_settings', COUNT(*) FROM notification_settings WHERE userId = 1\nUNION ALL SELECT 'push_subscriptions', COUNT(*) FROM push_subscriptions WHERE userId = 1\nUNION ALL SELECT 'custom_metrics', COUNT(*) FROM custom_metrics WHERE userId = 1\nUNION ALL SELECT 'alert_history', COUNT(*) FROM alert_history WHERE userId = 1\nUNION ALL SELECT 'alert_rules', COUNT(*) FROM alert_rules WHERE userId = 1\nUNION ALL SELECT 'medication_reminders', COUNT(*) FROM medication_reminders WHERE userId = 1\nUNION ALL SELECT 'medication_groups', COUNT(*) FROM medication_groups WHERE userId = 1\nUNION ALL SELECT 'drug_interactions', COUNT(*) FROM drug_interactions WHERE userId = 1;\n",
+  "rows": [
+    {
+      "tbl": "notification_settings",
+      "cnt": "0"
+    },
+    {
+      "tbl": "symptom_entries",
+      "cnt": "1"
+    },
+    {
+      "tbl": "custom_metrics",
+      "cnt": "0"
+    },
+    {
+      "tbl": "custom_triggers",
+      "cnt": "0"
+    },
+    {
+      "tbl": "alert_history",
+      "cnt": "0"
+    },
+    {
+      "tbl": "push_subscriptions",
+      "cnt": "0"
+    },
+    {
+      "tbl": "alert_rules",
+      "cnt": "0"
+    },
+    {
+      "tbl": "medication_reminders",
+      "cnt": "0"
+    },
+    {
+      "tbl": "medication_groups",
+      "cnt": "0"
+    },
+    {
+      "tbl": "drug_interactions",
+      "cnt": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "tbl\tcnt\nnotification_settings\t0\nsymptom_entries\t1\ncustom_metrics\t0\ncustom_triggers\t0\nalert_history\t0\npush_subscriptions\t0\nalert_rules\t0\nmedication_reminders\t0\nmedication_groups\t0\ndrug_interactions\t0\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

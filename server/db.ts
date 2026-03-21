@@ -1986,6 +1986,7 @@ export async function getMedicationCheckInCalendar(
     .select({
       date: symptomEntries.date,
       medications: symptomEntries.medications,
+      painkillerTaken: symptomEntries.painkillerTaken,
     })
     .from(symptomEntries)
     .where(
@@ -1995,6 +1996,12 @@ export async function getMedicationCheckInCalendar(
         lte(symptomEntries.date, endDate)
       )
     );
+
+  // Build a map of date -> painkillerTaken
+  const painkillerMap = new Map<string, boolean>();
+  for (const entry of entries) {
+    painkillerMap.set(entry.date, entry.painkillerTaken === 1);
+  }
 
   // Build a map of date -> recorded medication info (names + reminderIds)
   const entryMap = buildEntryMedMap(entries);
@@ -2009,6 +2016,7 @@ export async function getMedicationCheckInCalendar(
     status: "all-taken" | "partial" | "missed" | "no-schedule" | "future";
     scheduledCount: number;
     takenCount: number;
+    painkillerTaken: boolean;
   };
 
   const days: DayStatus[] = [];
@@ -2022,7 +2030,7 @@ export async function getMedicationCheckInCalendar(
 
     // Future dates
     if (dateStr > todayStr) {
-      days.push({ date: dateStr, status: "future", scheduledCount: 0, takenCount: 0 });
+      days.push({ date: dateStr, status: "future", scheduledCount: 0, takenCount: 0, painkillerTaken: false });
       continue;
     }
 
@@ -2035,7 +2043,7 @@ export async function getMedicationCheckInCalendar(
     }
 
     if (scheduledReminders.length === 0) {
-      days.push({ date: dateStr, status: "no-schedule", scheduledCount: 0, takenCount: 0 });
+      days.push({ date: dateStr, status: "no-schedule", scheduledCount: 0, takenCount: 0, painkillerTaken: painkillerMap.get(dateStr) ?? false });
       continue;
     }
 
@@ -2060,7 +2068,7 @@ export async function getMedicationCheckInCalendar(
       status = "missed";
     }
 
-    days.push({ date: dateStr, status, scheduledCount: scheduledReminders.length, takenCount });
+    days.push({ date: dateStr, status, scheduledCount: scheduledReminders.length, takenCount, painkillerTaken: painkillerMap.get(dateStr) ?? false });
   }
 
   // Calculate streak: consecutive "all-taken" days ending at today (or yesterday if today has no data yet)

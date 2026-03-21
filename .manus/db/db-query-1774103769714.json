@@ -1,0 +1,40 @@
+{
+  "query": "SELECT 'users' as tbl, id, name, email FROM users UNION ALL SELECT 'entries', CAST(id AS CHAR), date, CAST(painkillerTaken AS CHAR) FROM symptom_entries ORDER BY tbl;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT 'users' as tbl, id, name, email FROM users UNION ALL SELECT 'entries', CAST(id AS CHAR), date, CAST(painkillerTaken AS CHAR) FROM symptom_entries ORDER BY tbl;",
+  "rows": [
+    {
+      "tbl": "entries",
+      "id": "1",
+      "name": "2026-03-20",
+      "email": "1"
+    },
+    {
+      "tbl": "entries",
+      "id": "30001",
+      "name": "2026-03-21",
+      "email": "1"
+    },
+    {
+      "tbl": "entries",
+      "id": "60001",
+      "name": "2026-03-19",
+      "email": "1"
+    },
+    {
+      "tbl": "entries",
+      "id": "60002",
+      "name": "2026-03-18",
+      "email": "1"
+    },
+    {
+      "tbl": "users",
+      "id": "4",
+      "name": "Loephy Zeng",
+      "email": "loephyzeng@gmail.com"
+    }
+  ],
+  "messages": [],
+  "stdout": "tbl\tid\tname\temail\nentries\t1\t2026-03-20\t1\nentries\t30001\t2026-03-21\t1\nentries\t60001\t2026-03-19\t1\nentries\t60002\t2026-03-18\t1\nusers\t4\tLoephy Zeng\tloephyzeng@gmail.com\n",
+  "stderr": "",
+  "execution_time_ms": 61
+}
