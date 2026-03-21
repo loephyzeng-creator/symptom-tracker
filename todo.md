@@ -318,3 +318,13 @@
 - [x] 前端：提醒表单添加分组选择器（GroupSelector组件）
 - [x] 前端：集成到设置页面（用药提醒和药品库存之间）
 - [x] 测试验证（371个测试全部通过）
+
+## 今日用药改造：调用用药提醒+已服用勾选
+- [x] 分析现有今日用药区域和提醒确认的代码结构
+- [x] 后端：增强todayMeds API返回每个药品的taken状态+reminderHour/reminderMinute/groupId
+- [x] 后端：新增unconfirmMedicationTaken API（取消服药确认，从记录中移除药品）
+- [x] 前端：今日用药区域改为提醒药品清单+勾选框（CheckCircle2/Circle）
+- [x] 前端：勾选调用confirmTaken，取消勾选调用unconfirmTaken
+- [x] 前端：handleSave合并已勾选提醒药品+手动额外药品
+- [x] 前端：显示已服/总数计数徽章（如 2/3 已服）
+- [x] 测试验证（378个测试全部通过）

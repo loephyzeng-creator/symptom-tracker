@@ -38,6 +38,9 @@ import {
   AlertTriangle,
   Zap,
   ClipboardList,
+  CheckCircle2,
+  Circle,
+  Clock,
 } from "lucide-react";
 
 interface SymptomFormProps {
@@ -186,7 +189,15 @@ export default function SymptomForm({
   const handleSave = async () => {
     setSaving(true);
     try {
-      const cleanMeds = medications.filter((m) => m.name.trim());
+      // Merge: taken reminder meds + manual extra meds
+      const takenReminderMeds: MedicationItem[] = todayMeds
+        ? todayMeds
+            .filter((m) => m.taken)
+            .map((m) => ({ name: m.name, dosage: m.dosage, reminderId: m.reminderId }))
+        : [];
+      const extraMeds = medications.filter((m) => !m.reminderId && m.name.trim());
+      const allMeds = [...takenReminderMeds, ...extraMeds];
+
       const savedEntry = await onSave({
         date,
         dizziness: values.dizziness,
@@ -199,7 +210,7 @@ export default function SymptomForm({
         palpitations: values.palpitations,
         mood: values.mood,
         notes,
-        medications: cleanMeds,
+        medications: allMeds,
         triggers,
         severeHeadache: severeHeadache ? 1 : 0,
       });
@@ -214,25 +225,7 @@ export default function SymptomForm({
           })),
         });
       }
-      // Auto-deduct stock for medications that have reminders with stock tracking
-      if (!existingEntry && cleanMeds.length > 0 && todayMeds && todayMeds.length > 0) {
-        const reminderMap = new Map(todayMeds.map((m) => [m.reminderId, m]));
-        const reminderNames = new Set(todayMeds.map((m) => m.name.toLowerCase().trim()));
-        const deducted = new Set<number>();
-        for (const med of cleanMeds) {
-          // Prefer reminderId match, fallback to name match
-          if (med.reminderId && reminderMap.has(med.reminderId) && !deducted.has(med.reminderId)) {
-            deducted.add(med.reminderId);
-            try {
-              await deductStockMutation.mutateAsync({ medicationName: reminderMap.get(med.reminderId)!.name });
-            } catch { /* ignore */ }
-          } else if (!med.reminderId && reminderNames.has(med.name.toLowerCase().trim())) {
-            try {
-              await deductStockMutation.mutateAsync({ medicationName: med.name });
-            } catch { /* ignore */ }
-          }
-        }
-      }
+      // Stock deduction is now handled by confirmTaken/unconfirmTaken
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } finally {
@@ -271,59 +264,59 @@ export default function SymptomForm({
     setMedications((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // ─── Auto-fill from medication reminders ──────────────────────────
-  const { data: todayMeds } = trpc.medReminders.todayMeds.useQuery(
+  // ─── Today's medications from reminders (with taken status) ──────
+  const utils = trpc.useUtils();
+  const { data: todayMeds, isLoading: todayMedsLoading } = trpc.medReminders.todayMeds.useQuery(
     { date },
-    { refetchOnWindowFocus: false, staleTime: 60_000 }
+    { refetchOnWindowFocus: false, staleTime: 30_000 }
   );
+
+  const confirmTakenMutation = trpc.medReminders.confirmTaken.useMutation({
+    onSuccess: () => {
+      utils.medReminders.todayMeds.invalidate({ date });
+    },
+  });
+
+  const unconfirmTakenMutation = trpc.medReminders.unconfirmTaken.useMutation({
+    onSuccess: () => {
+      utils.medReminders.todayMeds.invalidate({ date });
+    },
+  });
 
   const deductStockMutation = trpc.medReminders.deductStock.useMutation();
 
-  const handleFillFromReminders = () => {
-    if (!todayMeds || todayMeds.length === 0) return;
-    // Merge with existing: don't duplicate medications already in the list
-    // Use both reminderId and name for dedup
-    const existingReminderIds = new Set(medications.filter(m => m.reminderId).map(m => m.reminderId));
-    const existingNames = new Set(medications.map((m) => m.name.toLowerCase().trim()));
-    const newMeds = todayMeds
-      .filter((m) => !existingReminderIds.has(m.reminderId) && !existingNames.has(m.name.toLowerCase().trim()))
-      .map((m) => ({ name: m.name, dosage: m.dosage, reminderId: m.reminderId }));
-    if (newMeds.length === 0) {
-      toast.info("今日应服药品已全部在列表中");
-      return;
+  const handleToggleMedTaken = async (reminderId: number, currentlyTaken: boolean) => {
+    try {
+      if (currentlyTaken) {
+        await unconfirmTakenMutation.mutateAsync({ reminderId });
+        toast.success("已取消服药记录");
+      } else {
+        await confirmTakenMutation.mutateAsync({ reminderId });
+        toast.success("已确认服药");
+      }
+    } catch {
+      toast.error("操作失败，请重试");
     }
-    setMedications((prev) => [...prev, ...newMeds]);
-    toast.success(`已导入 ${newMeds.length} 种药品`);
   };
 
-  // ─── Quick-fill frequent prescription ──────────────────────────────
-  const { data: medHistory } = trpc.medications.history.useQuery(undefined as any, {
-    refetchOnWindowFocus: false,
-    staleTime: 60_000,
-  });
-
-  /** Build the "frequent prescription" — top N medications that appear in >50% of entries */
-  const frequentPrescription = useMemo(() => {
-    if (!medHistory || medHistory.length === 0) return [];
-    // Group by name, pick the most-used dosage per name
-    const nameMap = new Map<string, { name: string; dosage: string; count: number }>();
-    for (const item of medHistory) {
-      const existing = nameMap.get(item.name);
-      if (!existing || item.count > existing.count) {
-        nameMap.set(item.name, item);
+  // Sync medications state from todayMeds for save
+  useEffect(() => {
+    if (todayMeds && todayMeds.length > 0 && !existingEntry) {
+      // Only auto-sync for new entries when medications is empty
+      if (medications.length === 0) {
+        const takenMeds = todayMeds
+          .filter((m) => m.taken)
+          .map((m) => ({ name: m.name, dosage: m.dosage, reminderId: m.reminderId }));
+        if (takenMeds.length > 0) {
+          setMedications(takenMeds);
+        }
       }
     }
-    // Sort by count descending, take top items (those used at least twice)
-    return Array.from(nameMap.values())
-      .filter((m) => m.count >= 2)
-      .sort((a, b) => b.count - a.count)
-      .map((m) => ({ name: m.name, dosage: m.dosage }));
-  }, [medHistory]);
+  }, [todayMeds]);
 
-  const handleQuickFillPrescription = () => {
-    if (frequentPrescription.length === 0) return;
-    setMedications(frequentPrescription.map((m) => ({ name: m.name, dosage: m.dosage })));
-  };
+  // Compute taken count for display
+  const takenCount = todayMeds?.filter((m) => m.taken).length ?? 0;
+  const totalMedCount = todayMeds?.length ?? 0;
 
   const handleCalendarSelect = (day: Date | undefined) => {
     if (day) {
@@ -507,7 +500,7 @@ export default function SymptomForm({
         </div>
       </motion.div>
 
-      {/* Medications — Structured Input */}
+      {/* Medications — Checklist from Reminders */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -521,115 +514,144 @@ export default function SymptomForm({
             </div>
             <h3 className="font-serif font-semibold text-sm">今日用药</h3>
           </div>
-          <div className="flex items-center gap-2">
-            {todayMeds && todayMeds.length > 0 && (
-              <button
-                onClick={handleFillFromReminders}
-                className="text-xs text-sage hover:text-sage/80 flex items-center gap-1 transition-colors bg-sage/10 px-2.5 py-1 rounded-full"
-              >
-                <ClipboardList className="w-3 h-3" />
-                从提醒导入
-              </button>
-            )}
-            {frequentPrescription.length > 0 && (
-              <button
-                onClick={handleQuickFillPrescription}
-                className="text-xs text-dusty-blue hover:text-dusty-blue/80 flex items-center gap-1 transition-colors bg-dusty-blue/10 px-2.5 py-1 rounded-full"
-              >
-                <Zap className="w-3 h-3" />
-                常用药方
-              </button>
-            )}
-            <button
-              onClick={addMedicationRow}
-              className="text-xs text-terracotta hover:text-terracotta/80 flex items-center gap-1 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              添加药品
-            </button>
-          </div>
+          {totalMedCount > 0 && (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              takenCount === totalMedCount
+                ? "bg-sage/15 text-sage"
+                : takenCount > 0
+                  ? "bg-chart-4/15 text-chart-4"
+                  : "bg-muted text-muted-foreground"
+            }`}>
+              {takenCount}/{totalMedCount} 已服
+            </span>
+          )}
         </div>
 
-        {medications.length === 0 ? (
-          <div className="space-y-2">
-            {todayMeds && todayMeds.length > 0 && (
-              <button
-                onClick={handleFillFromReminders}
-                className="w-full py-3 rounded-lg border-2 border-dashed border-sage/40 text-sage hover:border-sage/60 hover:bg-sage/5 transition-colors flex items-center justify-center gap-2 text-sm"
-              >
-                <ClipboardList className="w-4 h-4" />
-                从提醒导入今日药品（{todayMeds.length}种）
-              </button>
-            )}
-            {frequentPrescription.length > 0 && (
-              <button
-                onClick={handleQuickFillPrescription}
-                className="w-full py-3 rounded-lg border-2 border-dashed border-dusty-blue/40 text-dusty-blue hover:border-dusty-blue/60 hover:bg-dusty-blue/5 transition-colors flex items-center justify-center gap-2 text-sm"
-              >
-                <Zap className="w-4 h-4" />
-                一键填入常用药方（{frequentPrescription.length}种）
-              </button>
-            )}
-            <button
-              onClick={addMedicationRow}
-              className="w-full py-4 rounded-lg border-2 border-dashed border-border/60 text-muted-foreground hover:border-terracotta/40 hover:text-terracotta transition-colors flex items-center justify-center gap-2 text-sm"
-            >
-              <Plus className="w-4 h-4" />
-              点击添加今日用药
-            </button>
+        {todayMedsLoading ? (
+          <div className="flex items-center justify-center py-6 text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            <span className="text-sm">加载中...</span>
           </div>
-        ) : (
-          <div className="space-y-2.5">
-            <div className="grid grid-cols-[1fr_auto_auto] gap-2 text-[11px] text-muted-foreground px-1">
-              <span>药品名称</span>
-              <span className="w-24 text-center">用量</span>
-              <span className="w-8" />
-            </div>
-
-            {medications.map((med, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="grid grid-cols-[1fr_auto_auto] gap-2 items-center"
-              >
-                <MedicationAutocomplete
-                  value={med.name}
-                  onChange={(v) => updateMedication(idx, "name", v)}
-                  onSelectSuggestion={(name, dosage) => {
-                    setMedications((prev) =>
-                      prev.map((m, i) =>
-                        i === idx ? { ...m, name, dosage: dosage || m.dosage } : m
-                      )
-                    );
-                  }}
-                  placeholder="如：布洛芬"
-                  className="text-sm bg-muted/50 border-0 h-9"
-                  field="name"
-                />
-                <MedicationAutocomplete
-                  value={med.dosage}
-                  onChange={(v) => updateMedication(idx, "dosage", v)}
-                  placeholder="如：200mg"
-                  className="text-sm bg-muted/50 border-0 h-9 w-24"
-                  field="dosage"
-                  currentMedName={med.name}
-                />
-                <button
-                  onClick={() => removeMedication(idx)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+        ) : todayMeds && todayMeds.length > 0 ? (
+          <div className="space-y-2">
+            {todayMeds.map((med) => {
+              const isToggling =
+                (confirmTakenMutation.isPending && confirmTakenMutation.variables?.reminderId === med.reminderId) ||
+                (unconfirmTakenMutation.isPending && unconfirmTakenMutation.variables?.reminderId === med.reminderId);
+              return (
+                <motion.button
+                  key={med.reminderId}
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  onClick={() => handleToggleMedTaken(med.reminderId, med.taken)}
+                  disabled={isToggling}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
+                    med.taken
+                      ? "bg-sage/10 border border-sage/30"
+                      : "bg-muted/30 border border-border/50 hover:border-sage/40 hover:bg-sage/5"
+                  } ${isToggling ? "opacity-60" : ""}`}
                 >
-                  <X className="w-4 h-4" />
-                </button>
-              </motion.div>
-            ))}
+                  {/* Checkbox */}
+                  <div className="shrink-0">
+                    {isToggling ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-sage" />
+                    ) : med.taken ? (
+                      <CheckCircle2 className="w-5 h-5 text-sage" />
+                    ) : (
+                      <Circle className="w-5 h-5 text-muted-foreground/50" />
+                    )}
+                  </div>
+                  {/* Med info */}
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm font-medium ${
+                      med.taken ? "text-sage line-through" : "text-foreground"
+                    }`}>
+                      {med.name}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+                      <span>{med.dosage}</span>
+                      {med.reminderHour !== undefined && med.reminderMinute !== undefined && (
+                        <span className="flex items-center gap-0.5">
+                          <Clock className="w-3 h-3" />
+                          {String(med.reminderHour).padStart(2, "0")}:{String(med.reminderMinute).padStart(2, "0")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Status badge */}
+                  {med.taken && (
+                    <span className="text-[10px] text-sage font-medium bg-sage/15 px-1.5 py-0.5 rounded shrink-0">
+                      ✓ 已服
+                    </span>
+                  )}
+                </motion.button>
+              );
+            })}
 
+            {/* Manual add extra medication */}
             <button
               onClick={addMedicationRow}
               className="w-full py-2 rounded-lg border border-dashed border-border/60 text-muted-foreground hover:border-terracotta/40 hover:text-terracotta transition-colors flex items-center justify-center gap-1.5 text-xs"
             >
               <Plus className="w-3.5 h-3.5" />
-              继续添加
+              添加额外药品
+            </button>
+
+            {/* Manual medication rows (extra meds not from reminders) */}
+            {medications.filter((m) => !m.reminderId).length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-border/30">
+                <p className="text-[11px] text-muted-foreground">额外药品</p>
+                {medications
+                  .map((med, idx) => ({ med, idx }))
+                  .filter(({ med }) => !med.reminderId)
+                  .map(({ med, idx }) => (
+                    <div key={idx} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
+                      <MedicationAutocomplete
+                        value={med.name}
+                        onChange={(v) => updateMedication(idx, "name", v)}
+                        onSelectSuggestion={(name, dosage) => {
+                          setMedications((prev) =>
+                            prev.map((m, i) =>
+                              i === idx ? { ...m, name, dosage: dosage || m.dosage } : m
+                            )
+                          );
+                        }}
+                        placeholder="如：布洛芬"
+                        className="text-sm bg-muted/50 border-0 h-9"
+                        field="name"
+                      />
+                      <MedicationAutocomplete
+                        value={med.dosage}
+                        onChange={(v) => updateMedication(idx, "dosage", v)}
+                        placeholder="如：200mg"
+                        className="text-sm bg-muted/50 border-0 h-9 w-24"
+                        field="dosage"
+                        currentMedName={med.name}
+                      />
+                      <button
+                        onClick={() => removeMedication(idx)}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="text-center py-4 text-muted-foreground">
+              <Pill className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">暂无用药提醒</p>
+              <p className="text-xs mt-1">可在设置中添加用药提醒，或手动添加药品</p>
+            </div>
+            <button
+              onClick={addMedicationRow}
+              className="w-full py-3 rounded-lg border-2 border-dashed border-border/60 text-muted-foreground hover:border-terracotta/40 hover:text-terracotta transition-colors flex items-center justify-center gap-2 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              手动添加药品
             </button>
           </div>
         )}

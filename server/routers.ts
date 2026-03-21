@@ -46,6 +46,7 @@ import {
   getLowStockAlerts,
   getTodayMedications,
   confirmMedicationTaken,
+  unconfirmMedicationTaken,
   getMedicationTimeline,
   getMedicationCheckInCalendar,
   getExpiringMedications,
@@ -598,6 +599,13 @@ export const appRouter = router({
       .input(z.object({ reminderId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         return confirmMedicationTaken(ctx.user.id, input.reminderId);
+      }),
+
+    /** Unconfirm medication taken (remove from today's entry and restore stock) */
+    unconfirmTaken: protectedProcedure
+      .input(z.object({ reminderId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return unconfirmMedicationTaken(ctx.user.id, input.reminderId);
       }),
 
     /** Get today's medications from reminders (for auto-filling symptom form) */

@@ -1505,18 +1505,32 @@ export async function getTodayMedications(userId: number, dateStr: string) {
   const date = new Date(dateStr + "T00:00:00");
   const dayOfWeek = date.getDay(); // 0=Sun..6=Sat
 
+  // Get today's entry to check which meds are already taken
+  const entry = await getEntryByUserAndDate(userId, dateStr);
+  const takenMeds: { name: string; dosage: string; reminderId?: number }[] =
+    entry && Array.isArray(entry.medications) ? entry.medications : [];
+
   return reminders
     .filter((r) => {
-      // If repeatDays is null or empty, it means every day
       const days = r.repeatDays;
       if (!days || (Array.isArray(days) && days.length === 0)) return true;
       return Array.isArray(days) && days.includes(dayOfWeek);
     })
-    .map((r) => ({
-      name: r.medicationName,
-      dosage: r.dosage,
-      reminderId: r.id,
-    }));
+    .map((r) => {
+      // Check if this medication was already taken today
+      const taken = takenMeds.some(
+        (m) => m.reminderId === r.id || m.name.toLowerCase() === r.medicationName.toLowerCase()
+      );
+      return {
+        name: r.medicationName,
+        dosage: r.dosage,
+        reminderId: r.id,
+        reminderHour: r.reminderHour,
+        reminderMinute: r.reminderMinute,
+        groupId: r.groupId,
+        taken,
+      };
+    });
 }
 
 /**
@@ -1604,6 +1618,77 @@ export async function confirmMedicationTaken(
     medicationName: med.medicationName,
     dosage: med.dosage,
     date: todayStr,
+  };
+}
+
+/**
+ * Unconfirm medication taken: remove medication from today's symptom entry
+ * and restore stock quantity.
+ */
+export async function unconfirmMedicationTaken(
+  userId: number,
+  reminderId: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get the reminder details
+  const reminder = await db
+    .select()
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.id, reminderId),
+        eq(medicationReminders.userId, userId)
+      )
+    )
+    .limit(1);
+
+  if (reminder.length === 0) {
+    throw new Error("Reminder not found");
+  }
+
+  const med = reminder[0];
+  const todayStr = (() => {
+    const now = new Date();
+    const offset = 8 * 60 * 60 * 1000;
+    const chinaTime = new Date(now.getTime() + offset);
+    return chinaTime.toISOString().slice(0, 10);
+  })();
+
+  // Get today's entry
+  const existing = await getEntryByUserAndDate(userId, todayStr);
+  if (!existing) {
+    return { success: true, medicationName: med.medicationName };
+  }
+
+  const currentMeds: { name: string; dosage: string; reminderId?: number }[] =
+    Array.isArray(existing.medications) ? existing.medications : [];
+
+  // Remove the medication by reminderId or name match
+  const updatedMeds = currentMeds.filter(
+    (m) => !(m.reminderId === med.id || m.name.toLowerCase() === med.medicationName.toLowerCase())
+  );
+
+  if (updatedMeds.length < currentMeds.length) {
+    await db
+      .update(symptomEntries)
+      .set({ medications: updatedMeds })
+      .where(eq(symptomEntries.id, existing.id));
+
+    // Restore stock
+    if (med.stockQuantity !== null) {
+      const restoreAmount = med.dailyDosageCount ?? 1;
+      await db
+        .update(medicationReminders)
+        .set({ stockQuantity: (med.stockQuantity ?? 0) + restoreAmount })
+        .where(eq(medicationReminders.id, med.id));
+    }
+  }
+
+  return {
+    success: true,
+    medicationName: med.medicationName,
   };
 }
 
