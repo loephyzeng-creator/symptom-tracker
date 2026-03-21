@@ -177,21 +177,21 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
               className={`p-1 rounded-md transition-colors ${viewMode === "list" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               title="列表视图"
             >
-              <List className="w-3 h-3" />
+              <List className="w-4 h-4" />
             </button>
             <button
               onClick={() => setViewMode("calendar")}
               className={`p-1 rounded-md transition-colors ${viewMode === "calendar" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               title="日历视图"
             >
-              <CalendarDays className="w-3 h-3" />
+              <CalendarDays className="w-4 h-4" />
             </button>
             <button
               onClick={() => setViewMode("medication")}
               className={`p-1 rounded-md transition-colors ${viewMode === "medication" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               title="用药时间线"
             >
-              <Pill className="w-3 h-3" />
+              <Pill className="w-4 h-4" />
             </button>
           </div>
         </div>
