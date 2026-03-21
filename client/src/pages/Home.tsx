@@ -1,6 +1,6 @@
 /*
  * Design: Warm Healing Journal — Scandinavian + Wabi-sabi
- * Main page with tab navigation: Record / Stats / History / Report
+ * Main page with tab navigation: Record / Stats / History / Report / Settings
  * Colors: warm cream bg, terracotta accents, sage green, dusty blue
  * Typography: Noto Serif SC (headings), Noto Sans SC (body)
  */
@@ -25,20 +25,25 @@ import BackupRestore from "@/components/BackupRestore";
 import SyncStatus from "@/components/SyncStatus";
 import CustomMetricsManager from "@/components/CustomMetricsManager";
 import { motion, AnimatePresence } from "framer-motion";
-import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2, FileText, Bell, Settings, Sun, Moon, Zap, CalendarDays } from "lucide-react";
+import {
+  PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2,
+  FileText, Bell, Settings, Sun, Moon, Zap, CalendarDays, User,
+  ChevronRight, Database, Shield, Activity, Palette
+} from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { zhCN } from "date-fns/locale";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 
-type TabKey = "record" | "stats" | "history" | "report";
+type TabKey = "record" | "stats" | "history" | "report" | "settings";
 
 const TABS: { key: TabKey; label: string; icon: typeof PenLine }[] = [
   { key: "record", label: "记录", icon: PenLine },
   { key: "stats", label: "统计", icon: BarChart3 },
   { key: "history", label: "历史", icon: Clock },
   { key: "report", label: "报告", icon: FileText },
+  { key: "settings", label: "设置", icon: Settings },
 ];
 
 function formatDateCN(dateStr: string): string {
@@ -121,13 +126,165 @@ function DatePicker({ date, onDateChange, existingEntry }: {
   );
 }
 
-export default function Home() {
-  const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
+/* ─── Settings Section Card ─── */
+function SettingsSection({
+  title,
+  icon: Icon,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  icon: typeof Bell;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-card rounded-xl border border-border/40 overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-accent/30 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-terracotta/10 flex items-center justify-center">
+            <Icon className="w-4 h-4 text-terracotta" />
+          </div>
+          <span className="text-sm font-medium text-foreground">{title}</span>
+        </div>
+        <ChevronRight
+          className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${
+            open ? "rotate-90" : ""
+          }`}
+        />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 pt-1">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ─── Settings Tab Content ─── */
+function SettingsView({
+  user,
+  onLogout,
+}: {
+  user: { name?: string | null; avatarUrl?: string; openId?: string } | null;
+  onLogout: () => void;
+}) {
   const { theme, toggleTheme } = useTheme();
 
+  return (
+    <div className="space-y-3">
+      {/* User Profile Card */}
+      <div className="bg-card rounded-xl border border-border/40 p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-terracotta/10 flex items-center justify-center overflow-hidden">
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+            ) : (
+              <User className="w-6 h-6 text-terracotta" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground truncate">
+              {user?.name ?? "用户"}
+            </p>
+            <p className="text-xs text-muted-foreground">已登录</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onLogout}
+            className="text-xs h-8 gap-1.5 text-muted-foreground hover:text-destructive hover:border-destructive/40"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            退出
+          </Button>
+        </div>
+      </div>
+
+      {/* Appearance */}
+      <div className="bg-card rounded-xl border border-border/40 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-terracotta/10 flex items-center justify-center">
+              <Palette className="w-4 h-4 text-terracotta" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">外观模式</p>
+              <p className="text-xs text-muted-foreground">
+                {theme === "light" ? "浅色模式" : "深色模式"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={toggleTheme}
+            className="w-10 h-10 rounded-lg bg-accent/50 hover:bg-accent flex items-center justify-center transition-colors"
+            title={theme === "light" ? "切换深色模式" : "切换浅色模式"}
+          >
+            {theme === "light" ? (
+              <Moon className="w-5 h-5 text-foreground" />
+            ) : (
+              <Sun className="w-5 h-5 text-foreground" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Notification & Reminders */}
+      <SettingsSection title="推送通知" icon={Bell} defaultOpen={false}>
+        <NotificationSettings />
+      </SettingsSection>
+
+      <SettingsSection title="用药提醒" icon={Clock} defaultOpen={false}>
+        <MedicationReminders />
+      </SettingsSection>
+
+      <SettingsSection title="药品库存" icon={Shield} defaultOpen={false}>
+        <MedicationStock />
+      </SettingsSection>
+
+      <SettingsSection title="异常预警" icon={Bell} defaultOpen={false}>
+        <AlertSettings />
+      </SettingsSection>
+
+      {/* Data Management */}
+      <SettingsSection title="数据同步" icon={Database} defaultOpen={false}>
+        <SyncStatus />
+      </SettingsSection>
+
+      <SettingsSection title="备份与恢复" icon={Shield} defaultOpen={false}>
+        <BackupRestore />
+      </SettingsSection>
+
+      <SettingsSection title="自定义指标" icon={Activity} defaultOpen={false}>
+        <CustomMetricsManager />
+      </SettingsSection>
+
+      {/* App Info */}
+      <div className="text-center py-4">
+        <p className="text-xs text-muted-foreground">症状日记 v1.0</p>
+        <p className="text-[10px] text-muted-foreground mt-1">记录每一天，看见每一步改善</p>
+      </div>
+    </div>
+  );
+}
+
+export default function Home() {
+  const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
+
   const [activeTab, setActiveTab] = useState<TabKey>("record");
-  const [showNotifSettings, setShowNotifSettings] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [quickMode, setQuickMode] = useState(() => {
     try { return localStorage.getItem("record-mode") === "quick"; } catch { return false; }
   });
@@ -215,7 +372,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
+      {/* Header — simplified */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/30">
         <div className="container max-w-lg mx-auto px-4">
           <div className="flex items-center justify-between h-14">
@@ -234,47 +391,9 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>{entries.length} 条</span>
-              </div>
-              <button
-                onClick={() => setShowNotifSettings(!showNotifSettings)}
-                className={`text-xs flex items-center gap-1 transition-colors ${
-                  showNotifSettings ? "text-terracotta" : "text-muted-foreground hover:text-foreground"
-                }`}
-                title="提醒设置"
-              >
-                <Bell className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={toggleTheme}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
-                title={theme === "light" ? "切换深色模式" : "切换浅色模式"}
-              >
-                {theme === "light" ? (
-                  <Moon className="w-3.5 h-3.5" />
-                ) : (
-                  <Sun className="w-3.5 h-3.5" />
-                )}
-              </button>
-              <button
-                onClick={() => setShowSettings(!showSettings)}
-                className={`text-xs flex items-center gap-1 transition-colors ${
-                  showSettings ? "text-terracotta" : "text-muted-foreground hover:text-foreground"
-                }`}
-                title="设置"
-              >
-                <Settings className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => logout()}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
-                title={`${user?.name ?? "用户"} · 退出登录`}
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>{entries.length} 条</span>
             </div>
           </div>
         </div>
@@ -282,61 +401,8 @@ export default function Home() {
 
       {/* Content */}
       <main className="flex-1 container max-w-lg mx-auto px-4 py-5 pb-24">
-        {/* Notification Settings Panel */}
-        {showNotifSettings && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-serif text-base font-bold text-foreground">提醒设置</h2>
-              <button
-                onClick={() => setShowNotifSettings(false)}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                收起
-              </button>
-            </div>
-            <NotificationSettings />
-            <div className="mt-4 pt-4 border-t border-border/30">
-              <MedicationReminders />
-            </div>
-            <div className="mt-4 pt-4 border-t border-border/30">
-              <MedicationStock />
-            </div>
-            <div className="mt-4 pt-4 border-t border-border/30">
-              <AlertSettings />
-            </div>
-          </motion.div>
-        )}
-        {/* Settings Panel (Backup & Restore) */}
-        {showSettings && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-serif text-base font-bold text-foreground">设置</h2>
-              <button
-                onClick={() => setShowSettings(false)}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                收起
-              </button>
-            </div>
-            <SyncStatus />
-            <div className="mt-4">
-              <BackupRestore />
-            </div>
-            <div className="mt-4">
-              <CustomMetricsManager />
-            </div>
-          </motion.div>
-        )}
-        {/* Daily reminder - show on all tabs except record when not recorded today */}
-        {!dataLoading && activeTab !== "record" && (
+        {/* Daily reminder - show on all tabs except record and settings when not recorded today */}
+        {!dataLoading && activeTab !== "record" && activeTab !== "settings" && (
           <DailyReminder
             hasRecordedToday={hasRecordedToday}
             totalEntries={entries.length}
@@ -351,7 +417,7 @@ export default function Home() {
             onGoToRecord={handleGoToRecord}
           />
         )}
-        {dataLoading ? (
+        {dataLoading && activeTab !== "settings" ? (
           <div className="flex flex-col items-center justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-terracotta mb-3" />
             <p className="text-sm text-muted-foreground">加载数据中...</p>
@@ -438,6 +504,9 @@ export default function Home() {
                 />
               )}
               {activeTab === "report" && <ReportView />}
+              {activeTab === "settings" && (
+                <SettingsView user={user} onLogout={logout} />
+              )}
             </motion.div>
           </AnimatePresence>
         )}
