@@ -1479,3 +1479,41 @@ export async function markStockAlertSent(id: number) {
     .set({ lastStockAlertDate: todayStr })
     .where(eq(medicationReminders.id, id));
 }
+
+/**
+ * Get today's medications from reminders — returns the list of medications
+ * the user should take today based on their active reminders and repeat days.
+ * This allows the symptom form to auto-fill medications from reminders.
+ */
+export async function getTodayMedications(userId: number, dateStr: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.userId, userId),
+        eq(medicationReminders.enabled, 1)
+      )
+    )
+    .orderBy(medicationReminders.reminderHour, medicationReminders.reminderMinute);
+
+  // Check which day of the week the date falls on
+  const date = new Date(dateStr + "T00:00:00");
+  const dayOfWeek = date.getDay(); // 0=Sun..6=Sat
+
+  return reminders
+    .filter((r) => {
+      // If repeatDays is null or empty, it means every day
+      const days = r.repeatDays;
+      if (!days || (Array.isArray(days) && days.length === 0)) return true;
+      return Array.isArray(days) && days.includes(dayOfWeek);
+    })
+    .map((r) => ({
+      name: r.medicationName,
+      dosage: r.dosage,
+      reminderId: r.id,
+    }));
+}

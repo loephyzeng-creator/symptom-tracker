@@ -18,6 +18,7 @@ import CustomMetricSliders from "@/components/CustomMetricSliders";
 import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
 import { zhCN } from "date-fns/locale";
+import { toast } from "sonner";
 import {
   Brain,
   Eye,
@@ -36,6 +37,7 @@ import {
   Loader2,
   AlertTriangle,
   Zap,
+  ClipboardList,
 } from "lucide-react";
 
 interface SymptomFormProps {
@@ -212,6 +214,19 @@ export default function SymptomForm({
           })),
         });
       }
+      // Auto-deduct stock for medications that have reminders with stock tracking
+      if (!existingEntry && cleanMeds.length > 0 && todayMeds && todayMeds.length > 0) {
+        const reminderNames = new Set(todayMeds.map((m) => m.name.toLowerCase().trim()));
+        for (const med of cleanMeds) {
+          if (reminderNames.has(med.name.toLowerCase().trim())) {
+            try {
+              await deductStockMutation.mutateAsync({ medicationName: med.name });
+            } catch {
+              // Silently ignore stock deduction errors
+            }
+          }
+        }
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } finally {
@@ -248,6 +263,29 @@ export default function SymptomForm({
 
   const removeMedication = (index: number) => {
     setMedications((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // ─── Auto-fill from medication reminders ──────────────────────────
+  const { data: todayMeds } = trpc.medReminders.todayMeds.useQuery(
+    { date },
+    { refetchOnWindowFocus: false, staleTime: 60_000 }
+  );
+
+  const deductStockMutation = trpc.medReminders.deductStock.useMutation();
+
+  const handleFillFromReminders = () => {
+    if (!todayMeds || todayMeds.length === 0) return;
+    // Merge with existing: don't duplicate medications already in the list
+    const existingNames = new Set(medications.map((m) => m.name.toLowerCase().trim()));
+    const newMeds = todayMeds
+      .filter((m) => !existingNames.has(m.name.toLowerCase().trim()))
+      .map((m) => ({ name: m.name, dosage: m.dosage }));
+    if (newMeds.length === 0) {
+      toast.info("今日应服药品已全部在列表中");
+      return;
+    }
+    setMedications((prev) => [...prev, ...newMeds]);
+    toast.success(`已导入 ${newMeds.length} 种药品`);
   };
 
   // ─── Quick-fill frequent prescription ──────────────────────────────
@@ -476,6 +514,15 @@ export default function SymptomForm({
             <h3 className="font-serif font-semibold text-sm">今日用药</h3>
           </div>
           <div className="flex items-center gap-2">
+            {todayMeds && todayMeds.length > 0 && (
+              <button
+                onClick={handleFillFromReminders}
+                className="text-xs text-sage hover:text-sage/80 flex items-center gap-1 transition-colors bg-sage/10 px-2.5 py-1 rounded-full"
+              >
+                <ClipboardList className="w-3 h-3" />
+                从提醒导入
+              </button>
+            )}
             {frequentPrescription.length > 0 && (
               <button
                 onClick={handleQuickFillPrescription}
@@ -497,6 +544,15 @@ export default function SymptomForm({
 
         {medications.length === 0 ? (
           <div className="space-y-2">
+            {todayMeds && todayMeds.length > 0 && (
+              <button
+                onClick={handleFillFromReminders}
+                className="w-full py-3 rounded-lg border-2 border-dashed border-sage/40 text-sage hover:border-sage/60 hover:bg-sage/5 transition-colors flex items-center justify-center gap-2 text-sm"
+              >
+                <ClipboardList className="w-4 h-4" />
+                从提醒导入今日药品（{todayMeds.length}种）
+              </button>
+            )}
             {frequentPrescription.length > 0 && (
               <button
                 onClick={handleQuickFillPrescription}

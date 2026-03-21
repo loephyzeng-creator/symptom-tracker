@@ -44,6 +44,7 @@ import {
   getMedicationStockStatus,
   deductMedicationStock,
   getLowStockAlerts,
+  getTodayMedications,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -543,6 +544,13 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await deductMedicationStock(ctx.user.id, input.medicationName);
         return { success: true };
+      }),
+
+    /** Get today's medications from reminders (for auto-filling symptom form) */
+    todayMeds: protectedProcedure
+      .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+      .query(async ({ ctx, input }) => {
+        return getTodayMedications(ctx.user.id, input.date);
       }),
   }),
 
