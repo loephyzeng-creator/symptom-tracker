@@ -58,6 +58,10 @@ export default function MedicationChart({ entries }: MedicationChartProps) {
 
   if (chartData.length === 0) return null;
 
+  // Dynamically calculate Y axis width based on longest drug name
+  const maxNameLength = Math.max(...chartData.map((d) => d.name.length), 0);
+  const yAxisWidth = Math.max(maxNameLength * 14, 100);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -92,7 +96,7 @@ export default function MedicationChart({ entries }: MedicationChartProps) {
               tick={{ fontSize: 11, fill: "var(--foreground)" }}
               tickLine={false}
               axisLine={false}
-              width={80}
+              width={yAxisWidth}
             />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--muted)", opacity: 0.3 }} />
             <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20}>
