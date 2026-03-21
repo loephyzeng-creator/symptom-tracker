@@ -11,9 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { SymptomEntry, MedicationItem } from "@/hooks/useSymptomData";
-import { normalizeMedications } from "@/hooks/useSymptomData";
-import MedicationAutocomplete from "@/components/MedicationAutocomplete";
+import type { SymptomEntry } from "@/hooks/useSymptomData";
 import CustomMetricSliders from "@/components/CustomMetricSliders";
 import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
@@ -33,7 +31,6 @@ import {
   Plus,
   Trash2,
   CalendarDays,
-  Pill,
   Loader2,
   AlertTriangle,
 } from "lucide-react";
@@ -115,7 +112,7 @@ export default function SymptomForm({
     fatigue: 0, photosensitivity: 0, motionSickness: 0, palpitations: 0, mood: 5,
   });
   const [notes, setNotes] = useState("");
-  const [medications, setMedications] = useState<MedicationItem[]>([]);
+
   const [triggers, setTriggers] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -153,7 +150,6 @@ export default function SymptomForm({
         mood: existingEntry.mood,
       });
       setNotes(existingEntry.notes ?? "");
-      setMedications(normalizeMedications(existingEntry.medications));
       setTriggers(existingEntry.triggers ?? []);
       setSevereHeadache(existingEntry.severeHeadache === 1);
     } else {
@@ -162,7 +158,6 @@ export default function SymptomForm({
         fatigue: 0, photosensitivity: 0, motionSickness: 0, palpitations: 0, mood: 5,
       });
       setNotes("");
-      setMedications([]);
       setTriggers([]);
       setSevereHeadache(false);
       setCustomMetricValues({});
@@ -184,9 +179,6 @@ export default function SymptomForm({
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Only manual extra medications (reminder meds are managed in the Medication tab)
-      const allMeds = medications.filter((m) => m.name.trim());
-
       const savedEntry = await onSave({
         date,
         dizziness: values.dizziness,
@@ -199,7 +191,7 @@ export default function SymptomForm({
         palpitations: values.palpitations,
         mood: values.mood,
         notes,
-        medications: allMeds,
+        medications: [],
         triggers,
         severeHeadache: severeHeadache ? 1 : 0,
       });
@@ -239,19 +231,6 @@ export default function SymptomForm({
     }
   };
 
-  const addMedicationRow = () => {
-    setMedications((prev) => [...prev, { name: "", dosage: "" }]);
-  };
-
-  const updateMedication = (index: number, field: keyof MedicationItem, value: string) => {
-    setMedications((prev) =>
-      prev.map((m, i) => (i === index ? { ...m, [field]: value } : m))
-    );
-  };
-
-  const removeMedication = (index: number) => {
-    setMedications((prev) => prev.filter((_, i) => i !== index));
-  };
 
   const handleCalendarSelect = (day: Date | undefined) => {
     if (day) {
@@ -435,75 +414,6 @@ export default function SymptomForm({
         </div>
       </motion.div>
 
-      {/* Manual Medications (optional, for recording extra meds taken) */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.45 }}
-        className="bg-card rounded-xl p-4 shadow-sm border border-border/50"
-      >
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-dusty-blue/10 flex items-center justify-center">
-              <Pill className="w-4 h-4 text-dusty-blue" />
-            </div>
-            <h3 className="font-serif font-semibold text-sm">额外用药</h3>
-          </div>
-        </div>
-
-        {medications.length > 0 ? (
-          <div className="space-y-2">
-            {medications.map((med, idx) => (
-              <div key={idx} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
-                <MedicationAutocomplete
-                  value={med.name}
-                  onChange={(v) => updateMedication(idx, "name", v)}
-                  onSelectSuggestion={(name, dosage) => {
-                    setMedications((prev) =>
-                      prev.map((m, i) =>
-                        i === idx ? { ...m, name, dosage: dosage || m.dosage } : m
-                      )
-                    );
-                  }}
-                  placeholder="如：布洛芬"
-                  className="text-sm bg-muted/50 border-0 h-9"
-                  field="name"
-                />
-                <MedicationAutocomplete
-                  value={med.dosage}
-                  onChange={(v) => updateMedication(idx, "dosage", v)}
-                  placeholder="如：200mg"
-                  className="text-sm bg-muted/50 border-0 h-9 w-24"
-                  field="dosage"
-                  currentMedName={med.name}
-                />
-                <button
-                  onClick={() => removeMedication(idx)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-            <button
-              onClick={addMedicationRow}
-              className="w-full py-2 rounded-lg border border-dashed border-border/60 text-muted-foreground hover:border-terracotta/40 hover:text-terracotta transition-colors flex items-center justify-center gap-1.5 text-xs"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              手动添加药品
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={addMedicationRow}
-            className="w-full py-3 rounded-lg border-2 border-dashed border-border/60 text-muted-foreground hover:border-terracotta/40 hover:text-terracotta transition-colors flex items-center justify-center gap-2 text-sm"
-          >
-            <Plus className="w-4 h-4" />
-            手动添加药品
-          </button>
-        )}
-        <p className="text-[11px] text-muted-foreground mt-2">日常用药请在「用药」tab中打卡管理</p>
-      </motion.div>
 
       {/* Custom Metric Sliders */}
       <CustomMetricSliders
