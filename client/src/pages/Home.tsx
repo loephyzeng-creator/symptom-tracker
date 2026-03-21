@@ -483,6 +483,7 @@ export default function Home() {
                       customTriggers={customTriggers}
                       onAddTrigger={addTrigger}
                       onRemoveTrigger={removeTrigger}
+                      onSwitchToMedication={() => setActiveTab("medication")}
                     />
                   )}
                 </>

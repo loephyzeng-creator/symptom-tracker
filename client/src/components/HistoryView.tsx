@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import CalendarView from "./CalendarView";
 import MedicationTimeline from "./MedicationTimeline";
+import MedicationCheckInSummary from "./MedicationCheckInSummary";
 
 interface HistoryViewProps {
   entries: SymptomEntry[];
@@ -232,10 +233,13 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
                           </div>
                         )}
 
-                        {/* Medications */}
+                        {/* Medication Check-in Status */}
+                        <MedicationCheckInSummary date={entry.date} />
+
+                        {/* Medications (manual) */}
                         {formatMedications(entry.medications) && (
                           <div className="text-xs">
-                            <span className="text-muted-foreground">用药：</span>
+                            <span className="text-muted-foreground">额外用药：</span>
                             <span className="ml-1">{formatMedications(entry.medications)}</span>
                           </div>
                         )}

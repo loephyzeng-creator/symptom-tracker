@@ -44,6 +44,7 @@ interface SymptomFormProps {
   customTriggers: string[];
   onAddTrigger: (trigger: string) => Promise<boolean> | boolean;
   onRemoveTrigger: (trigger: string) => Promise<void> | void;
+  onSwitchToMedication?: () => void;
 }
 
 const SYMPTOM_FIELDS = [
@@ -106,6 +107,7 @@ function dateToDateStr(d: Date): string {
 export default function SymptomForm({
   date, existingEntry, onSave, onDateChange,
   allTriggers, customTriggers, onAddTrigger, onRemoveTrigger,
+  onSwitchToMedication,
 }: SymptomFormProps) {
   const [values, setValues] = useState<Record<string, number>>({
     dizziness: 0, headache: 0, sleepQuality: 5, anxiety: 0,
@@ -208,6 +210,14 @@ export default function SymptomForm({
       }
       // Stock deduction is now handled by confirmTaken/unconfirmTaken
       setSaved(true);
+      // Show toast with link to medication tab
+      toast.success("记录已保存", {
+        description: "别忘了去用药 tab 打卡哦",
+        action: onSwitchToMedication
+          ? { label: "去打卡", onClick: onSwitchToMedication }
+          : undefined,
+        duration: 4000,
+      });
       setTimeout(() => setSaved(false), 2000);
     } finally {
       setSaving(false);

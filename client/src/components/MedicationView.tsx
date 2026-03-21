@@ -19,6 +19,7 @@ import {
   Timer,
   Plus,
   X,
+  CheckCheck,
 } from "lucide-react";
 import MedicationAutocomplete from "@/components/MedicationAutocomplete";
 
@@ -45,6 +46,8 @@ export default function MedicationView() {
     },
   });
 
+  const [confirmingAll, setConfirmingAll] = useState(false);
+
   const handleToggleMedTaken = async (
     reminderId: number,
     currentlyTaken: boolean,
@@ -60,6 +63,29 @@ export default function MedicationView() {
       }
     } catch {
       toast.error("操作失败，请重试");
+    }
+  };
+
+  const handleConfirmAll = async () => {
+    if (!todayMeds || todayMeds.length === 0) return;
+    const untaken = todayMeds.filter((m: any) => !m.taken);
+    if (untaken.length === 0) {
+      toast.success("今日药品已全部服用");
+      return;
+    }
+    setConfirmingAll(true);
+    try {
+      for (const med of untaken) {
+        await confirmTakenMutation.mutateAsync({
+          reminderId: med.reminderId,
+          timeIndex: med.timeIndex,
+        });
+      }
+      toast.success(`已确认 ${untaken.length} 项药品全部服用`);
+    } catch {
+      toast.error("部分药品打卡失败，请重试");
+    } finally {
+      setConfirmingAll(false);
     }
   };
 
@@ -109,19 +135,35 @@ export default function MedicationView() {
             </div>
             <h3 className="font-serif font-semibold text-sm">今日用药</h3>
           </div>
-          {totalMedCount > 0 && (
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                takenCount === totalMedCount
-                  ? "bg-sage/15 text-sage"
-                  : takenCount > 0
-                    ? "bg-chart-4/15 text-chart-4"
-                    : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {takenCount}/{totalMedCount} 已服
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {totalMedCount > 0 && takenCount < totalMedCount && (
+              <button
+                onClick={handleConfirmAll}
+                disabled={confirmingAll}
+                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium bg-sage/15 text-sage hover:bg-sage/25 transition-colors disabled:opacity-50"
+              >
+                {confirmingAll ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <CheckCheck className="w-3 h-3" />
+                )}
+                一键打卡
+              </button>
+            )}
+            {totalMedCount > 0 && (
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  takenCount === totalMedCount
+                    ? "bg-sage/15 text-sage"
+                    : takenCount > 0
+                      ? "bg-chart-4/15 text-chart-4"
+                      : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {takenCount}/{totalMedCount} 已服
+              </span>
+            )}
+          </div>
         </div>
 
         {todayMedsLoading ? (
