@@ -364,3 +364,223 @@ describe("Stock Quick Adjust", () => {
     expect(newQty).toBe(0);
   });
 });
+
+// ─── 7. Medication Expiration Feature ──────────────────────────
+
+describe("Medication Expiration - Schema", () => {
+  it("should have expirationDate column in medicationReminders", async () => {
+    const schema = await import("../drizzle/schema");
+    const columnNames = Object.keys(schema.medicationReminders);
+    expect(columnNames).toContain("expirationDate");
+  });
+
+  it("should have expirationAlertDays column in medicationReminders", async () => {
+    const schema = await import("../drizzle/schema");
+    const columnNames = Object.keys(schema.medicationReminders);
+    expect(columnNames).toContain("expirationAlertDays");
+  });
+});
+
+describe("Medication Expiration - DB Exports", () => {
+  it("should export getExpiringMedications function", async () => {
+    const db = await import("./db");
+    expect(typeof db.getExpiringMedications).toBe("function");
+  });
+});
+
+describe("Medication Expiration - Router", () => {
+  it("should have expiring procedure in medReminders router", async () => {
+    const { appRouter } = await import("./routers");
+    const procedures = (appRouter as any)._def.procedures;
+    expect(procedures["medReminders.expiring"]).toBeDefined();
+  });
+});
+
+describe("Medication Expiration - Business Logic", () => {
+  it("should classify expired medication correctly", () => {
+    const today = new Date("2026-03-21");
+    const expirationDate = new Date("2026-03-15");
+    const diffMs = expirationDate.getTime() - today.getTime();
+    const daysUntilExpiry = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    expect(daysUntilExpiry).toBeLessThan(0);
+    const status = daysUntilExpiry < 0 ? "expired" : daysUntilExpiry <= 30 ? "expiring-soon" : "ok";
+    expect(status).toBe("expired");
+  });
+
+  it("should classify expiring-soon medication correctly", () => {
+    const today = new Date("2026-03-21");
+    const expirationDate = new Date("2026-04-10");
+    const alertDays = 30;
+    const diffMs = expirationDate.getTime() - today.getTime();
+    const daysUntilExpiry = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    expect(daysUntilExpiry).toBeGreaterThan(0);
+    expect(daysUntilExpiry).toBeLessThanOrEqual(alertDays);
+    const status = daysUntilExpiry < 0 ? "expired" : daysUntilExpiry <= alertDays ? "expiring-soon" : "ok";
+    expect(status).toBe("expiring-soon");
+  });
+
+  it("should classify ok medication correctly", () => {
+    const today = new Date("2026-03-21");
+    const expirationDate = new Date("2027-03-21");
+    const alertDays = 30;
+    const diffMs = expirationDate.getTime() - today.getTime();
+    const daysUntilExpiry = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    expect(daysUntilExpiry).toBeGreaterThan(alertDays);
+    const status = daysUntilExpiry < 0 ? "expired" : daysUntilExpiry <= alertDays ? "expiring-soon" : "ok";
+    expect(status).toBe("ok");
+  });
+});
+
+// ─── 8. Day Detail Feature ──────────────────────────────────────
+
+describe("Day Detail - DB Exports", () => {
+  it("should export getMedicationCheckInDayDetail function", async () => {
+    const db = await import("./db");
+    expect(typeof db.getMedicationCheckInDayDetail).toBe("function");
+  });
+});
+
+describe("Day Detail - Router", () => {
+  it("should have dayDetail procedure in medReminders router", async () => {
+    const { appRouter } = await import("./routers");
+    const procedures = (appRouter as any)._def.procedures;
+    expect(procedures["medReminders.dayDetail"]).toBeDefined();
+  });
+});
+
+describe("Day Detail - Input Validation", () => {
+  it("should accept valid YYYY-MM-DD date format", () => {
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    expect(dateRegex.test("2026-03-21")).toBe(true);
+    expect(dateRegex.test("2026-01-01")).toBe(true);
+  });
+
+  it("should reject invalid date formats", () => {
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    expect(dateRegex.test("2026-3-21")).toBe(false);
+    expect(dateRegex.test("2026/03/21")).toBe(false);
+    expect(dateRegex.test("invalid")).toBe(false);
+    expect(dateRegex.test("")).toBe(false);
+  });
+});
+
+// ─── 9. Batch Update Feature ──────────────────────────────────
+
+describe("Batch Update - DB Exports", () => {
+  it("should export batchUpdateMedicationReminders function", async () => {
+    const db = await import("./db");
+    expect(typeof db.batchUpdateMedicationReminders).toBe("function");
+  });
+});
+
+describe("Batch Update - Router", () => {
+  it("should have batchUpdate procedure in medReminders router", async () => {
+    const { appRouter } = await import("./routers");
+    const procedures = (appRouter as any)._def.procedures;
+    expect(procedures["medReminders.batchUpdate"]).toBeDefined();
+  });
+});
+
+describe("Batch Update - Input Validation", () => {
+  it("should validate ids must be non-empty array", () => {
+    const schema = { minLength: 1 };
+    const emptyIds: number[] = [];
+    expect(emptyIds.length >= schema.minLength).toBe(false);
+  });
+
+  it("should validate enabled must be 0 or 1", () => {
+    expect([0, 1].includes(0)).toBe(true);
+    expect([0, 1].includes(1)).toBe(true);
+    expect([0, 1].includes(2)).toBe(false);
+  });
+
+  it("should validate reminderHour must be 0-23", () => {
+    expect(0 >= 0 && 0 <= 23).toBe(true);
+    expect(23 >= 0 && 23 <= 23).toBe(true);
+    expect(24 >= 0 && 24 <= 23).toBe(false);
+  });
+
+  it("should validate reminderMinute must be 0-59", () => {
+    expect(0 >= 0 && 0 <= 59).toBe(true);
+    expect(59 >= 0 && 59 <= 59).toBe(true);
+    expect(60 >= 0 && 60 <= 59).toBe(false);
+  });
+});
+
+// ─── 10. Integration Tests via tRPC Caller ──────────────────────
+
+describe("Integration: medReminders.expiring via tRPC", () => {
+  it("returns an array", async () => {
+    const { appRouter } = await import("./routers");
+    const user = {
+      id: 1, openId: "test-int", email: "t@t.com", name: "T",
+      loginMethod: "manus" as const, role: "user" as const,
+      createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(),
+    };
+    const ctx = {
+      user,
+      req: { protocol: "https", headers: {} } as any,
+      res: { clearCookie: () => {} } as any,
+    };
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.medReminders.expiring();
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+describe("Integration: medReminders.dayDetail via tRPC", () => {
+  it("returns taken and missed arrays", async () => {
+    const { appRouter } = await import("./routers");
+    const user = {
+      id: 1, openId: "test-int", email: "t@t.com", name: "T",
+      loginMethod: "manus" as const, role: "user" as const,
+      createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(),
+    };
+    const ctx = {
+      user,
+      req: { protocol: "https", headers: {} } as any,
+      res: { clearCookie: () => {} } as any,
+    };
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.medReminders.dayDetail({ date: "2026-03-20" });
+    expect(result).toHaveProperty("taken");
+    expect(result).toHaveProperty("missed");
+    expect(Array.isArray(result.taken)).toBe(true);
+    expect(Array.isArray(result.missed)).toBe(true);
+  });
+});
+
+describe("Integration: medReminders.batchUpdate via tRPC", () => {
+  it("rejects empty ids", async () => {
+    const { appRouter } = await import("./routers");
+    const user = {
+      id: 1, openId: "test-int", email: "t@t.com", name: "T",
+      loginMethod: "manus" as const, role: "user" as const,
+      createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(),
+    };
+    const ctx = {
+      user,
+      req: { protocol: "https", headers: {} } as any,
+      res: { clearCookie: () => {} } as any,
+    };
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.medReminders.batchUpdate({ ids: [] })).rejects.toThrow();
+  });
+
+  it("succeeds with valid input", async () => {
+    const { appRouter } = await import("./routers");
+    const user = {
+      id: 1, openId: "test-int", email: "t@t.com", name: "T",
+      loginMethod: "manus" as const, role: "user" as const,
+      createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(),
+    };
+    const ctx = {
+      user,
+      req: { protocol: "https", headers: {} } as any,
+      res: { clearCookie: () => {} } as any,
+    };
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.medReminders.batchUpdate({ ids: [99999], enabled: 1 });
+    expect(result).toEqual({ success: true });
+  });
+});

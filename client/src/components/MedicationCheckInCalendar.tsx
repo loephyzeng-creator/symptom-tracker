@@ -10,6 +10,8 @@ import {
   Minus,
   CalendarCheck,
   Trophy,
+  Pill,
+  Loader2,
 } from "lucide-react";
 
 const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
@@ -44,6 +46,107 @@ function getStatusIcon(status: DayStatus, size = 12) {
     default:
       return null;
   }
+}
+
+/* ─── DayDetailPanel: Shows per-medication detail when a day is clicked ─── */
+function DayDetailPanel({
+  date,
+  status,
+  scheduledCount,
+  takenCount,
+}: {
+  date: string;
+  status: DayStatus;
+  scheduledCount: number;
+  takenCount: number;
+}) {
+  const { data: detail, isLoading } = trpc.medReminders.dayDetail.useQuery(
+    { date },
+    { staleTime: 60_000 }
+  );
+
+  const statusLabel =
+    status === "all-taken"
+      ? "全部按时服药"
+      : status === "partial"
+        ? `部分服药 (${takenCount}/${scheduledCount})`
+        : status === "no-schedule"
+          ? "当日无用药安排"
+          : "未服药";
+
+  const statusDotColor =
+    status === "all-taken"
+      ? "bg-emerald-500"
+      : status === "partial"
+        ? "bg-amber-400"
+        : status === "missed"
+          ? "bg-red-400"
+          : "bg-muted";
+
+  return (
+    <div className="px-4 py-3 border-t border-border/50 bg-muted/30">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-medium text-foreground">
+          {date.replace(/-/g, "/")}
+        </p>
+        <div className="flex items-center gap-1.5">
+          <div className={`w-2 h-2 rounded-full ${statusDotColor}`} />
+          <span className="text-xs text-muted-foreground">{statusLabel}</span>
+        </div>
+      </div>
+
+      {status === "no-schedule" ? (
+        <p className="text-xs text-muted-foreground">当日无用药安排</p>
+      ) : isLoading ? (
+        <div className="flex items-center justify-center py-2">
+          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+        </div>
+      ) : detail ? (
+        <div className="space-y-1.5">
+          {detail.taken.length > 0 && (
+            <div>
+              <p className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1">
+                <Check className="w-3 h-3" strokeWidth={3} />
+                已服药 ({detail.taken.length})
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {detail.taken.map((med, i) => (
+                  <span
+                    key={i}
+                    className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/30 flex items-center gap-1"
+                  >
+                    <Pill className="w-3 h-3" />
+                    {med.name}
+                    <span className="text-emerald-500/60 text-[10px]">{med.dosage}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {detail.missed.length > 0 && (
+            <div>
+              <p className="text-[10px] font-medium text-red-500 dark:text-red-400 mb-1 flex items-center gap-1">
+                <X className="w-3 h-3" strokeWidth={3} />
+                漏服 ({detail.missed.length})
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {detail.missed.map((med, i) => (
+                  <span
+                    key={i}
+                    className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200/50 dark:border-red-800/30 flex items-center gap-1"
+                  >
+                    <Pill className="w-3 h-3" />
+                    {med.name}
+                    <span className="text-red-500/60 text-[10px]">{med.dosage}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export default function MedicationCheckInCalendar() {
@@ -275,7 +378,7 @@ export default function MedicationCheckInCalendar() {
         )}
       </div>
 
-      {/* Selected day detail */}
+      {/* Selected day detail with per-medication breakdown */}
       <AnimatePresence>
         {selectedDayData && selectedDayData.status !== "future" && (
           <motion.div
@@ -285,36 +388,12 @@ export default function MedicationCheckInCalendar() {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="px-4 py-3 border-t border-border/50 bg-muted/30">
-              <p className="text-xs font-medium text-foreground mb-1">
-                {selectedDayData.date.replace(/-/g, "/")}
-              </p>
-              {selectedDayData.status === "no-schedule" ? (
-                <p className="text-xs text-muted-foreground">当日无用药安排</p>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      selectedDayData.status === "all-taken"
-                        ? "bg-emerald-500"
-                        : selectedDayData.status === "partial"
-                          ? "bg-amber-400"
-                          : "bg-red-400"
-                    }`}
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    {selectedDayData.status === "all-taken"
-                      ? "全部按时服药"
-                      : selectedDayData.status === "partial"
-                        ? `部分服药 (${selectedDayData.takenCount}/${selectedDayData.scheduledCount})`
-                        : "未服药"}
-                  </span>
-                  <span className="text-xs text-muted-foreground/60 ml-auto">
-                    {selectedDayData.takenCount}/{selectedDayData.scheduledCount} 种
-                  </span>
-                </div>
-              )}
-            </div>
+            <DayDetailPanel
+              date={selectedDayData.date}
+              status={selectedDayData.status}
+              scheduledCount={selectedDayData.scheduledCount}
+              takenCount={selectedDayData.takenCount}
+            />
           </motion.div>
         )}
       </AnimatePresence>

@@ -48,6 +48,9 @@ import {
   confirmMedicationTaken,
   getMedicationTimeline,
   getMedicationCheckInCalendar,
+  getExpiringMedications,
+  getMedicationCheckInDayDetail,
+  batchUpdateMedicationReminders,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -458,6 +461,8 @@ export const appRouter = router({
           dailyDosageCount: z.number().min(1).max(20).optional(),
           stockAlertDays: z.number().min(1).max(90).optional(),
           instructionUrl: z.string().url().max(2000).nullable().optional(),
+          expirationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+          expirationAlertDays: z.number().min(1).max(365).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -480,6 +485,8 @@ export const appRouter = router({
           dailyDosageCount: z.number().min(1).max(20).optional(),
           stockAlertDays: z.number().min(1).max(90).optional(),
           instructionUrl: z.string().url().max(2000).nullable().optional(),
+          expirationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+          expirationAlertDays: z.number().min(1).max(365).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -587,6 +594,34 @@ export const appRouter = router({
       .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
       .query(async ({ ctx, input }) => {
         return getTodayMedications(ctx.user.id, input.date);
+      }),
+
+    /** Get medications that are expiring soon or already expired */
+    expiring: protectedProcedure.query(async ({ ctx }) => {
+      return getExpiringMedications(ctx.user.id);
+    }),
+
+    /** Get detailed medication check-in info for a specific day */
+    dayDetail: protectedProcedure
+      .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+      .query(async ({ ctx, input }) => {
+        return getMedicationCheckInDayDetail(ctx.user.id, input.date);
+      }),
+
+    /** Batch update multiple medication reminders */
+    batchUpdate: protectedProcedure
+      .input(
+        z.object({
+          ids: z.array(z.number()).min(1),
+          enabled: z.number().min(0).max(1).optional(),
+          reminderHour: z.number().min(0).max(23).optional(),
+          reminderMinute: z.number().min(0).max(59).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { ids, ...data } = input;
+        await batchUpdateMedicationReminders(ctx.user.id, ids, data);
+        return { success: true };
       }),
   }),
 

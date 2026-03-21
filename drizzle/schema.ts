@@ -182,6 +182,9 @@ export const medicationReminders = mysqlTable("medication_reminders", {
   stockAlertDays: int("stockAlertDays").default(7), // alert when stock runs out within N days
   lastStockAlertDate: varchar("lastStockAlertDate", { length: 10 }), // prevent duplicate stock alerts
   instructionUrl: text("instructionUrl"), // URL to medication instructions/leaflet
+  expirationDate: varchar("expirationDate", { length: 10 }), // YYYY-MM-DD, medication expiration date
+  expirationAlertDays: int("expirationAlertDays").default(30), // alert N days before expiration
+  lastExpirationAlertDate: varchar("lastExpirationAlertDate", { length: 10 }), // prevent duplicate expiration alerts
   lastNotifiedDate: varchar("lastNotifiedDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

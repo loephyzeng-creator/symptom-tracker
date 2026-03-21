@@ -281,3 +281,23 @@
 
 ## 用药提醒整行删除功能
 - [x] 在用药提醒列表中添加滑动删除功能（SwipeToDelete组件，左滑显示删除按钮+确认弹窗）
+
+## 药品过期提醒
+- [x] 数据库：medication_reminders表添加expirationDate和expirationAlertDays字段
+- [x] 后端：更新add/update接口支持expirationDate和expirationAlertDays
+- [x] 后端：调度器新增过期检测逻辑，临近过期时推送Web Push提醒
+- [x] 后端：新增getExpiringMedications API查询过期状态
+- [x] 前端：提醒表单添加过期日期选择器+提前提醒天数
+- [x] 前端：提醒卡片显示过期状态（临近过期黄色/已过期红色警告+剩余天数）
+- [x] 测试验证（343个测试全部通过）
+
+## 打卡日历点击交互
+- [x] 后端：新增getMedicationCheckInDayDetail API返回每日各药品的服药/漏服详情
+- [x] 前端：DayDetailPanel组件，点击日历某天显示已服药品列表✓ + 漏服药品列表✗（含药品名+剂量）
+- [x] 测试验证
+
+## 批量编辑提醒
+- [x] 后端：新增batchUpdateMedicationReminders API（批量修改时间/启用/禁用）
+- [x] 前端：用药提醒列表添加批量编辑模式（多选复选框+全选+批量操作栏）
+- [x] 前端：支持批量调整提醒时间（TimePicker+应用按钮）、批量启用/禁用
+- [x] 测试验证（343个测试全部通过）

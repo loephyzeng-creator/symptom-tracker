@@ -20,6 +20,12 @@ import {
   Download,
   FileText,
   ExternalLink,
+  AlertTriangle,
+  ShieldAlert,
+  CheckSquare,
+  Square,
+  Power,
+  PowerOff,
 } from "lucide-react";
 import TimePicker from "@/components/TimePicker";
 import { exportSingleReminder, exportAllReminders } from "@/lib/icsExport";
@@ -50,6 +56,8 @@ interface ReminderForm {
   dailyDosageCount: number;
   stockAlertDays: number;
   instructionUrl: string;
+  expirationDate: string;
+  expirationAlertDays: number;
 }
 
 const EMPTY_FORM: ReminderForm = {
@@ -64,6 +72,8 @@ const EMPTY_FORM: ReminderForm = {
   dailyDosageCount: 1,
   stockAlertDays: 7,
   instructionUrl: "",
+  expirationDate: "",
+  expirationAlertDays: 30,
 };
 
 function DaySelector({
@@ -323,6 +333,36 @@ function ReminderFormFields({
           className="h-8 text-sm"
         />
       </div>
+      {/* 药品有效期 */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-foreground">有效期</span>
+          <span className="text-xs text-muted-foreground">(可选)</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-muted-foreground">过期日期</label>
+            <Input
+              type="date"
+              value={formData.expirationDate}
+              onChange={(e) => setFormData({ ...formData, expirationDate: e.target.value })}
+              className="h-8 text-sm mt-1"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">提前提醒(天)</label>
+            <Input
+              type="number"
+              value={formData.expirationAlertDays}
+              onChange={(e) => setFormData({ ...formData, expirationAlertDays: Math.max(1, parseInt(e.target.value) || 30) })}
+              className="h-8 text-sm mt-1"
+              min={1}
+              max={365}
+            />
+          </div>
+        </div>
+      </div>
       <div className="flex gap-2 pt-1">
         <Button
           size="sm"
@@ -434,6 +474,11 @@ export default function MedicationReminders() {
   const [form, setForm] = useState<ReminderForm>({ ...EMPTY_FORM });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<ReminderForm>({ ...EMPTY_FORM });
+  // Batch edit mode
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [batchTimeHour, setBatchTimeHour] = useState(8);
+  const [batchTimeMinute, setBatchTimeMinute] = useState(0);
 
   const utils = trpc.useUtils();
   const { data: reminders = [], isLoading } =
@@ -482,6 +527,55 @@ export default function MedicationReminders() {
     onError: (err) => toast.error(err.message),
   });
 
+  const batchUpdateMutation = trpc.medReminders.batchUpdate.useMutation({
+    onSuccess: () => {
+      utils.medReminders.list.invalidate();
+      setSelectedIds(new Set());
+      setBatchMode(false);
+      toast.success("批量更新成功");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const toggleBatchSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedIds.size === reminders.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(reminders.map((r: any) => r.id)));
+    }
+  };
+
+  const handleBatchEnable = () => {
+    if (selectedIds.size === 0) { toast.error("请先选择提醒"); return; }
+    batchUpdateMutation.mutate({ ids: Array.from(selectedIds), enabled: 1 });
+  };
+
+  const handleBatchDisable = () => {
+    if (selectedIds.size === 0) { toast.error("请先选择提醒"); return; }
+    batchUpdateMutation.mutate({ ids: Array.from(selectedIds), enabled: 0 });
+  };
+
+  const handleBatchTimeChange = () => {
+    if (selectedIds.size === 0) { toast.error("请先选择提醒"); return; }
+    batchUpdateMutation.mutate({
+      ids: Array.from(selectedIds),
+      reminderHour: batchTimeHour,
+      reminderMinute: batchTimeMinute,
+    });
+  };
+
   // Medication name suggestions from history
   const medSuggestions = useMemo(() => {
     return medHistory
@@ -505,6 +599,8 @@ export default function MedicationReminders() {
       dailyDosageCount: form.dailyDosageCount,
       stockAlertDays: form.stockAlertDays,
       instructionUrl: form.instructionUrl.trim() || null,
+      expirationDate: form.expirationDate || null,
+      expirationAlertDays: form.expirationAlertDays,
     });
   };
 
@@ -526,6 +622,8 @@ export default function MedicationReminders() {
       dailyDosageCount: editForm.dailyDosageCount,
       stockAlertDays: editForm.stockAlertDays,
       instructionUrl: editForm.instructionUrl.trim() || null,
+      expirationDate: editForm.expirationDate || null,
+      expirationAlertDays: editForm.expirationAlertDays,
     });
   };
 
@@ -543,6 +641,8 @@ export default function MedicationReminders() {
       dailyDosageCount: reminder.dailyDosageCount ?? 1,
       stockAlertDays: reminder.stockAlertDays ?? 7,
       instructionUrl: reminder.instructionUrl ?? "",
+      expirationDate: reminder.expirationDate ?? "",
+      expirationAlertDays: reminder.expirationAlertDays ?? 30,
     });
   };
 
@@ -577,7 +677,21 @@ export default function MedicationReminders() {
           </h3>
         </div>
         <div className="flex items-center gap-2">
-          {reminders.length > 0 && (
+          {reminders.length >= 2 && (
+            <Button
+              variant={batchMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setBatchMode(!batchMode);
+                setSelectedIds(new Set());
+              }}
+              className="gap-1"
+            >
+              <CheckSquare className="w-4 h-4" />
+              {batchMode ? "取消" : "批量"}
+            </Button>
+          )}
+          {!batchMode && reminders.length > 0 && (
             <Button
               variant="outline"
               size="sm"
@@ -597,21 +711,84 @@ export default function MedicationReminders() {
               导入日历
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAdd(!showAdd)}
-            className="gap-1"
-          >
-            <Plus className="w-4 h-4" />
-            添加
-          </Button>
+          {!batchMode && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAdd(!showAdd)}
+              className="gap-1"
+            >
+              <Plus className="w-4 h-4" />
+              添加
+            </Button>
+          )}
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        为每种药品设置独立的提醒时间、剂量和重复日，到时间自动推送通知。点击"导入日历"可将提醒添加到 iPhone 系统日历，即使关闭应用也能收到提醒。左滑可快速删除提醒。
-      </p>
+      {/* Batch edit toolbar */}
+      {batchMode && (
+        <div className="bg-muted/50 border border-border/50 rounded-xl p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={selectAll}
+              className="text-xs text-terracotta hover:underline flex items-center gap-1"
+            >
+              {selectedIds.size === reminders.length ? (
+                <><CheckSquare className="w-3.5 h-3.5" /> 取消全选</>
+              ) : (
+                <><Square className="w-3.5 h-3.5" /> 全选 ({reminders.length})</>
+              )}
+            </button>
+            <span className="text-xs text-muted-foreground">已选 {selectedIds.size} 项</span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBatchEnable}
+              disabled={selectedIds.size === 0 || batchUpdateMutation.isPending}
+              className="gap-1 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+            >
+              <Power className="w-3.5 h-3.5" />
+              全部启用
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBatchDisable}
+              disabled={selectedIds.size === 0 || batchUpdateMutation.isPending}
+              className="gap-1 text-muted-foreground"
+            >
+              <PowerOff className="w-3.5 h-3.5" />
+              全部禁用
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground shrink-0">统一时间:</span>
+            <TimePicker
+              hour={batchTimeHour}
+              minute={batchTimeMinute}
+              onChange={(h, m) => { setBatchTimeHour(h); setBatchTimeMinute(m); }}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBatchTimeChange}
+              disabled={selectedIds.size === 0 || batchUpdateMutation.isPending}
+              className="gap-1"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              应用
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!batchMode && (
+        <p className="text-xs text-muted-foreground">
+          为每种药品设置独立的提醒时间、剂量和重复日，到时间自动推送通知。点击“导入日历”可将提醒添加到 iPhone 系统日历，即使关闭应用也能收到提醒。左滑可快速删除提醒。
+        </p>
+      )}
 
       {/* Add form */}
       {showAdd && (
@@ -658,8 +835,22 @@ export default function MedicationReminders() {
                       reminder.enabled
                         ? "border-border/50"
                         : "border-border/30 opacity-60"
-                    }`}
+                    } ${batchMode && selectedIds.has(reminder.id) ? "ring-2 ring-terracotta/50 bg-terracotta/5" : ""}`}
+                    onClick={batchMode ? () => toggleBatchSelect(reminder.id) : undefined}
                   >
+                    {batchMode && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                          selectedIds.has(reminder.id)
+                            ? "bg-terracotta border-terracotta text-white"
+                            : "border-border bg-card"
+                        }`}>
+                          {selectedIds.has(reminder.id) && <Check className="w-3 h-3" />}
+                        </div>
+                        <span className="text-sm font-medium text-foreground">{reminder.medicationName}</span>
+                        <span className="text-xs text-muted-foreground">{reminder.dosage}</span>
+                      </div>
+                    )}
                     {editingId === reminder.id ? (
                       /* Edit mode */
                       <ReminderFormFields
@@ -769,6 +960,35 @@ export default function MedicationReminders() {
                               库存 {reminder.stockQuantity}
                             </span>
                           )}
+                          {reminder.expirationDate && (() => {
+                            const expDate = new Date(reminder.expirationDate + "T00:00:00");
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const diffMs = expDate.getTime() - today.getTime();
+                            const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                            const alertDays = reminder.expirationAlertDays ?? 30;
+                            if (daysLeft < 0) {
+                              return (
+                                <span className="text-xs bg-destructive/15 text-destructive px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  已过期{Math.abs(daysLeft)}天
+                                </span>
+                              );
+                            } else if (daysLeft <= alertDays) {
+                              return (
+                                <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  {daysLeft}天后过期
+                                </span>
+                              );
+                            } else {
+                              return (
+                                <span className="text-xs bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full">
+                                  有效期至 {reminder.expirationDate}
+                                </span>
+                              );
+                            }
+                          })()}
                           {reminder.enabled === 1 && !reminder.snoozedUntil && (
                             <button
                               onClick={() =>

@@ -1,4 +1,4 @@
-import { and, eq, desc, gte, lte, sql } from "drizzle-orm";
+import { and, eq, desc, gte, lte, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -1001,6 +1001,8 @@ export async function addMedicationReminder(
     dailyDosageCount?: number;
     stockAlertDays?: number;
     instructionUrl?: string | null;
+    expirationDate?: string | null;
+    expirationAlertDays?: number;
   }
 ) {
   const db = await getDb();
@@ -1017,6 +1019,8 @@ export async function addMedicationReminder(
     dailyDosageCount: data.dailyDosageCount ?? 1,
     stockAlertDays: data.stockAlertDays ?? 7,
     instructionUrl: data.instructionUrl ?? null,
+    expirationDate: data.expirationDate ?? null,
+    expirationAlertDays: data.expirationAlertDays ?? 30,
     enabled: 1,
   });
   return { id: result.insertId };
@@ -1040,6 +1044,8 @@ export async function updateMedicationReminder(
     stockQuantity: number | null;
     dailyDosageCount: number;
     stockAlertDays: number;
+    expirationDate: string | null;
+    expirationAlertDays: number;
   }>
 ) {
   const db = await getDb();
@@ -1860,4 +1866,225 @@ export async function getMedicationCheckInCalendar(
   const monthlyRate = totalScheduled > 0 ? Math.round((totalCompleted / totalScheduled) * 100) : 0;
 
   return { days, streak, monthlyRate, totalScheduled, totalCompleted };
+}
+
+/**
+ * Get medications that are expiring soon or already expired.
+ * Returns reminders where expirationDate is within alertDays of today or already past.
+ */
+export async function getExpiringMedications(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.userId, userId),
+        eq(medicationReminders.enabled, 1)
+      )
+    );
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  return reminders
+    .filter((r) => r.expirationDate)
+    .map((r) => {
+      const expDate = new Date(r.expirationDate! + "T00:00:00");
+      const diffMs = expDate.getTime() - today.getTime();
+      const daysUntilExpiry = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      const alertDays = r.expirationAlertDays ?? 30;
+      const isExpired = daysUntilExpiry < 0;
+      const isExpiringSoon = !isExpired && daysUntilExpiry <= alertDays;
+      return {
+        ...r,
+        daysUntilExpiry,
+        isExpired,
+        isExpiringSoon,
+      };
+    })
+    .filter((r) => r.isExpired || r.isExpiringSoon);
+}
+
+/**
+ * Check expiring medications and send push notifications.
+ * Called by the scheduler.
+ */
+export async function checkExpiringMedications() {
+  const db = await getDb();
+  if (!db) return;
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  // Get all enabled reminders with expiration dates
+  const allReminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(eq(medicationReminders.enabled, 1));
+
+  for (const reminder of allReminders) {
+    if (!reminder.expirationDate) continue;
+    // Skip if already alerted today
+    if (reminder.lastExpirationAlertDate === todayStr) continue;
+
+    const expDate = new Date(reminder.expirationDate + "T00:00:00");
+    const diffMs = expDate.getTime() - today.getTime();
+    const daysUntilExpiry = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    const alertDays = reminder.expirationAlertDays ?? 30;
+
+    if (daysUntilExpiry <= alertDays) {
+      // Send push notification
+      const subs = await getPushSubscriptionsByUserId(reminder.userId);
+      if (subs.length > 0) {
+        const isExpired = daysUntilExpiry < 0;
+        const title = isExpired
+          ? `⚠️ ${reminder.medicationName} 已过期`
+          : `⏰ ${reminder.medicationName} 即将过期`;
+        const body = isExpired
+          ? `该药品已过期 ${Math.abs(daysUntilExpiry)} 天，请及时更换。`
+          : `该药品将在 ${daysUntilExpiry} 天后过期（${reminder.expirationDate}），请注意补充。`;
+
+        try {
+          const webpush = await import("web-push");
+            const vapidPublicKey = ENV.vapidPublicKey;
+            const vapidPrivateKey = ENV.vapidPrivateKey;
+          if (vapidPublicKey && vapidPrivateKey) {
+            webpush.setVapidDetails(
+              "mailto:symptom-tracker@example.com",
+              vapidPublicKey,
+              vapidPrivateKey
+            );
+            for (const sub of subs) {
+              try {
+                await webpush.sendNotification(
+                  {
+                    endpoint: sub.endpoint,
+                    keys: { p256dh: sub.p256dh, auth: sub.auth },
+                  },
+                  JSON.stringify({ title, body, tag: `expiry-${reminder.id}` })
+                );
+              } catch (err: any) {
+                if (err.statusCode === 410) {
+                  await removePushSubscription(reminder.userId, sub.endpoint);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error("[Expiry] Push notification error:", err);
+        }
+      }
+
+      // Mark as alerted today
+      await db
+        .update(medicationReminders)
+        .set({ lastExpirationAlertDate: todayStr })
+        .where(eq(medicationReminders.id, reminder.id));
+    }
+  }
+}
+
+/**
+ * Get check-in calendar data with per-medication detail for a specific day.
+ * Returns which medications were taken and which were missed.
+ */
+export async function getMedicationCheckInDayDetail(
+  userId: number,
+  date: string // YYYY-MM-DD
+) {
+  const db = await getDb();
+  if (!db) return { scheduled: [], taken: [], missed: [] };
+
+  const dayDate = new Date(date + "T00:00:00");
+  const dayOfWeek = dayDate.getDay();
+
+  // Get all enabled medication reminders
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.userId, userId),
+        eq(medicationReminders.enabled, 1)
+      )
+    );
+
+  // Find scheduled medications for this day
+  const scheduled: { name: string; dosage: string; id: number }[] = [];
+  for (const r of reminders) {
+    const repeatDays: number[] | null = r.repeatDays as number[] | null;
+    const isScheduled = !repeatDays || repeatDays.length === 0 || repeatDays.includes(dayOfWeek);
+    if (isScheduled) {
+      scheduled.push({ name: r.medicationName, dosage: r.dosage, id: r.id });
+    }
+  }
+
+  if (scheduled.length === 0) {
+    return { scheduled: [], taken: [], missed: [] };
+  }
+
+  // Get the symptom entry for this date
+  const entries = await db
+    .select({ medications: symptomEntries.medications })
+    .from(symptomEntries)
+    .where(
+      and(
+        eq(symptomEntries.userId, userId),
+        eq(symptomEntries.date, date)
+      )
+    )
+    .limit(1);
+
+  const recordedMeds = new Set<string>();
+  if (entries.length > 0 && Array.isArray(entries[0].medications)) {
+    for (const m of entries[0].medications as { name: string; dosage: string }[]) {
+      if (m.name && m.name.trim()) {
+        recordedMeds.add(m.name.trim().toLowerCase());
+      }
+    }
+  }
+
+  const taken: { name: string; dosage: string; id: number }[] = [];
+  const missed: { name: string; dosage: string; id: number }[] = [];
+
+  for (const med of scheduled) {
+    if (recordedMeds.has(med.name.trim().toLowerCase())) {
+      taken.push(med);
+    } else {
+      missed.push(med);
+    }
+  }
+
+  return { scheduled, taken, missed };
+}
+
+/**
+ * Batch update medication reminders — update multiple reminders at once.
+ * Supports batch enable/disable and batch time change.
+ */
+export async function batchUpdateMedicationReminders(
+  userId: number,
+  ids: number[],
+  data: Partial<{
+    enabled: number;
+    reminderHour: number;
+    reminderMinute: number;
+  }>
+) {
+  const db = await getDb();
+  if (!db) return;
+  if (ids.length === 0) return;
+
+  await db
+    .update(medicationReminders)
+    .set(data)
+    .where(
+      and(
+        eq(medicationReminders.userId, userId),
+        inArray(medicationReminders.id, ids)
+      )
+    );
 }

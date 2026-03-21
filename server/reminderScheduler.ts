@@ -346,6 +346,17 @@ async function checkAndSendReminders() {
   } catch (error) {
     console.error("[Reminder] Error in low stock alerts (non-fatal):", error);
   }
+
+  // 5. Medication expiration alerts (check once daily at 9:30 AM)
+  try {
+    if (hour === 9 && minute >= 15 && minute < 30) {
+      const { checkExpiringMedications } = await import("./db");
+      await checkExpiringMedications();
+      console.log("[Expiry] Medication expiration check completed");
+    }
+  } catch (error) {
+    console.error("[Reminder] Error in expiration alerts (non-fatal):", error);
+  }
 }
 
 /**
