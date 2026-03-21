@@ -5,7 +5,6 @@
  */
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import MissedMedicationAlert from "@/components/MissedMedicationAlert";
 import MedicationCheckInCalendar from "@/components/MedicationCheckInCalendar";
 import DrugInteractionChecker from "@/components/DrugInteractionChecker";
 import { motion } from "framer-motion";
@@ -118,9 +117,6 @@ export default function MedicationView() {
 
   return (
     <div className="space-y-4">
-      {/* Missed Medication Alert */}
-      <MissedMedicationAlert />
-
       {/* Today's Medication Checklist */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}

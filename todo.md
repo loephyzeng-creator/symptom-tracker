@@ -385,3 +385,6 @@
 - [x] 用药tab添加"一键全部打卡"按钮
 - [x] 记录保存后弹出提示引导去用药tab打卡
 - [x] 历史记录展示当日服药打卡情况
+
+## 移除用药tab顶部的漏服提醒
+- [x] 从MedicationView中移除MissedMedicationAlert组件
