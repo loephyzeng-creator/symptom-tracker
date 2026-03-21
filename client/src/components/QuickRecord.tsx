@@ -22,7 +22,9 @@ import {
   Zap,
   Settings2,
   Check,
+  AlertTriangle,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 const ALL_METRICS = [
@@ -92,6 +94,7 @@ export default function QuickRecord({ date, existingEntry, onSave }: QuickRecord
   const [saving, setSaving] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [severeHeadache, setSevereHeadache] = useState(false);
 
   // Initialize values from existing entry or defaults
   useEffect(() => {
@@ -104,6 +107,7 @@ export default function QuickRecord({ date, existingEntry, onSave }: QuickRecord
       }
     }
     setValues(initial);
+    setSevereHeadache(existingEntry?.severeHeadache === 1);
     setSaved(false);
   }, [date, existingEntry]);
 
@@ -140,7 +144,7 @@ export default function QuickRecord({ date, existingEntry, onSave }: QuickRecord
         date,
         medications: existingEntry?.medications ?? [],
         triggers: existingEntry?.triggers ?? [],
-        severeHeadache: existingEntry?.severeHeadache ?? 0,
+        severeHeadache: severeHeadache ? 1 : 0,
         notes: existingEntry?.notes ?? null,
       };
       // Fill all metrics: use quick-edited values for selected, defaults/existing for others
@@ -267,6 +271,35 @@ export default function QuickRecord({ date, existingEntry, onSave }: QuickRecord
           );
         })}
       </div>
+
+      {/* Severe headache toggle */}
+      <motion.div
+        initial={{ opacity: 0, y: 5 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-xl border border-border/30 bg-card p-4"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="text-destructive">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <span className="text-sm font-medium text-foreground">
+              是否剧烈头痛
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-medium ${
+              severeHeadache ? "text-destructive" : "text-muted-foreground"
+            }`}>
+              {severeHeadache ? "是" : "否"}
+            </span>
+            <Switch
+              checked={severeHeadache}
+              onCheckedChange={setSevereHeadache}
+            />
+          </div>
+        </div>
+      </motion.div>
 
       {/* Save button */}
       <Button
