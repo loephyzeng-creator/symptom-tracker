@@ -103,7 +103,7 @@ export default function QuickRecord({ date, existingEntry, onSave, onSwitchToMed
   // Painkiller usage check
   const painkillerUsageCheck = trpc.entries.painkillerUsage.useQuery(
     { date },
-    { enabled: false }
+    { enabled: true }
   );
 
   // Initialize values from existing entry or defaults
@@ -362,6 +362,29 @@ export default function QuickRecord({ date, existingEntry, onSave, onSwitchToMed
             />
           </div>
         </div>
+
+        {/* 30天累计显示 */}
+        {painkillerUsageCheck.data && (
+          <div className={`mt-3 px-3 py-2 rounded-lg text-xs flex items-center justify-between ${
+            painkillerUsageCheck.data.days >= painkillerUsageCheck.data.limit
+              ? "bg-destructive/10 border border-destructive/20"
+              : painkillerUsageCheck.data.days >= 7
+              ? "bg-terracotta/10 border border-terracotta/20"
+              : "bg-muted/50 border border-border/30"
+          }`}>
+            <span className="text-muted-foreground">近30天累计服用止疼药</span>
+            <span className={`font-semibold ${
+              painkillerUsageCheck.data.days >= painkillerUsageCheck.data.limit
+                ? "text-destructive"
+                : painkillerUsageCheck.data.days >= 7
+                ? "text-terracotta"
+                : "text-foreground"
+            }`}>
+              {painkillerUsageCheck.data.days} / {painkillerUsageCheck.data.limit} 天
+              {painkillerUsageCheck.data.days >= painkillerUsageCheck.data.limit && " ⚠️ 已超限"}
+            </span>
+          </div>
+        )}
       </motion.div>
 
       {/* Save button */}

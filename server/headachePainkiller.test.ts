@@ -101,6 +101,16 @@ describe("Headache Attack Level + Painkiller Feature", () => {
       expect(formContent).toContain("止疼药用量提醒");
       expect(formContent).toContain("建议不超过");
     });
+
+    it("should display persistent 30-day painkiller usage counter", () => {
+      expect(formContent).toContain("近30天累计服用止疼药");
+      expect(formContent).toContain("painkillerUsageCheck.data.days");
+      expect(formContent).toContain("painkillerUsageCheck.data.limit");
+    });
+
+    it("should enable painkillerUsageCheck query by default", () => {
+      expect(formContent).toContain("enabled: true");
+    });
   });
 
   describe("Frontend - QuickRecord UI", () => {
@@ -125,6 +135,10 @@ describe("Headache Attack Level + Painkiller Feature", () => {
 
     it("should have painkillerUsageCheck for warnings", () => {
       expect(quickContent).toContain("painkillerUsageCheck");
+    });
+
+    it("should display persistent 30-day painkiller usage counter", () => {
+      expect(quickContent).toContain("近30天累计服用止疼药");
     });
   });
 
