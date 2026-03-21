@@ -54,12 +54,12 @@ interface ReminderForm {
   repeatDays: number[];
   offsetMinutes: number;
   trackStock: boolean;
-  stockQuantity: number;
-  dailyDosageCount: number;
-  stockAlertDays: number;
+  stockQuantity: number | string;
+  dailyDosageCount: number | string;
+  stockAlertDays: number | string;
   instructionUrl: string;
   expirationDate: string;
-  expirationAlertDays: number;
+  expirationAlertDays: number | string;
   groupId: number | null;
   intervalHours: number | null;
 }
@@ -440,7 +440,9 @@ function ReminderFormFields({
               <Input
                 type="number"
                 value={formData.stockQuantity}
-                onChange={(e) => setFormData({ ...formData, stockQuantity: Math.max(0, parseInt(e.target.value) || 0) })}
+                onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value === '' ? '' : parseInt(e.target.value) || 0 })}
+                onFocus={(e) => e.target.select()}
+                onBlur={() => { if (formData.stockQuantity === '') setFormData({ ...formData, stockQuantity: 0 }); }}
                 className="h-8 text-sm mt-1"
                 min={0}
               />
@@ -450,7 +452,9 @@ function ReminderFormFields({
               <Input
                 type="number"
                 value={formData.dailyDosageCount}
-                onChange={(e) => setFormData({ ...formData, dailyDosageCount: Math.max(1, parseInt(e.target.value) || 1) })}
+                onChange={(e) => setFormData({ ...formData, dailyDosageCount: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1) })}
+                onFocus={(e) => e.target.select()}
+                onBlur={() => { if (formData.dailyDosageCount === '') setFormData({ ...formData, dailyDosageCount: 1 }); }}
                 className="h-8 text-sm mt-1"
                 min={1}
                 max={20}
@@ -461,7 +465,9 @@ function ReminderFormFields({
               <Input
                 type="number"
                 value={formData.stockAlertDays}
-                onChange={(e) => setFormData({ ...formData, stockAlertDays: Math.max(1, parseInt(e.target.value) || 7) })}
+                onChange={(e) => setFormData({ ...formData, stockAlertDays: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1) })}
+                onFocus={(e) => e.target.select()}
+                onBlur={() => { if (formData.stockAlertDays === '') setFormData({ ...formData, stockAlertDays: 1 }); }}
                 className="h-8 text-sm mt-1"
                 min={1}
                 max={90}
@@ -507,7 +513,9 @@ function ReminderFormFields({
             <Input
               type="number"
               value={formData.expirationAlertDays}
-              onChange={(e) => setFormData({ ...formData, expirationAlertDays: Math.max(1, parseInt(e.target.value) || 30) })}
+              onChange={(e) => setFormData({ ...formData, expirationAlertDays: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1) })}
+              onFocus={(e) => e.target.select()}
+              onBlur={() => { if (formData.expirationAlertDays === '') setFormData({ ...formData, expirationAlertDays: 30 }); }}
               className="h-8 text-sm mt-1"
               min={1}
               max={365}
@@ -794,12 +802,12 @@ export default function MedicationReminders() {
       reminderTimes: form.reminderTimes.length > 0 ? form.reminderTimes : null,
       repeatDays: form.repeatDays,
       offsetMinutes: form.offsetMinutes,
-      stockQuantity: form.trackStock ? form.stockQuantity : null,
-      dailyDosageCount: form.reminderTimes.length > 0 ? form.reminderTimes.length : form.dailyDosageCount,
-      stockAlertDays: form.stockAlertDays,
+      stockQuantity: form.trackStock ? (Number(form.stockQuantity) || 0) : null,
+      dailyDosageCount: form.reminderTimes.length > 0 ? form.reminderTimes.length : (Number(form.dailyDosageCount) || 1),
+      stockAlertDays: Number(form.stockAlertDays) || 7,
       instructionUrl: form.instructionUrl.trim() || null,
       expirationDate: form.expirationDate || null,
-      expirationAlertDays: form.expirationAlertDays,
+      expirationAlertDays: Number(form.expirationAlertDays) || 30,
       groupId: form.groupId,
       intervalHours: form.intervalHours,
     });
@@ -820,12 +828,12 @@ export default function MedicationReminders() {
       reminderTimes: editForm.reminderTimes.length > 0 ? editForm.reminderTimes : null,
       repeatDays: editForm.repeatDays,
       offsetMinutes: editForm.offsetMinutes,
-      stockQuantity: editForm.trackStock ? editForm.stockQuantity : null,
-      dailyDosageCount: editForm.reminderTimes.length > 0 ? editForm.reminderTimes.length : editForm.dailyDosageCount,
-      stockAlertDays: editForm.stockAlertDays,
+      stockQuantity: editForm.trackStock ? (Number(editForm.stockQuantity) || 0) : null,
+      dailyDosageCount: editForm.reminderTimes.length > 0 ? editForm.reminderTimes.length : (Number(editForm.dailyDosageCount) || 1),
+      stockAlertDays: Number(editForm.stockAlertDays) || 7,
       instructionUrl: editForm.instructionUrl.trim() || null,
       expirationDate: editForm.expirationDate || null,
-      expirationAlertDays: editForm.expirationAlertDays,
+      expirationAlertDays: Number(editForm.expirationAlertDays) || 30,
       groupId: editForm.groupId,
       intervalHours: editForm.intervalHours,
     });
