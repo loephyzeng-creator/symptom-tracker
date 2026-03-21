@@ -14,7 +14,6 @@ import QuickRecord from "@/components/QuickRecord";
 import TodayWidget from "@/components/TodayWidget";
 import StatsView from "@/components/StatsView";
 import HistoryView from "@/components/HistoryView";
-import ReportView from "@/components/ReportView";
 import DailyReminder from "@/components/DailyReminder";
 import NotificationSettings from "@/components/NotificationSettings";
 import AlertSettings from "@/components/AlertSettings";
@@ -32,7 +31,7 @@ import PainkillerLimitSetting from "@/components/PainkillerLimitSetting";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2,
-  FileText, Bell, Settings, Sun, Moon, Zap, CalendarDays, User,
+  Bell, Settings, Sun, Moon, Zap, CalendarDays, User,
   ChevronRight, Database, Shield, Activity, Palette, Pill
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
@@ -41,14 +40,13 @@ import { zhCN } from "date-fns/locale";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 
-type TabKey = "record" | "medication" | "stats" | "history" | "report" | "settings";
+type TabKey = "record" | "medication" | "stats" | "history" | "settings";
 
 const TABS: { key: TabKey; label: string; icon: typeof PenLine }[] = [
   { key: "record", label: "记录", icon: PenLine },
   { key: "medication", label: "用药", icon: Pill },
   { key: "stats", label: "统计", icon: BarChart3 },
   { key: "history", label: "历史", icon: Clock },
-  { key: "report", label: "报告", icon: FileText },
   { key: "settings", label: "设置", icon: Settings },
 ];
 
@@ -506,7 +504,6 @@ export default function Home() {
                   onSelectDate={handleSelectDateFromHistory}
                 />
               )}
-              {activeTab === "report" && <ReportView />}
               {activeTab === "settings" && (
                 <SettingsView user={user} onLogout={logout} />
               )}

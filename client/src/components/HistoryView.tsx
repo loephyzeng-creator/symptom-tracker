@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import CalendarView from "./CalendarView";
 import MedicationTimeline from "./MedicationTimeline";
 import MedicationCheckInSummary from "./MedicationCheckInSummary";
+import ReportView from "./ReportView";
 
 interface HistoryViewProps {
   entries: SymptomEntry[];
@@ -56,7 +57,7 @@ const FILTER_OPTIONS: { key: MedFilter; label: string }[] = [
 
 export default function HistoryView({ entries, onDelete, onExport, onExportCSV, onImport, onSelectDate }: HistoryViewProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "calendar" | "medication">("list");
+  const [viewMode, setViewMode] = useState<"list" | "calendar" | "medication" | "report">("list");
   const [medFilter, setMedFilter] = useState<MedFilter>("all");
   const [showFilter, setShowFilter] = useState(false);
   const [showDataMenu, setShowDataMenu] = useState(false);
@@ -193,6 +194,13 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
             >
               <Pill className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => setViewMode("report")}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === "report" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              title="就诊报告"
+            >
+              <FileText className="w-4 h-4" />
+            </button>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -285,6 +293,11 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
         <div className="bg-card rounded-xl border border-border/50 shadow-sm p-4">
           <MedicationTimeline />
         </div>
+      )}
+
+      {/* Report View */}
+      {viewMode === "report" && (
+        <ReportView />
       )}
 
       {/* Entry List */}
