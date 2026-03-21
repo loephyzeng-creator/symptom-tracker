@@ -99,7 +99,7 @@ export default function HeadachePainkillerChart({ entries }: HeadachePainkillerC
       w.totalDays++;
       if (e.date < w.startDate) w.startDate = e.date;
 
-      const level = (e as any).headacheAttack ?? 0;
+      const level = e.severeHeadache ?? 0;
       if (level === 0) w.headacheNone++;
       else if (level === 1) w.headacheMild++;
       else if (level === 2) w.headacheModerate++;
@@ -127,11 +127,11 @@ export default function HeadachePainkillerChart({ entries }: HeadachePainkillerC
       return new Date(e.date + "T00:00:00") >= cutoff;
     });
 
-    const attackDays = last30.filter((e) => ((e as any).headacheAttack ?? 0) > 0).length;
-    const severeDays = last30.filter((e) => ((e as any).headacheAttack ?? 0) >= 3).length;
-    const painkillerDays = last30.filter((e) => (e as any).painkillerTaken).length;
+    const attackDays = last30.filter((e) => (e.severeHeadache ?? 0) > 0).length;
+    const severeDays = last30.filter((e) => (e.severeHeadache ?? 0) >= 3).length;
+    const painkillerDays = last30.filter((e) => e.painkillerTaken).length;
     const avgLevel = last30.length > 0
-      ? Math.round(last30.reduce((sum, e) => sum + ((e as any).headacheAttack ?? 0), 0) / last30.length * 10) / 10
+      ? Math.round(last30.reduce((sum, e) => sum + (e.severeHeadache ?? 0), 0) / last30.length * 10) / 10
       : 0;
 
     return { attackDays, severeDays, painkillerDays, totalDays: last30.length, avgLevel };

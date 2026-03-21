@@ -1,0 +1,38 @@
+{
+  "query": "SELECT id, userId, date, headache, severeHeadache, painkillerTaken, dizziness, sleepQuality, anxiety, mood, fatigue, notes FROM symptom_entries WHERE userId = 4 ORDER BY date;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT id, userId, date, headache, severeHeadache, painkillerTaken, dizziness, sleepQuality, anxiety, mood, fatigue, notes FROM symptom_entries WHERE userId = 4 ORDER BY date;",
+  "rows": [
+    {
+      "id": "1",
+      "userId": "4",
+      "date": "2026-03-20",
+      "headache": "3",
+      "severeHeadache": "2",
+      "painkillerTaken": "1",
+      "dizziness": "5",
+      "sleepQuality": "5",
+      "anxiety": "4",
+      "mood": "5",
+      "fatigue": "5",
+      "notes": "等待候诊时非常焦虑"
+    },
+    {
+      "id": "30001",
+      "userId": "4",
+      "date": "2026-03-21",
+      "headache": "2",
+      "severeHeadache": "0",
+      "painkillerTaken": "0",
+      "dizziness": "3",
+      "sleepQuality": "5",
+      "anxiety": "3",
+      "mood": "5",
+      "fatigue": "3",
+      "notes": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tdate\theadache\tsevereHeadache\tpainkillerTaken\tdizziness\tsleepQuality\tanxiety\tmood\tfatigue\tnotes\n1\t4\t2026-03-20\t3\t2\t1\t5\t5\t4\t5\t5\t等待候诊时非常焦虑\n30001\t4\t2026-03-21\t2\t0\t0\t3\t5\t3\t5\t3\t\n",
+  "stderr": "",
+  "execution_time_ms": 61
+}

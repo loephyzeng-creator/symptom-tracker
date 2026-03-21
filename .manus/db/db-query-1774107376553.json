@@ -1,0 +1,30 @@
+{
+  "query": "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'custom_metric_values';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'custom_metric_values';",
+  "rows": [
+    {
+      "TABLE_NAME": "custom_metric_values",
+      "COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "custom_metric_values",
+      "COLUMN_NAME": "entryId"
+    },
+    {
+      "TABLE_NAME": "custom_metric_values",
+      "COLUMN_NAME": "metricId"
+    },
+    {
+      "TABLE_NAME": "custom_metric_values",
+      "COLUMN_NAME": "value"
+    },
+    {
+      "TABLE_NAME": "custom_metric_values",
+      "COLUMN_NAME": "createdAt"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\tCOLUMN_NAME\ncustom_metric_values\tid\ncustom_metric_values\tentryId\ncustom_metric_values\tmetricId\ncustom_metric_values\tvalue\ncustom_metric_values\tcreatedAt\n",
+  "stderr": "",
+  "execution_time_ms": 61
+}
