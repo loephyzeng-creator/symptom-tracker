@@ -32,7 +32,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2,
   Bell, Settings, Sun, Moon, Zap, CalendarDays, User,
-  ChevronRight, Database, Shield, Activity, Palette, Pill
+  ChevronLeft, ChevronRight, Database, Shield, Activity, Palette, Pill, RotateCcw
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -86,58 +86,120 @@ function DatePicker({ date, onDateChange, existingEntry }: {
     }
   };
 
+  const handlePrevDay = () => {
+    const d = dateStrToDate(date);
+    d.setDate(d.getDate() - 1);
+    onDateChange(dateToDateStr(d));
+  };
+
+  const handleNextDay = () => {
+    const d = dateStrToDate(date);
+    d.setDate(d.getDate() + 1);
+    if (d <= today) {
+      onDateChange(dateToDateStr(d));
+    }
+  };
+
   const handleBackToToday = () => {
     onDateChange(todayStr);
   };
 
+  // Format date parts for display
+  const d = new Date(date + "T00:00:00");
+  const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
+  const monthDay = `${d.getMonth() + 1}月${d.getDate()}日`;
+  const weekday = `星期${weekdays[d.getDay()]}`;
+  const canGoNext = (() => {
+    const next = dateStrToDate(date);
+    next.setDate(next.getDate() + 1);
+    return next <= today;
+  })();
+
   return (
-    <div className="flex items-center justify-center gap-2 mb-4">
-      <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-        <PopoverTrigger asChild>
-          <button className="group flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-card border border-border/50 shadow-sm hover:shadow-md transition-all">
-            <CalendarDays className="w-5 h-5 text-terracotta" />
-            <div className="text-center">
-              <h2 className="font-serif text-lg font-semibold text-foreground leading-tight">
-                {formatDateCN(date)}
-              </h2>
-              <div className="flex items-center justify-center gap-2">
-                {isToday && (
-                  <span className="text-xs text-sage font-medium">今天</span>
-                )}
-                {existingEntry && (
-                  <span className="text-xs text-terracotta font-medium">已记录</span>
-                )}
-                {!isToday && !existingEntry && (
-                  <span className="text-xs text-muted-foreground">点击选择日期</span>
-                )}
-              </div>
-            </div>
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="center" sideOffset={8}>
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={handleCalendarSelect}
-            locale={zhCN}
-            disabled={{ after: today }}
-            defaultMonth={selectedDate}
-            className="rounded-xl"
-            classNames={{
-              today: "bg-terracotta/15 text-terracotta font-bold rounded-md",
-              month_caption: "flex items-center justify-center h-10 w-full px-8 font-serif font-semibold",
-            }}
-          />
-        </PopoverContent>
-      </Popover>
-      {!isToday && (
+    <div className="flex flex-col items-center gap-2 mb-4">
+      {/* Main date row */}
+      <div className="flex items-center gap-1">
+        {/* Prev day arrow */}
         <button
-          onClick={handleBackToToday}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-terracotta/10 border border-terracotta/20 text-terracotta text-xs font-medium hover:bg-terracotta/20 transition-colors whitespace-nowrap"
+          onClick={handlePrevDay}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground/60 hover:text-terracotta hover:bg-terracotta/10 transition-all active:scale-90"
         >
-          <Sun className="w-3.5 h-3.5" />
-          今天
+          <ChevronLeft className="w-4 h-4" />
         </button>
+
+        {/* Date display - clickable to open calendar */}
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          <PopoverTrigger asChild>
+            <button className="group flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-card border border-border/40 shadow-sm hover:shadow-md hover:border-terracotta/20 transition-all active:scale-[0.98]">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-terracotta/15 to-terracotta/5 flex items-center justify-center">
+                <CalendarDays className="w-[18px] h-[18px] text-terracotta" />
+              </div>
+              <div className="text-left">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-serif text-[17px] font-semibold text-foreground tracking-tight">
+                    {monthDay}
+                  </span>
+                  <span className="text-xs text-muted-foreground font-medium">
+                    {weekday}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {isToday && (
+                    <span className="text-[10px] px-1.5 py-px rounded-full bg-sage/15 text-sage font-semibold">今天</span>
+                  )}
+                  {existingEntry && (
+                    <span className="text-[10px] px-1.5 py-px rounded-full bg-terracotta/10 text-terracotta font-semibold">✓ 已记录</span>
+                  )}
+                  {!isToday && !existingEntry && (
+                    <span className="text-[10px] text-muted-foreground/60">点击选择日期</span>
+                  )}
+                </div>
+              </div>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0 rounded-2xl shadow-lg border-border/40" align="center" sideOffset={8}>
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={handleCalendarSelect}
+              locale={zhCN}
+              disabled={{ after: today }}
+              defaultMonth={selectedDate}
+              className="rounded-2xl"
+              classNames={{
+                today: "bg-terracotta/15 text-terracotta font-bold rounded-lg",
+                month_caption: "flex items-center justify-center h-10 w-full px-8 font-serif font-semibold",
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+
+        {/* Next day arrow */}
+        <button
+          onClick={handleNextDay}
+          disabled={!canGoNext}
+          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 ${
+            canGoNext
+              ? "text-muted-foreground/60 hover:text-terracotta hover:bg-terracotta/10"
+              : "text-muted-foreground/20 cursor-not-allowed"
+          }`}
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Back to today pill */}
+      {!isToday && (
+        <motion.button
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          onClick={handleBackToToday}
+          className="flex items-center gap-1 px-3 py-1 rounded-full bg-terracotta/8 text-terracotta text-[11px] font-medium hover:bg-terracotta/15 transition-colors active:scale-95"
+        >
+          <RotateCcw className="w-3 h-3" />
+          返回今天
+        </motion.button>
       )}
     </div>
   );
