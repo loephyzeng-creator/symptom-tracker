@@ -40,8 +40,8 @@ const TABS: { key: TabKey; label: string; icon: typeof PenLine }[] = [
 
 function formatDateCN(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
-  const weekdays = ["\u65e5", "\u4e00", "\u4e8c", "\u4e09", "\u56db", "\u4e94", "\u516d"];
-  return `${d.getFullYear()}\u5e74${d.getMonth() + 1}\u6708${d.getDate()}\u65e5 \u661f\u671f${weekdays[d.getDay()]}`;
+  const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 星期${weekdays[d.getDay()]}`;
 }
 
 function dateStrToDate(dateStr: string): Date {
@@ -86,13 +86,13 @@ function DatePicker({ date, onDateChange, existingEntry }: {
               </h2>
               <div className="flex items-center justify-center gap-2">
                 {isToday && (
-                  <span className="text-xs text-sage font-medium">\u4eca\u5929</span>
+                  <span className="text-xs text-sage font-medium">今天</span>
                 )}
                 {existingEntry && (
-                  <span className="text-xs text-terracotta font-medium">\u5df2\u8bb0\u5f55</span>
+                  <span className="text-xs text-terracotta font-medium">已记录</span>
                 )}
                 {!isToday && !existingEntry && (
-                  <span className="text-xs text-muted-foreground">\u70b9\u51fb\u9009\u62e9\u65e5\u671f</span>
+                  <span className="text-xs text-muted-foreground">点击选择日期</span>
                 )}
               </div>
             </div>
