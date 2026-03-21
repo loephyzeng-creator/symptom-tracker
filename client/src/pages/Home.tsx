@@ -22,7 +22,10 @@ import BackupRestore from "@/components/BackupRestore";
 import SyncStatus from "@/components/SyncStatus";
 import CustomMetricsManager from "@/components/CustomMetricsManager";
 import { motion, AnimatePresence } from "framer-motion";
-import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2, FileText, Bell, Settings, Sun, Moon, Zap } from "lucide-react";
+import { PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2, FileText, Bell, Settings, Sun, Moon, Zap, CalendarDays } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { zhCN } from "date-fns/locale";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 
@@ -34,6 +37,86 @@ const TABS: { key: TabKey; label: string; icon: typeof PenLine }[] = [
   { key: "history", label: "历史", icon: Clock },
   { key: "report", label: "报告", icon: FileText },
 ];
+
+function formatDateCN(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  const weekdays = ["\u65e5", "\u4e00", "\u4e8c", "\u4e09", "\u56db", "\u4e94", "\u516d"];
+  return `${d.getFullYear()}\u5e74${d.getMonth() + 1}\u6708${d.getDate()}\u65e5 \u661f\u671f${weekdays[d.getDay()]}`;
+}
+
+function dateStrToDate(dateStr: string): Date {
+  return new Date(dateStr + "T00:00:00");
+}
+
+function dateToDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function DatePicker({ date, onDateChange, existingEntry }: {
+  date: string;
+  onDateChange: (date: string) => void;
+  existingEntry?: any;
+}) {
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const selectedDate = useMemo(() => dateStrToDate(date), [date]);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = dateToDateStr(today);
+  const isToday = date === todayStr;
+
+  const handleCalendarSelect = (day: Date | undefined) => {
+    if (day) {
+      onDateChange(dateToDateStr(day));
+      setCalendarOpen(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center mb-4">
+      <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+        <PopoverTrigger asChild>
+          <button className="group flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-card border border-border/50 shadow-sm hover:shadow-md transition-all">
+            <CalendarDays className="w-5 h-5 text-terracotta" />
+            <div className="text-center">
+              <h2 className="font-serif text-lg font-semibold text-foreground leading-tight">
+                {formatDateCN(date)}
+              </h2>
+              <div className="flex items-center justify-center gap-2">
+                {isToday && (
+                  <span className="text-xs text-sage font-medium">\u4eca\u5929</span>
+                )}
+                {existingEntry && (
+                  <span className="text-xs text-terracotta font-medium">\u5df2\u8bb0\u5f55</span>
+                )}
+                {!isToday && !existingEntry && (
+                  <span className="text-xs text-muted-foreground">\u70b9\u51fb\u9009\u62e9\u65e5\u671f</span>
+                )}
+              </div>
+            </div>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="center" sideOffset={8}>
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={handleCalendarSelect}
+            locale={zhCN}
+            disabled={{ after: today }}
+            defaultMonth={selectedDate}
+            className="rounded-xl"
+            classNames={{
+              today: "bg-terracotta/15 text-terracotta font-bold rounded-md",
+              month_caption: "flex items-center justify-center h-10 w-full px-8 font-serif font-semibold",
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
 
 export default function Home() {
   const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
@@ -279,6 +362,12 @@ export default function Home() {
                   {selectedDate === todayStr && !dataLoading && (
                     <TodayWidget entries={entries} />
                   )}
+                  {/* Shared Date Picker - above mode toggle */}
+                  <DatePicker
+                    date={selectedDate}
+                    onDateChange={setSelectedDate}
+                    existingEntry={existingEntry}
+                  />
                   {/* Mode toggle */}
                   <div className="flex items-center justify-center gap-1 mb-4">
                     <button
@@ -301,7 +390,7 @@ export default function Home() {
                       }`}
                     >
                       <Zap className="w-3 h-3" />
-                      快捷模式
+                      快捷记录
                     </button>
                   </div>
                   {quickMode ? (

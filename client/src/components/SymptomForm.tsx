@@ -288,48 +288,6 @@ export default function SymptomForm({
 
   return (
     <div className="space-y-6">
-      {/* Date Calendar Picker */}
-      <div className="flex items-center justify-center">
-        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-          <PopoverTrigger asChild>
-            <button className="group flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-card border border-border/50 shadow-sm hover:shadow-md transition-all">
-              <CalendarDays className="w-5 h-5 text-terracotta" />
-              <div className="text-center">
-                <h2 className="font-serif text-lg font-semibold text-foreground leading-tight">
-                  {formatDateCN(date)}
-                </h2>
-                <div className="flex items-center justify-center gap-2">
-                  {isToday && (
-                    <span className="text-xs text-sage font-medium">今天</span>
-                  )}
-                  {existingEntry && (
-                    <span className="text-xs text-terracotta font-medium">已记录</span>
-                  )}
-                  {!isToday && !existingEntry && (
-                    <span className="text-xs text-muted-foreground">点击选择日期</span>
-                  )}
-                </div>
-              </div>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="center" sideOffset={8}>
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={handleCalendarSelect}
-              locale={zhCN}
-              disabled={{ after: today }}
-              defaultMonth={selectedDate}
-              className="rounded-xl"
-              classNames={{
-                today: "bg-terracotta/15 text-terracotta font-bold rounded-md",
-                month_caption: "flex items-center justify-center h-10 w-full px-8 font-serif font-semibold",
-              }}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
-
       {/* Symptom Sliders */}
       <div className="space-y-4">
         {SYMPTOM_FIELDS.map((field, i) => {
