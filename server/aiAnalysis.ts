@@ -17,6 +17,7 @@ interface SymptomEntryForAnalysis {
   palpitations: number;
   mood: number;
   severeHeadache: number;
+  painkillerTaken: number;
   medications: { name: string; dosage: string }[] | string | null;
   triggers: string[] | string | null;
   notes: string | null;
@@ -62,8 +63,10 @@ function buildDataSummary(entries: SymptomEntryForAnalysis[]): string {
     avgs[f] = Math.round((sum / totalDays) * 10) / 10;
   }
 
-  // Severe headache count
-  const severeCount = sorted.filter((e) => e.severeHeadache === 1).length;
+  // Headache attack count
+  const attackCount = sorted.filter((e) => e.severeHeadache > 0).length;
+  const severeCount = sorted.filter((e) => e.severeHeadache >= 2).length;
+  const painkillerDays = sorted.filter((e) => e.painkillerTaken === 1).length;
 
   // Trigger frequency
   const triggerCounts: Record<string, number> = {};
@@ -112,11 +115,13 @@ function buildDataSummary(entries: SymptomEntryForAnalysis[]): string {
   // Build per-day data table (last 30 entries max for token efficiency)
   const recentEntries = sorted.slice(-30);
   let dataTable = "\n\n最近记录明细（最多30天）：\n";
-  dataTable += "日期 | 头晕 | 头痛 | 睡眠 | 焦虑 | 疲劳 | 畏光 | 运动敏感 | 心慌 | 心情 | 剧烈头痛 | 诱因 | 用药 | 备注\n";
+  dataTable += "日期 | 头晕 | 头痛 | 睡眠 | 焦虑 | 疲劳 | 畏光 | 运动敏感 | 心慌 | 心情 | 头痛发作 | 止疼药 | 诱因 | 用药 | 备注\n";
   for (const e of recentEntries) {
     const meds = normMeds(e.medications).map((m) => m.dosage ? `${m.name}(${m.dosage})` : m.name).join(",") || "-";
     const trigs = normTriggers(e.triggers).join(",") || "-";
-    dataTable += `${e.date} | ${e.dizziness} | ${e.headache} | ${e.sleepQuality} | ${e.anxiety} | ${e.fatigue} | ${e.photosensitivity} | ${e.motionSickness} | ${e.palpitations} | ${e.mood} | ${e.severeHeadache ? "是" : "否"} | ${trigs} | ${meds} | ${e.notes || "-"}\n`;
+    const attackLevel = e.severeHeadache === 0 ? "无" : e.severeHeadache === 1 ? "轻微" : e.severeHeadache === 2 ? "明显" : "严重";
+    const painkiller = e.painkillerTaken === 1 ? "是" : "否";
+    dataTable += `${e.date} | ${e.dizziness} | ${e.headache} | ${e.sleepQuality} | ${e.anxiety} | ${e.fatigue} | ${e.photosensitivity} | ${e.motionSickness} | ${e.palpitations} | ${e.mood} | ${attackLevel} | ${painkiller} | ${trigs} | ${meds} | ${e.notes || "-"}\n`;
   }
 
   const triggerStr = Object.entries(triggerCounts)
@@ -131,7 +136,8 @@ function buildDataSummary(entries: SymptomEntryForAnalysis[]): string {
 
   return `数据概览：
 - 记录范围：${dateRange}，共 ${totalDays} 天
-- 剧烈头痛天数：${severeCount} 天
+- 头痛发作天数：${attackCount} 天（其中明显/严重 ${severeCount} 天）
+- 止疼药使用天数：${painkillerDays} 天
 
 各指标平均值（0-10分）：
   头晕脑胀: ${avgs.dizziness}  |  头痛程度: ${avgs.headache}  |  睡眠质量: ${avgs.sleepQuality}

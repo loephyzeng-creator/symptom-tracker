@@ -427,10 +427,23 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
                           <div className="flex justify-between"><span className="text-muted-foreground">心情</span><span className="font-medium">{entry.mood}/10</span></div>
                         </div>
 
-                        {/* Severe Headache */}
-                        {entry.severeHeadache === 1 && (
-                          <div className="text-xs font-medium text-destructive flex items-center gap-1">
-                            ⚠️ 当日发生剧烈头痛
+                        {/* Headache Attack + Painkiller */}
+                        {(entry.severeHeadache > 0 || entry.painkillerTaken === 1) && (
+                          <div className="flex flex-wrap gap-2">
+                            {entry.severeHeadache > 0 && (
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                                entry.severeHeadache === 1 ? "bg-chart-4/10 text-chart-4" :
+                                entry.severeHeadache === 2 ? "bg-terracotta/10 text-terracotta" :
+                                "bg-destructive/10 text-destructive"
+                              }`}>
+                                头痛发作：{entry.severeHeadache === 1 ? "轻微" : entry.severeHeadache === 2 ? "明显" : "严重"}
+                              </span>
+                            )}
+                            {entry.painkillerTaken === 1 && (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-chart-4/10 text-chart-4">
+                                💊 已服止疼药
+                              </span>
+                            )}
                           </div>
                         )}
 

@@ -21,7 +21,8 @@ export interface SymptomEntry {
   motionSickness: number;
   palpitations: number;
   mood: number;
-  severeHeadache: number; // 0 = no, 1 = yes
+  severeHeadache: number; // 0=无, 1=轻微, 2=明显, 3=严重
+  painkillerTaken: number; // 0=否, 1=是
   notes: string | null;
   medications: MedicationItem[];
   triggers: string[];
@@ -134,7 +135,7 @@ export function useSymptomData() {
     if (entries.length === 0) return;
     const headers = [
       "日期", "头晕", "头痛", "睡眠质量", "焦虑", "疲劳", "畏光",
-      "运动敏感", "心慌", "心情", "剧烈头痛", "用药", "诱因", "备注",
+       "运动敏感", "心慌", "心情", "头痛发作", "止疼药", "用药", "诱因", "备注",
     ];
     const escapeCSV = (val: string) => {
       if (val.includes(",") || val.includes('"') || val.includes("\n")) {
@@ -153,7 +154,8 @@ export function useSymptomData() {
       String(e.motionSickness),
       String(e.palpitations),
       String(e.mood),
-      e.severeHeadache === 1 ? "是" : "否",
+      e.severeHeadache === 0 ? "无" : e.severeHeadache === 1 ? "轻微" : e.severeHeadache === 2 ? "明显" : "严重",
+      e.painkillerTaken === 1 ? "是" : "否",
       escapeCSV(formatMedications(e.medications)),
       escapeCSV(Array.isArray(e.triggers) ? e.triggers.join("、") : ""),
       escapeCSV(e.notes ?? ""),

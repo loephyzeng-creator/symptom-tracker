@@ -113,8 +113,18 @@ function getTopMedications(entries: SymptomEntry[], topN = 3): { name: string; c
     .map(([name, count]) => ({ name, count }));
 }
 
-function getSevereHeadacheDays(entries: SymptomEntry[]): number {
-  return entries.filter((e) => e.severeHeadache === 1).length;
+function getHeadacheAttackStats(entries: SymptomEntry[]): { total: number; mild: number; moderate: number; severe: number } {
+  const attacks = entries.filter((e) => e.severeHeadache > 0);
+  return {
+    total: attacks.length,
+    mild: attacks.filter((e) => e.severeHeadache === 1).length,
+    moderate: attacks.filter((e) => e.severeHeadache === 2).length,
+    severe: attacks.filter((e) => e.severeHeadache === 3).length,
+  };
+}
+
+function getPainkillerDays(entries: SymptomEntry[]): number {
+  return entries.filter((e) => e.painkillerTaken === 1).length;
 }
 
 export function generateSummaryText(
@@ -132,7 +142,8 @@ export function generateSummaryText(
   const trends = computeTrends(periodEntries);
   const topTriggers = getTopTriggers(periodEntries);
   const topMeds = getTopMedications(periodEntries);
-  const severeCount = getSevereHeadacheDays(periodEntries);
+  const headacheStats = getHeadacheAttackStats(periodEntries);
+  const painkillerDays = getPainkillerDays(periodEntries);
 
   const lines: string[] = [];
 
@@ -161,9 +172,22 @@ export function generateSummaryText(
   lines.push(...metricLines);
   lines.push("");
 
-  // Severe headache
-  if (severeCount > 0) {
-    lines.push(`⚠ ${periodLabel}发生剧烈头痛 ${severeCount} 天`);
+  // Headache attacks
+  if (headacheStats.total > 0) {
+    const parts = [];
+    if (headacheStats.mild > 0) parts.push(`轻微${headacheStats.mild}天`);
+    if (headacheStats.moderate > 0) parts.push(`明显${headacheStats.moderate}天`);
+    if (headacheStats.severe > 0) parts.push(`严重${headacheStats.severe}天`);
+    lines.push(`⚠ ${periodLabel}头痛发作 ${headacheStats.total} 天（${parts.join("、")}）`);
+    lines.push("");
+  }
+
+  // Painkiller usage
+  if (painkillerDays > 0) {
+    lines.push(`💊 ${periodLabel}服用止疼药 ${painkillerDays} 天`);
+    if (painkillerDays >= 10) {
+      lines.push(`⚠️ 注意：止疼药使用已达 ${painkillerDays} 天，建议咨询医生`);
+    }
     lines.push("");
   }
 

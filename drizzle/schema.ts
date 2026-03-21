@@ -37,7 +37,8 @@ export const symptomEntries = mysqlTable("symptom_entries", {
   mood: int("mood").default(5).notNull(),
   medications: json("medications").$type<{ name: string; dosage: string; reminderId?: number; timeIndex?: number }[]>().default([]).notNull(),
   triggers: json("triggers").$type<string[]>().default([]).notNull(),
-  severeHeadache: int("severeHeadache").default(0).notNull(), // 1 = yes, 0 = no
+  severeHeadache: int("severeHeadache").default(0).notNull(), // legacy: 0=no, 1=yes; now repurposed as headacheAttack: 0=无, 1=轻微, 2=明显, 3=严重
+  painkillerTaken: int("painkillerTaken").default(0).notNull(), // 0 = no, 1 = yes
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

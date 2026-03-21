@@ -65,6 +65,7 @@ import {
   saveDrugInteractions,
   checkDrugInteractionsForMed,
   getMedCompletionByDates,
+  getPainkillerUsageLast30Days,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -90,7 +91,8 @@ const entryInputSchema = z.object({
   mood: z.number().min(0).max(10),
   medications: z.array(medicationSchema).default([]),
   triggers: z.array(z.string()).default([]),
-  severeHeadache: z.number().min(0).max(1).default(0),
+  severeHeadache: z.number().min(0).max(3).default(0), // 0=无, 1=轻微, 2=明显, 3=严重
+  painkillerTaken: z.number().min(0).max(1).default(0), // 0=否, 1=是
   notes: z.string().optional().nullable(),
 });
 
@@ -129,6 +131,7 @@ export const appRouter = router({
           medications: input.medications,
           triggers: input.triggers,
           severeHeadache: input.severeHeadache,
+          painkillerTaken: input.painkillerTaken,
           notes: input.notes ?? null,
         });
 
@@ -138,6 +141,14 @@ export const appRouter = router({
         );
 
         return result;
+      }),
+
+    /** Get painkiller usage count in last 30 days */
+    painkillerUsage: protectedProcedure
+      .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+      .query(async ({ ctx, input }) => {
+        const count = await getPainkillerUsageLast30Days(ctx.user.id, input.date);
+        return { days: count, limit: 10 };
       }),
 
     /** Delete an entry by id */
@@ -340,6 +351,7 @@ export const appRouter = router({
                   .optional(),
                 triggers: z.array(z.string()).optional(),
                 severeHeadache: z.number().optional(),
+                painkillerTaken: z.number().optional(),
                 notes: z.string().nullable().optional(),
               })
             )

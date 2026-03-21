@@ -1,0 +1,1 @@
+ALTER TABLE `symptom_entries` ADD `painkillerTaken` int DEFAULT 0 NOT NULL;

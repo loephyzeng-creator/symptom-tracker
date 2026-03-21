@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import type { SymptomEntry } from "@/hooks/useSymptomData";
+import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
 import {
   Brain,
@@ -23,6 +24,7 @@ import {
   Settings2,
   Check,
   AlertTriangle,
+  Pill,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
@@ -95,7 +97,14 @@ export default function QuickRecord({ date, existingEntry, onSave, onSwitchToMed
   const [saving, setSaving] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [severeHeadache, setSevereHeadache] = useState(false);
+  const [headacheAttack, setHeadacheAttack] = useState(0);
+  const [painkillerTaken, setPainkillerTaken] = useState(false);
+
+  // Painkiller usage check
+  const painkillerUsageCheck = trpc.entries.painkillerUsage.useQuery(
+    { date },
+    { enabled: false }
+  );
 
   // Initialize values from existing entry or defaults
   useEffect(() => {
@@ -108,7 +117,8 @@ export default function QuickRecord({ date, existingEntry, onSave, onSwitchToMed
       }
     }
     setValues(initial);
-    setSevereHeadache(existingEntry?.severeHeadache === 1);
+    setHeadacheAttack(existingEntry?.severeHeadache ?? 0);
+    setPainkillerTaken(existingEntry?.painkillerTaken === 1);
     setSaved(false);
   }, [date, existingEntry]);
 
@@ -145,7 +155,8 @@ export default function QuickRecord({ date, existingEntry, onSave, onSwitchToMed
         date,
         medications: existingEntry?.medications ?? [],
         triggers: existingEntry?.triggers ?? [],
-        severeHeadache: severeHeadache ? 1 : 0,
+        severeHeadache: headacheAttack,
+        painkillerTaken: painkillerTaken ? 1 : 0,
         notes: existingEntry?.notes ?? null,
       };
       // Fill all metrics: use quick-edited values for selected, defaults/existing for others
@@ -161,6 +172,24 @@ export default function QuickRecord({ date, existingEntry, onSave, onSwitchToMed
           : undefined,
         duration: 4000,
       });
+
+      // Check painkiller usage warning
+      if (painkillerTaken) {
+        try {
+          const usage = await painkillerUsageCheck.refetch();
+          if (usage.data && usage.data.days >= usage.data.limit) {
+            toast.warning("止疼药用量提醒", {
+              description: `近30天内已服用止疼药 ${usage.data.days} 天，建议不超过 ${usage.data.limit} 天。请咨询医生。`,
+              duration: 8000,
+            });
+          } else if (usage.data && usage.data.days >= 7) {
+            toast.info("止疼药用量提示", {
+              description: `近30天内已服用止疼药 ${usage.data.days} 天，接近 ${usage.data.limit} 天上限。`,
+              duration: 6000,
+            });
+          }
+        } catch {}
+      }
     } catch (err) {
       toast.error("保存失败，请重试");
     } finally {
@@ -279,30 +308,57 @@ export default function QuickRecord({ date, existingEntry, onSave, onSwitchToMed
         })}
       </div>
 
-      {/* Severe headache toggle */}
+      {/* Headache attack level */}
       <motion.div
         initial={{ opacity: 0, y: 5 }}
         animate={{ opacity: 1, y: 0 }}
         className="rounded-xl border border-border/30 bg-card p-4"
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="text-destructive">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <span className="text-sm font-medium text-foreground">头痛发作</span>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { value: 0, label: "无" },
+            { value: 1, label: "轻微" },
+            { value: 2, label: "明显" },
+            { value: 3, label: "严重" },
+          ].map((level) => (
+            <button
+              key={level.value}
+              onClick={() => setHeadacheAttack(level.value)}
+              className={`py-2 rounded-lg text-xs font-medium transition-all border ${
+                headacheAttack === level.value
+                  ? level.value === 0 ? "bg-muted text-foreground ring-2 ring-muted-foreground/30 ring-offset-1 border-border"
+                    : level.value === 1 ? "bg-chart-4/15 text-chart-4 ring-2 ring-chart-4/40 ring-offset-1 border-chart-4/30"
+                    : level.value === 2 ? "bg-terracotta/15 text-terracotta ring-2 ring-terracotta/40 ring-offset-1 border-terracotta/30"
+                    : "bg-destructive/15 text-destructive ring-2 ring-destructive/40 ring-offset-1 border-destructive/30"
+                  : "bg-card border-border/50 text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              {level.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Painkiller toggle */}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
           <div className="flex items-center gap-2">
-            <div className="text-destructive">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
-            <span className="text-sm font-medium text-foreground">
-              是否剧烈头痛
-            </span>
+            <Pill className="w-4 h-4 text-chart-4" />
+            <span className="text-sm font-medium">是否服用止疼药</span>
           </div>
           <div className="flex items-center gap-2">
             <span className={`text-xs font-medium ${
-              severeHeadache ? "text-destructive" : "text-muted-foreground"
+              painkillerTaken ? "text-terracotta" : "text-muted-foreground"
             }`}>
-              {severeHeadache ? "是" : "否"}
+              {painkillerTaken ? "是" : "否"}
             </span>
             <Switch
-              checked={severeHeadache}
-              onCheckedChange={setSevereHeadache}
+              checked={painkillerTaken}
+              onCheckedChange={setPainkillerTaken}
             />
           </div>
         </div>

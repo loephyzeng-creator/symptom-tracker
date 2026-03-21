@@ -33,6 +33,7 @@ import {
   CalendarDays,
   Loader2,
   AlertTriangle,
+  Pill,
 } from "lucide-react";
 
 interface SymptomFormProps {
@@ -118,11 +119,18 @@ export default function SymptomForm({
   const [triggers, setTriggers] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [severeHeadache, setSevereHeadache] = useState(false);
+  const [headacheAttack, setHeadacheAttack] = useState(0); // 0=无, 1=轻微, 2=明显, 3=严重
+  const [painkillerTaken, setPainkillerTaken] = useState(false);
   const [newTrigger, setNewTrigger] = useState("");
   const [showAddTrigger, setShowAddTrigger] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [customMetricValues, setCustomMetricValues] = useState<Record<number, number>>({});
+
+  // Painkiller usage check
+  const painkillerUsageCheck = trpc.entries.painkillerUsage.useQuery(
+    { date },
+    { enabled: false } // only fetch on demand
+  );
 
   const selectedDate = useMemo(() => dateStrToDate(date), [date]);
   const today = new Date();
@@ -153,7 +161,8 @@ export default function SymptomForm({
       });
       setNotes(existingEntry.notes ?? "");
       setTriggers(existingEntry.triggers ?? []);
-      setSevereHeadache(existingEntry.severeHeadache === 1);
+      setHeadacheAttack(existingEntry.severeHeadache ?? 0);
+      setPainkillerTaken(existingEntry.painkillerTaken === 1);
     } else {
       setValues({
         dizziness: 0, headache: 0, sleepQuality: 5, anxiety: 0,
@@ -161,7 +170,8 @@ export default function SymptomForm({
       });
       setNotes("");
       setTriggers([]);
-      setSevereHeadache(false);
+      setHeadacheAttack(0);
+      setPainkillerTaken(false);
       setCustomMetricValues({});
     }
     setSaved(false);
@@ -195,7 +205,8 @@ export default function SymptomForm({
         notes,
         medications: [],
         triggers,
-        severeHeadache: severeHeadache ? 1 : 0,
+        severeHeadache: headacheAttack,
+        painkillerTaken: painkillerTaken ? 1 : 0,
       });
       // Save custom metric values if any
       const metricEntries = Object.entries(customMetricValues);
@@ -218,6 +229,24 @@ export default function SymptomForm({
           : undefined,
         duration: 4000,
       });
+
+      // Check painkiller usage warning
+      if (painkillerTaken) {
+        try {
+          const usage = await painkillerUsageCheck.refetch();
+          if (usage.data && usage.data.days >= usage.data.limit) {
+            toast.warning("止疼药用量提醒", {
+              description: `近30天内已服用止疼药 ${usage.data.days} 天，建议不超过 ${usage.data.limit} 天。请咨询医生。`,
+              duration: 8000,
+            });
+          } else if (usage.data && usage.data.days >= 7) {
+            toast.info("止疼药用量提示", {
+              description: `近30天内已服用止疼药 ${usage.data.days} 天，接近 ${usage.data.limit} 天上限。`,
+              duration: 6000,
+            });
+          }
+        } catch {}
+      }
       setTimeout(() => setSaved(false), 2000);
     } finally {
       setSaving(false);
@@ -304,40 +333,72 @@ export default function SymptomForm({
         transition={{ delay: 0.38 }}
         className="bg-card rounded-xl p-4 shadow-sm border border-border/50"
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
-              <AlertTriangle className="w-4 h-4 text-destructive" />
-            </div>
-            <div>
-              <h3 className="font-serif font-semibold text-sm">是否剧烈头痛</h3>
-              <p className="text-[11px] text-muted-foreground">突发性、难以忍受的头痛</p>
-            </div>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
+            <AlertTriangle className="w-4 h-4 text-destructive" />
           </div>
-          <button
-            onClick={() => setSevereHeadache(!severeHeadache)}
-            className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
-              severeHeadache ? "bg-destructive" : "bg-muted"
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                severeHeadache ? "translate-x-5" : "translate-x-0"
-              }`}
-            />
-          </button>
+          <div>
+            <h3 className="font-serif font-semibold text-sm">头痛发作</h3>
+            <p className="text-[11px] text-muted-foreground">记录今天头痛发作程度</p>
+          </div>
         </div>
-        {severeHeadache && (
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { value: 0, label: "无", color: "bg-muted text-muted-foreground" },
+            { value: 1, label: "轻微", color: "bg-chart-4/15 text-chart-4 border-chart-4/30" },
+            { value: 2, label: "明显", color: "bg-terracotta/15 text-terracotta border-terracotta/30" },
+            { value: 3, label: "严重", color: "bg-destructive/15 text-destructive border-destructive/30" },
+          ].map((level) => (
+            <button
+              key={level.value}
+              onClick={() => setHeadacheAttack(level.value)}
+              className={`py-2 px-1 rounded-lg text-xs font-medium transition-all border ${
+                headacheAttack === level.value
+                  ? `${level.color} ring-2 ring-offset-1 ${
+                      level.value === 0 ? "ring-muted-foreground/30" :
+                      level.value === 1 ? "ring-chart-4/40" :
+                      level.value === 2 ? "ring-terracotta/40" : "ring-destructive/40"
+                    }`
+                  : "bg-card border-border/50 text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              {level.label}
+            </button>
+          ))}
+        </div>
+        {headacheAttack >= 3 && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             className="mt-3 p-2.5 rounded-lg bg-destructive/5 border border-destructive/20"
           >
             <p className="text-xs text-destructive font-medium">
-              ⚠️ 已标记剧烈头痛，如持续不缓解请及时就医
+              ⚠️ 严重头痛，如持续不缓解请及时就医
             </p>
           </motion.div>
         )}
+
+        {/* 是否服用止疼药 */}
+        <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/30">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-chart-4/10 flex items-center justify-center">
+              <Pill className="w-3.5 h-3.5 text-chart-4" />
+            </div>
+            <span className="text-sm font-medium">是否服用止疼药</span>
+          </div>
+          <button
+            onClick={() => setPainkillerTaken(!painkillerTaken)}
+            className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+              painkillerTaken ? "bg-terracotta" : "bg-muted"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                painkillerTaken ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
       </motion.div>
 
       {/* Triggers */}

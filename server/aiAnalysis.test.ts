@@ -53,7 +53,7 @@ describe("AI Analysis - buildDataSummary", () => {
     const result = buildDataSummary(entries);
     expect(result).toContain("头晕脑胀: 5");
     expect(result).toContain("头痛程度: 5");
-    expect(result).toContain("剧烈头痛天数：1 天");
+    expect(result).toContain("头痛发作天数：1 天");
   });
 
   it("should include trigger frequency", async () => {

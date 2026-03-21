@@ -139,6 +139,32 @@ export async function getEntriesByDateRange(userId: number, startDate: string, e
     .orderBy(symptomEntries.date);
 }
 
+/**
+ * Count days with painkiller usage in the last 30 days from a given date.
+ */
+export async function getPainkillerUsageLast30Days(userId: number, fromDate: string): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const d = new Date(fromDate + "T00:00:00");
+  d.setDate(d.getDate() - 29); // 30 days including fromDate
+  const startDate = d.toISOString().slice(0, 10);
+
+  const rows = await db
+    .select({ painkillerTaken: symptomEntries.painkillerTaken })
+    .from(symptomEntries)
+    .where(
+      and(
+        eq(symptomEntries.userId, userId),
+        gte(symptomEntries.date, startDate),
+        lte(symptomEntries.date, fromDate),
+        eq(symptomEntries.painkillerTaken, 1)
+      )
+    );
+
+  return rows.length;
+}
+
 export async function getEntryByUserAndDate(userId: number, date: string) {
   const db = await getDb();
   if (!db) return undefined;
@@ -179,6 +205,7 @@ export async function upsertEntry(
         medications: data.medications,
         triggers: data.triggers,
         severeHeadache: data.severeHeadache,
+        painkillerTaken: data.painkillerTaken,
         notes: data.notes,
       })
       .where(eq(symptomEntries.id, existing.id));
@@ -605,6 +632,7 @@ export async function exportUserData(userId: number) {
       medications: e.medications,
       triggers: e.triggers,
       severeHeadache: e.severeHeadache,
+      painkillerTaken: e.painkillerTaken,
       notes: e.notes,
     })),
     customTriggers: triggers.map((t) => ({ name: t.name })),
@@ -639,6 +667,7 @@ export async function restoreUserData(
       medications?: { name: string; dosage: string }[];
       triggers?: string[];
       severeHeadache?: number;
+      painkillerTaken?: number;
       notes?: string | null;
     }>;
     customTriggers?: Array<{ name: string }>;
@@ -670,6 +699,7 @@ export async function restoreUserData(
         medications: entry.medications ?? [],
         triggers: entry.triggers ?? [],
         severeHeadache: entry.severeHeadache ?? 0,
+        painkillerTaken: entry.painkillerTaken ?? 0,
         notes: entry.notes ?? null,
       });
       entriesRestored++;
@@ -1695,6 +1725,7 @@ export async function confirmMedicationTaken(
       medications: [newMed],
       triggers: [],
       severeHeadache: 0,
+      painkillerTaken: 0,
       notes: null,
     });
   }
@@ -2507,6 +2538,7 @@ export async function confirmGroupMedicationsTaken(
         medications: currentMeds,
         triggers: [],
         severeHeadache: 0,
+        painkillerTaken: 0,
         notes: null,
       });
     }
