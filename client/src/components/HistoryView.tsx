@@ -10,7 +10,8 @@ import { formatMedications } from "@/hooks/useSymptomData";
 import { trpc } from "@/lib/trpc";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Trash2, Download, Upload, ChevronDown, ChevronUp, FileText, FileSpreadsheet, CalendarDays, List, Pill, Filter, ArrowUpDown,
+  Trash2, Download, Upload, ChevronDown, ChevronUp, FileText, FileSpreadsheet,
+  CalendarDays, List, Pill, Filter, ArrowUpDown, Search, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import CalendarView from "./CalendarView";
@@ -59,7 +60,10 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
   const [medFilter, setMedFilter] = useState<MedFilter>("all");
   const [showFilter, setShowFilter] = useState(false);
   const [showDataMenu, setShowDataMenu] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Collect all dates from entries for the batch query
   const allDates = useMemo(() => entries.map((e) => e.date), [entries]);
@@ -99,13 +103,28 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
 
   const reversedEntries = useMemo(() => [...entries].reverse(), [entries]);
 
+  // Apply search filter
+  const searchedEntries = useMemo(() => {
+    if (!searchQuery.trim()) return reversedEntries;
+    const q = searchQuery.trim().toLowerCase();
+    return reversedEntries.filter((entry) => {
+      if (entry.notes && entry.notes.toLowerCase().includes(q)) return true;
+      if (entry.triggers && entry.triggers.some((t: string) => t.toLowerCase().includes(q))) return true;
+      if (entry.medications) {
+        const medStr = typeof entry.medications === "string" ? entry.medications : JSON.stringify(entry.medications);
+        if (medStr.toLowerCase().includes(q)) return true;
+      }
+      if (entry.date.includes(q)) return true;
+      return false;
+    });
+  }, [reversedEntries, searchQuery]);
+
   // Apply medication filter
   const filteredEntries = useMemo(() => {
-    if (medFilter === "all" || !completionData) return reversedEntries;
-    return reversedEntries.filter((entry) => {
+    if (medFilter === "all" || !completionData) return searchedEntries;
+    return searchedEntries.filter((entry) => {
       const status = completionData[entry.date];
       if (!status || status === "no-schedule") {
-        // No schedule = not relevant for med filtering, hide when filtering
         return false;
       }
       switch (medFilter) {
@@ -119,7 +138,7 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
           return true;
       }
     });
-  }, [reversedEntries, medFilter, completionData]);
+  }, [searchedEntries, medFilter, completionData]);
 
   if (entries.length === 0) {
     return (
@@ -143,10 +162,15 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
 
   return (
     <div className="space-y-4">
-      {/* Actions */}
+      {/* Actions bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">共 {entries.length} 条记录</span>
+          <span className="text-sm text-muted-foreground">
+            <span className="hidden sm:inline">共 </span>
+            {entries.length}
+            <span className="hidden sm:inline"> 条记录</span>
+            <span className="sm:hidden"> 条</span>
+          </span>
           <div className="flex bg-muted rounded-lg p-0.5">
             <button
               onClick={() => setViewMode("list")}
@@ -171,45 +195,85 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
             </button>
           </div>
         </div>
-        <div className="relative">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowDataMenu(!showDataMenu)}
-            className="rounded-full text-xs"
+        <div className="flex items-center gap-1.5">
+          {/* Search toggle */}
+          <button
+            onClick={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(""); }}
+            className={`p-1.5 rounded-lg border transition-colors ${
+              showSearch
+                ? "border-terracotta/40 bg-terracotta/5 text-terracotta"
+                : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border"
+            }`}
+            title="搜索"
           >
-            <ArrowUpDown className="w-3 h-3 mr-1" /> 导入/导出
-          </Button>
-          {showDataMenu && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowDataMenu(false)} />
-              <div className="absolute right-0 top-full mt-1 z-50 bg-card border border-border/50 rounded-xl shadow-lg py-1 min-w-[140px]">
-                <button
-                  onClick={() => { handleImportClick(); setShowDataMenu(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
-                >
-                  <Upload className="w-3.5 h-3.5 text-muted-foreground" /> 导入数据
-                </button>
-                <button
-                  onClick={() => { onExport(); setShowDataMenu(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5 text-muted-foreground" /> 导出 JSON
-                </button>
-                {onExportCSV && (
+            <Search className="w-3.5 h-3.5" />
+          </button>
+          {/* Import/Export dropdown */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDataMenu(!showDataMenu)}
+              className="rounded-full text-xs"
+            >
+              <ArrowUpDown className="w-3 h-3 mr-1" /> 导入/导出
+            </Button>
+            {showDataMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowDataMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 bg-card border border-border/50 rounded-xl shadow-lg py-1 min-w-[140px]">
                   <button
-                    onClick={() => { onExportCSV(); setShowDataMenu(false); }}
+                    onClick={() => { handleImportClick(); setShowDataMenu(false); }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
                   >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-muted-foreground" /> 导出 CSV
+                    <Upload className="w-3.5 h-3.5 text-muted-foreground" /> 导入数据
                   </button>
-                )}
-              </div>
-            </>
-          )}
-          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleFileChange} />
+                  <div className="border-t border-border/30 my-1" />
+                  <button
+                    onClick={() => { onExport(); setShowDataMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5 text-muted-foreground" /> 导出 JSON
+                  </button>
+                  {onExportCSV && (
+                    <button
+                      onClick={() => { onExportCSV(); setShowDataMenu(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-muted-foreground" /> 导出 CSV
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+            <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleFileChange} />
+          </div>
         </div>
       </div>
+
+      {/* Search bar */}
+      {viewMode === "list" && showSearch && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="搜索备注、诱因、药品名..."
+            className="w-full pl-9 pr-8 py-2 text-sm bg-card border border-border/50 rounded-xl focus:outline-none focus:ring-1 focus:ring-terracotta/30 placeholder:text-muted-foreground/50"
+            autoFocus
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Calendar View */}
       {viewMode === "calendar" && (
@@ -268,6 +332,12 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
               ))}
             </motion.div>
           )}
+          {/* Search result count */}
+          {searchQuery && (
+            <span className="text-[11px] text-muted-foreground ml-auto">
+              找到 {filteredEntries.length} 条
+            </span>
+          )}
         </div>
 
         {isFilterLoading && (
@@ -276,9 +346,9 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
           </div>
         )}
 
-        {!isFilterLoading && medFilter !== "all" && filteredEntries.length === 0 && (
+        {!isFilterLoading && (medFilter !== "all" || searchQuery) && filteredEntries.length === 0 && (
           <div className="text-center py-8 text-sm text-muted-foreground">
-            没有符合筛选条件的记录
+            没有符合条件的记录
           </div>
         )}
 
