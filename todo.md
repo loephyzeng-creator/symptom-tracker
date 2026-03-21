@@ -249,3 +249,21 @@
 - [x] 前端：今日用药区域新增"从提醒导入"按钮（智能去重，不会重复添加）
 - [x] 前端：保存记录时自动扣减库存（仅新建记录时）
 - [x] 测试验证（281个测试全部通过，含11个新增测试）
+
+## 服药确认打卡
+- [x] 后端：新增 confirmMedicationTaken API（记录用药到当日条目+扣减库存）
+- [x] 后端：推送通知中添加"已服药"+"稍后提醒" action按钮，携带reminderId
+- [x] 前端：Service Worker处理 confirm-taken 和 snooze action，调用后端API
+- [x] 测试验证（302个测试全部通过）
+
+## 用药时间线
+- [x] 后端：新增 getMedicationTimeline API（返回每日各药品服药/漏服状态）
+- [x] 前端：MedicationTimeline组件（日期行+药品列，绿色✓/红色✗标记）
+- [x] 前端：集成到历史页面（新增"用药"视图模式）
+- [x] 测试验证
+
+## 药品说明书链接
+- [x] 数据库：medication_reminders表添加instructionUrl字段
+- [x] 后端：add/update接口支持instructionUrl
+- [x] 前端：提醒表单添加说明书URL输入框，卡片中药品名旁显示FileText图标链接
+- [x] 测试验证（302个测试全部通过，含21个新增测试）

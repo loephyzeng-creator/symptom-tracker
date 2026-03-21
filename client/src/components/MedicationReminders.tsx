@@ -18,6 +18,8 @@ import {
   Package,
   CalendarPlus,
   Download,
+  FileText,
+  ExternalLink,
 } from "lucide-react";
 import TimePicker from "@/components/TimePicker";
 import { exportSingleReminder, exportAllReminders } from "@/lib/icsExport";
@@ -47,6 +49,7 @@ interface ReminderForm {
   stockQuantity: number;
   dailyDosageCount: number;
   stockAlertDays: number;
+  instructionUrl: string;
 }
 
 const EMPTY_FORM: ReminderForm = {
@@ -60,6 +63,7 @@ const EMPTY_FORM: ReminderForm = {
   stockQuantity: 30,
   dailyDosageCount: 1,
   stockAlertDays: 7,
+  instructionUrl: "",
 };
 
 function DaySelector({
@@ -260,6 +264,7 @@ export default function MedicationReminders() {
       stockQuantity: form.trackStock ? form.stockQuantity : null,
       dailyDosageCount: form.dailyDosageCount,
       stockAlertDays: form.stockAlertDays,
+      instructionUrl: form.instructionUrl.trim() || null,
     });
   };
 
@@ -280,6 +285,7 @@ export default function MedicationReminders() {
       stockQuantity: editForm.trackStock ? editForm.stockQuantity : null,
       dailyDosageCount: editForm.dailyDosageCount,
       stockAlertDays: editForm.stockAlertDays,
+      instructionUrl: editForm.instructionUrl.trim() || null,
     });
   };
 
@@ -296,6 +302,7 @@ export default function MedicationReminders() {
       stockQuantity: reminder.stockQuantity ?? 30,
       dailyDosageCount: reminder.dailyDosageCount ?? 1,
       stockAlertDays: reminder.stockAlertDays ?? 7,
+      instructionUrl: reminder.instructionUrl ?? "",
     });
   };
 
@@ -428,6 +435,21 @@ export default function MedicationReminders() {
           </div>
         )}
       </div>
+      {/* 药品说明书链接 */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <FileText className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-foreground">说明书链接</span>
+          <span className="text-xs text-muted-foreground">(可选)</span>
+        </div>
+        <Input
+          type="url"
+          placeholder="输入药品说明书网址..."
+          value={formData.instructionUrl}
+          onChange={(e) => setFormData({ ...formData, instructionUrl: e.target.value })}
+          className="h-8 text-sm"
+        />
+      </div>
       <div className="flex gap-2 pt-1">
         <Button
           size="sm"
@@ -550,9 +572,23 @@ export default function MedicationReminders() {
                         <div className="flex items-center gap-3 min-w-0">
                           <Pill className="w-4 h-4 text-terracotta shrink-0" />
                           <div className="min-w-0">
-                            <p className="font-medium text-foreground text-sm truncate">
-                              {reminder.medicationName}
-                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium text-foreground text-sm truncate">
+                                {reminder.medicationName}
+                              </p>
+                              {reminder.instructionUrl && (
+                                <a
+                                  href={reminder.instructionUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-terracotta hover:text-terracotta/80 shrink-0"
+                                  title="查看说明书"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                </a>
+                              )}
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               {reminder.dosage}
                             </p>

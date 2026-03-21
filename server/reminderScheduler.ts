@@ -128,7 +128,8 @@ async function sendWebPush(
   title: string,
   body: string,
   tag?: string,
-  actions?: Array<{ action: string; title: string }>
+  actions?: Array<{ action: string; title: string }>,
+  extraData?: Record<string, unknown>
 ): Promise<boolean> {
   const subscriptions = await getPushSubscriptionsByUserId(userId);
   if (subscriptions.length === 0) {
@@ -144,6 +145,7 @@ async function sendWebPush(
     tag: tag || "daily-reminder",
     data: {
       url: "/",
+      ...extraData,
     },
     actions: actions || [],
   });
@@ -199,14 +201,18 @@ async function checkAndSendMedicationReminders() {
           console.log(
             `[MedReminder] Snooze expired for ${reminder.medicationName}, sending now`
           );
-          try {
-            const sent = await sendWebPush(
-              reminder.userId,
-              `💊 用药提醒（稍后提醒）：${reminder.medicationName}`,
-              `请服用 ${reminder.medicationName} ${reminder.dosage}`,
-              `med-reminder-${reminder.id}`,
-              [{ action: "snooze", title: "再等15分钟" }]
-            );
+      try {
+        const sent = await sendWebPush(
+          reminder.userId,
+          `💊 用药提醒（稍后提醒）：${reminder.medicationName}`,
+          `请服用 ${reminder.medicationName} ${reminder.dosage}`,
+          `med-reminder-${reminder.id}`,
+          [
+            { action: "confirm-taken", title: "✅ 已服药" },
+            { action: "snooze", title: "⏰ 再等15分钟" },
+          ],
+          { reminderId: reminder.id, userId: reminder.userId }
+        );
             if (sent) {
               await markMedicationReminderNotified(reminder.id, todayStr);
               await clearMedicationSnooze(reminder.id);
@@ -248,7 +254,11 @@ async function checkAndSendMedicationReminders() {
           `💊 用药提醒：${reminder.medicationName}`,
           `请服用 ${reminder.medicationName} ${reminder.dosage}`,
           `med-reminder-${reminder.id}`,
-          [{ action: "snooze", title: "再等15分钟" }]
+          [
+            { action: "confirm-taken", title: "✅ 已服药" },
+            { action: "snooze", title: "⏰ 再等15分钟" },
+          ],
+          { reminderId: reminder.id, userId: reminder.userId }
         );
 
         if (sent) {

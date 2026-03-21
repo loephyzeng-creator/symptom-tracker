@@ -9,10 +9,11 @@ import type { SymptomEntry } from "@/hooks/useSymptomData";
 import { formatMedications } from "@/hooks/useSymptomData";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Trash2, Download, Upload, ChevronDown, ChevronUp, FileText, FileSpreadsheet, CalendarDays, List,
+  Trash2, Download, Upload, ChevronDown, ChevronUp, FileText, FileSpreadsheet, CalendarDays, List, Pill,
 } from "lucide-react";
 import { toast } from "sonner";
 import CalendarView from "./CalendarView";
+import MedicationTimeline from "./MedicationTimeline";
 
 interface HistoryViewProps {
   entries: SymptomEntry[];
@@ -43,7 +44,7 @@ function getOverallScore(entry: SymptomEntry): { score: number; label: string; c
 
 export default function HistoryView({ entries, onDelete, onExport, onExportCSV, onImport, onSelectDate }: HistoryViewProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [viewMode, setViewMode] = useState<"list" | "calendar" | "medication">("list");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportClick = () => {
@@ -109,6 +110,13 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
             >
               <CalendarDays className="w-3.5 h-3.5" />
             </button>
+            <button
+              onClick={() => setViewMode("medication")}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === "medication" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              title="用药时间线"
+            >
+              <Pill className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
         <div className="flex gap-2">
@@ -130,6 +138,13 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
       {/* Calendar View */}
       {viewMode === "calendar" && (
         <CalendarView entries={entries} onSelectDate={onSelectDate} />
+      )}
+
+      {/* Medication Timeline View */}
+      {viewMode === "medication" && (
+        <div className="bg-card rounded-xl border border-border/50 shadow-sm p-4">
+          <MedicationTimeline />
+        </div>
       )}
 
       {/* Entry List */}

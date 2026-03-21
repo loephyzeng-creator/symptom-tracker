@@ -1000,6 +1000,7 @@ export async function addMedicationReminder(
     stockQuantity?: number | null;
     dailyDosageCount?: number;
     stockAlertDays?: number;
+    instructionUrl?: string | null;
   }
 ) {
   const db = await getDb();
@@ -1015,6 +1016,7 @@ export async function addMedicationReminder(
     stockQuantity: data.stockQuantity ?? null,
     dailyDosageCount: data.dailyDosageCount ?? 1,
     stockAlertDays: data.stockAlertDays ?? 7,
+    instructionUrl: data.instructionUrl ?? null,
     enabled: 1,
   });
   return { id: result.insertId };
@@ -1516,4 +1518,193 @@ export async function getTodayMedications(userId: number, dateStr: string) {
       dosage: r.dosage,
       reminderId: r.id,
     }));
+}
+
+/**
+ * Confirm medication taken: record medication in today's symptom entry
+ * and deduct stock. Used by push notification "已服药" action.
+ * If no entry exists for today, creates a minimal one with just the medication.
+ */
+export async function confirmMedicationTaken(
+  userId: number,
+  reminderId: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get the reminder details
+  const reminder = await db
+    .select()
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.id, reminderId),
+        eq(medicationReminders.userId, userId)
+      )
+    )
+    .limit(1);
+
+  if (reminder.length === 0) {
+    throw new Error("Reminder not found");
+  }
+
+  const med = reminder[0];
+  const todayStr = (() => {
+    const now = new Date();
+    const offset = 8 * 60 * 60 * 1000;
+    const chinaTime = new Date(now.getTime() + offset);
+    return chinaTime.toISOString().slice(0, 10);
+  })();
+
+  // Check if there's already an entry for today
+  const existing = await getEntryByUserAndDate(userId, todayStr);
+
+  const newMed = { name: med.medicationName, dosage: med.dosage };
+
+  if (existing) {
+    // Append medication if not already recorded
+    const currentMeds: { name: string; dosage: string }[] = Array.isArray(existing.medications)
+      ? existing.medications
+      : [];
+    const alreadyRecorded = currentMeds.some(
+      (m) => m.name.toLowerCase() === newMed.name.toLowerCase()
+    );
+    if (!alreadyRecorded) {
+      const updatedMeds = [...currentMeds, newMed];
+      await db
+        .update(symptomEntries)
+        .set({ medications: updatedMeds })
+        .where(eq(symptomEntries.id, existing.id));
+    }
+  } else {
+    // Create a minimal entry for today with just this medication
+    await db.insert(symptomEntries).values({
+      userId,
+      date: todayStr,
+      dizziness: 0,
+      headache: 0,
+      sleepQuality: 5,
+      anxiety: 0,
+      fatigue: 0,
+      photosensitivity: 0,
+      motionSickness: 0,
+      palpitations: 0,
+      mood: 5,
+      medications: [newMed],
+      triggers: [],
+      severeHeadache: 0,
+      notes: null,
+    });
+  }
+
+  // Deduct stock
+  await deductMedicationStock(userId, med.medicationName);
+
+  return {
+    success: true,
+    medicationName: med.medicationName,
+    dosage: med.dosage,
+    date: todayStr,
+  };
+}
+
+/**
+ * Get medication timeline data for a date range.
+ * Returns per-day, per-medication taken/missed status for timeline visualization.
+ */
+export async function getMedicationTimeline(
+  userId: number,
+  startDate: string,
+  endDate: string
+) {
+  const db = await getDb();
+  if (!db) return { medications: [], days: [] };
+
+  // Get all medication reminders
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(eq(medicationReminders.userId, userId));
+
+  if (reminders.length === 0) {
+    return { medications: [], days: [] };
+  }
+
+  // Get all symptom entries in the date range
+  const entries = await db
+    .select({
+      date: symptomEntries.date,
+      medications: symptomEntries.medications,
+    })
+    .from(symptomEntries)
+    .where(
+      and(
+        eq(symptomEntries.userId, userId),
+        gte(symptomEntries.date, startDate),
+        lte(symptomEntries.date, endDate)
+      )
+    )
+    .orderBy(symptomEntries.date);
+
+  // Build a map of date -> recorded medication names (lowercased)
+  const entryMap = new Map<string, Set<string>>();
+  for (const entry of entries) {
+    const meds = entry.medications;
+    const names = new Set<string>();
+    if (Array.isArray(meds)) {
+      for (const m of meds) {
+        if (m.name && m.name.trim()) {
+          names.add(m.name.trim().toLowerCase());
+        }
+      }
+    }
+    entryMap.set(entry.date, names);
+  }
+
+  // Unique medication names
+  const medicationNames = reminders.map((r) => r.medicationName);
+
+  // Build timeline data
+  const start = new Date(startDate + "T00:00:00Z");
+  const end = new Date(endDate + "T00:00:00Z");
+
+  const days: Array<{
+    date: string;
+    medications: Array<{
+      name: string;
+      status: "taken" | "missed" | "not-scheduled";
+    }>;
+  }> = [];
+
+  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const dayOfWeek = d.getUTCDay();
+    const recordedMeds = entryMap.get(dateStr);
+
+    const dayMeds = reminders.map((reminder) => {
+      // Check if scheduled for this day
+      const repeatDays: number[] | null = reminder.repeatDays as number[] | null;
+      const isScheduled =
+        !repeatDays || repeatDays.length === 0 || repeatDays.includes(dayOfWeek);
+
+      if (!isScheduled) {
+        return {
+          name: reminder.medicationName,
+          status: "not-scheduled" as const,
+        };
+      }
+
+      const medName = reminder.medicationName.trim().toLowerCase();
+      const wasTaken = recordedMeds ? recordedMeds.has(medName) : false;
+
+      return {
+        name: reminder.medicationName,
+        status: wasTaken ? ("taken" as const) : ("missed" as const),
+      };
+    });
+
+    days.push({ date: dateStr, medications: dayMeds });
+  }
+
+  return { medications: medicationNames, days };
 }

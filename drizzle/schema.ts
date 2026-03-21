@@ -181,6 +181,7 @@ export const medicationReminders = mysqlTable("medication_reminders", {
   dailyDosageCount: int("dailyDosageCount").default(1), // how many doses per day
   stockAlertDays: int("stockAlertDays").default(7), // alert when stock runs out within N days
   lastStockAlertDate: varchar("lastStockAlertDate", { length: 10 }), // prevent duplicate stock alerts
+  instructionUrl: text("instructionUrl"), // URL to medication instructions/leaflet
   lastNotifiedDate: varchar("lastNotifiedDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

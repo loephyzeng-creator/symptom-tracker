@@ -45,6 +45,8 @@ import {
   deductMedicationStock,
   getLowStockAlerts,
   getTodayMedications,
+  confirmMedicationTaken,
+  getMedicationTimeline,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -454,6 +456,7 @@ export const appRouter = router({
           stockQuantity: z.number().min(0).nullable().optional(),
           dailyDosageCount: z.number().min(1).max(20).optional(),
           stockAlertDays: z.number().min(1).max(90).optional(),
+          instructionUrl: z.string().url().max(2000).nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -475,6 +478,7 @@ export const appRouter = router({
           stockQuantity: z.number().min(0).nullable().optional(),
           dailyDosageCount: z.number().min(1).max(20).optional(),
           stockAlertDays: z.number().min(1).max(90).optional(),
+          instructionUrl: z.string().url().max(2000).nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -544,6 +548,25 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await deductMedicationStock(ctx.user.id, input.medicationName);
         return { success: true };
+      }),
+
+    /** Get medication timeline for history view */
+    timeline: protectedProcedure
+      .input(
+        z.object({
+          startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        return getMedicationTimeline(ctx.user.id, input.startDate, input.endDate);
+      }),
+
+    /** Confirm medication taken (from push notification action) */
+    confirmTaken: protectedProcedure
+      .input(z.object({ reminderId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return confirmMedicationTaken(ctx.user.id, input.reminderId);
       }),
 
     /** Get today's medications from reminders (for auto-filling symptom form) */

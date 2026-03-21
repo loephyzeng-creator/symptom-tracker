@@ -35,6 +35,7 @@ self.addEventListener('push', (event) => {
     badge: '/pwa-icon-192.png',
     tag: 'daily-reminder',
     data: { url: '/' },
+    actions: [],
   };
 
   if (event.data) {
@@ -52,31 +53,124 @@ self.addEventListener('push', (event) => {
       badge: data.badge,
       tag: data.tag,
       data: data.data,
+      actions: data.actions,
       vibrate: [200, 100, 200],
       requireInteraction: true,
     })
   );
 });
 
-// Notification click: open or focus the app
+// Notification click: handle actions and default click
 self.addEventListener('notificationclick', (event) => {
+  const action = event.action;
+  const notificationData = event.notification.data || {};
+
   event.notification.close();
 
-  const urlToOpen = event.notification.data?.url || '/';
+  // Handle "已服药" action
+  if (action === 'confirm-taken' && notificationData.reminderId) {
+    event.waitUntil(
+      handleConfirmTaken(notificationData.reminderId)
+        .then(() => {
+          // Show a confirmation notification
+          return self.registration.showNotification('✅ 已记录服药', {
+            body: '服药记录已保存，库存已更新。',
+            icon: '/pwa-icon-192.png',
+            badge: '/pwa-icon-192.png',
+            tag: 'confirm-' + notificationData.reminderId,
+            requireInteraction: false,
+          });
+        })
+        .catch((err) => {
+          console.error('[SW] Failed to confirm medication:', err);
+          // Show error notification
+          return self.registration.showNotification('❌ 记录失败', {
+            body: '服药记录保存失败，请打开应用手动记录。',
+            icon: '/pwa-icon-192.png',
+            badge: '/pwa-icon-192.png',
+            tag: 'confirm-error',
+            data: { url: '/' },
+            requireInteraction: false,
+          });
+        })
+    );
+    return;
+  }
 
+  // Handle "稍后提醒" action
+  if (action === 'snooze' && notificationData.reminderId) {
+    event.waitUntil(
+      handleSnooze(notificationData.reminderId)
+        .then(() => {
+          return self.registration.showNotification('⏰ 已设置稍后提醒', {
+            body: '15分钟后将再次提醒您服药。',
+            icon: '/pwa-icon-192.png',
+            badge: '/pwa-icon-192.png',
+            tag: 'snooze-' + notificationData.reminderId,
+            requireInteraction: false,
+          });
+        })
+        .catch((err) => {
+          console.error('[SW] Failed to snooze:', err);
+        })
+    );
+    return;
+  }
+
+  // Default: open or focus the app
+  const urlToOpen = notificationData.url || '/';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If a window is already open, focus it
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           return client.focus();
         }
       }
-      // Otherwise open a new window
       return self.clients.openWindow(urlToOpen);
     })
   );
 });
+
+/**
+ * Call the backend API to confirm medication taken.
+ * Uses tRPC batch endpoint format.
+ */
+async function handleConfirmTaken(reminderId) {
+  const response = await fetch('/api/trpc/medReminders.confirmTaken', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      json: { reminderId: reminderId },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('API call failed: ' + response.status);
+  }
+
+  return response.json();
+}
+
+/**
+ * Call the backend API to snooze a medication reminder.
+ */
+async function handleSnooze(reminderId) {
+  const response = await fetch('/api/trpc/medReminders.snooze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      json: { id: reminderId },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('API call failed: ' + response.status);
+  }
+
+  return response.json();
+}
 
 // Fetch: network-first for API, cache-first for static assets
 self.addEventListener('fetch', (event) => {

@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('0011_brainy_maelstrom', UNIX_TIMESTAMP() * 1000);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('0011_brainy_maelstrom', UNIX_TIMESTAMP() * 1000);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 86
+}
