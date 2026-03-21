@@ -10,7 +10,7 @@ import { formatMedications } from "@/hooks/useSymptomData";
 import { trpc } from "@/lib/trpc";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Trash2, Download, Upload, ChevronDown, ChevronUp, FileText, FileSpreadsheet, CalendarDays, List, Pill, Filter,
+  Trash2, Download, Upload, ChevronDown, ChevronUp, FileText, FileSpreadsheet, CalendarDays, List, Pill, Filter, ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import CalendarView from "./CalendarView";
@@ -58,6 +58,7 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
   const [viewMode, setViewMode] = useState<"list" | "calendar" | "medication">("list");
   const [medFilter, setMedFilter] = useState<MedFilter>("all");
   const [showFilter, setShowFilter] = useState(false);
+  const [showDataMenu, setShowDataMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Collect all dates from entries for the batch query
@@ -149,38 +150,62 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
           <div className="flex bg-muted rounded-lg p-0.5">
             <button
               onClick={() => setViewMode("list")}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              className={`p-1 rounded-md transition-colors ${viewMode === "list" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               title="列表视图"
             >
-              <List className="w-3.5 h-3.5" />
+              <List className="w-3 h-3" />
             </button>
             <button
               onClick={() => setViewMode("calendar")}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === "calendar" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              className={`p-1 rounded-md transition-colors ${viewMode === "calendar" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               title="日历视图"
             >
-              <CalendarDays className="w-3.5 h-3.5" />
+              <CalendarDays className="w-3 h-3" />
             </button>
             <button
               onClick={() => setViewMode("medication")}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === "medication" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              className={`p-1 rounded-md transition-colors ${viewMode === "medication" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               title="用药时间线"
             >
-              <Pill className="w-3.5 h-3.5" />
+              <Pill className="w-3 h-3" />
             </button>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleImportClick} className="rounded-full text-xs">
-            <Upload className="w-3 h-3 mr-1" /> 导入
+        <div className="relative">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDataMenu(!showDataMenu)}
+            className="rounded-full text-xs"
+          >
+            <ArrowUpDown className="w-3 h-3 mr-1" /> 导入/导出
           </Button>
-          <Button variant="outline" size="sm" onClick={onExport} className="rounded-full text-xs">
-            <Download className="w-3 h-3 mr-1" /> JSON
-          </Button>
-          {onExportCSV && (
-            <Button variant="outline" size="sm" onClick={onExportCSV} className="rounded-full text-xs">
-              <FileSpreadsheet className="w-3 h-3 mr-1" /> CSV
-            </Button>
+          {showDataMenu && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowDataMenu(false)} />
+              <div className="absolute right-0 top-full mt-1 z-50 bg-card border border-border/50 rounded-xl shadow-lg py-1 min-w-[140px]">
+                <button
+                  onClick={() => { handleImportClick(); setShowDataMenu(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
+                >
+                  <Upload className="w-3.5 h-3.5 text-muted-foreground" /> 导入数据
+                </button>
+                <button
+                  onClick={() => { onExport(); setShowDataMenu(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5 text-muted-foreground" /> 导出 JSON
+                </button>
+                {onExportCSV && (
+                  <button
+                    onClick={() => { onExportCSV(); setShowDataMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-muted-foreground" /> 导出 CSV
+                  </button>
+                )}
+              </div>
+            </>
           )}
           <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleFileChange} />
         </div>
