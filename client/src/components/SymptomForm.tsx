@@ -36,12 +36,6 @@ import {
   Pill,
   Loader2,
   AlertTriangle,
-  Zap,
-  ClipboardList,
-  CheckCircle2,
-  Circle,
-  Clock,
-  Timer,
 } from "lucide-react";
 
 interface SymptomFormProps {
@@ -190,14 +184,8 @@ export default function SymptomForm({
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Merge: taken reminder meds + manual extra meds
-      const takenReminderMeds: MedicationItem[] = todayMeds
-        ? todayMeds
-            .filter((m: any) => m.taken)
-            .map((m: any) => ({ name: m.name, dosage: m.dosage, reminderId: m.reminderId, timeIndex: m.timeIndex }))
-        : [];
-      const extraMeds = medications.filter((m) => !m.reminderId && m.name.trim());
-      const allMeds = [...takenReminderMeds, ...extraMeds];
+      // Only manual extra medications (reminder meds are managed in the Medication tab)
+      const allMeds = medications.filter((m) => m.name.trim());
 
       const savedEntry = await onSave({
         date,
@@ -264,60 +252,6 @@ export default function SymptomForm({
   const removeMedication = (index: number) => {
     setMedications((prev) => prev.filter((_, i) => i !== index));
   };
-
-  // ─── Today's medications from reminders (with taken status) ──────
-  const utils = trpc.useUtils();
-  const { data: todayMeds, isLoading: todayMedsLoading } = trpc.medReminders.todayMeds.useQuery(
-    { date },
-    { refetchOnWindowFocus: false, staleTime: 30_000 }
-  );
-
-  const confirmTakenMutation = trpc.medReminders.confirmTaken.useMutation({
-    onSuccess: () => {
-      utils.medReminders.todayMeds.invalidate({ date });
-    },
-  });
-
-  const unconfirmTakenMutation = trpc.medReminders.unconfirmTaken.useMutation({
-    onSuccess: () => {
-      utils.medReminders.todayMeds.invalidate({ date });
-    },
-  });
-
-  const deductStockMutation = trpc.medReminders.deductStock.useMutation();
-
-  const handleToggleMedTaken = async (reminderId: number, currentlyTaken: boolean, timeIndex?: number) => {
-    try {
-      if (currentlyTaken) {
-        await unconfirmTakenMutation.mutateAsync({ reminderId, timeIndex });
-        toast.success("已取消服药记录");
-      } else {
-        await confirmTakenMutation.mutateAsync({ reminderId, timeIndex });
-        toast.success("已确认服药");
-      }
-    } catch {
-      toast.error("操作失败，请重试");
-    }
-  };
-
-  // Sync medications state from todayMeds for save
-  useEffect(() => {
-    if (todayMeds && todayMeds.length > 0 && !existingEntry) {
-      // Only auto-sync for new entries when medications is empty
-      if (medications.length === 0) {
-        const takenMeds = todayMeds
-          .filter((m) => m.taken)
-          .map((m) => ({ name: m.name, dosage: m.dosage, reminderId: m.reminderId }));
-        if (takenMeds.length > 0) {
-          setMedications(takenMeds);
-        }
-      }
-    }
-  }, [todayMeds]);
-
-  // Compute taken count for display
-  const takenCount = todayMeds?.filter((m) => m.taken).length ?? 0;
-  const totalMedCount = todayMeds?.length ?? 0;
 
   const handleCalendarSelect = (day: Date | undefined) => {
     if (day) {
@@ -501,7 +435,7 @@ export default function SymptomForm({
         </div>
       </motion.div>
 
-      {/* Medications — Checklist from Reminders */}
+      {/* Manual Medications (optional, for recording extra meds taken) */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -513,177 +447,62 @@ export default function SymptomForm({
             <div className="w-8 h-8 rounded-lg bg-dusty-blue/10 flex items-center justify-center">
               <Pill className="w-4 h-4 text-dusty-blue" />
             </div>
-            <h3 className="font-serif font-semibold text-sm">今日用药</h3>
+            <h3 className="font-serif font-semibold text-sm">额外用药</h3>
           </div>
-          {totalMedCount > 0 && (
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-              takenCount === totalMedCount
-                ? "bg-sage/15 text-sage"
-                : takenCount > 0
-                  ? "bg-chart-4/15 text-chart-4"
-                  : "bg-muted text-muted-foreground"
-            }`}>
-              {takenCount}/{totalMedCount} 已服
-            </span>
-          )}
         </div>
 
-        {todayMedsLoading ? (
-          <div className="flex items-center justify-center py-6 text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            <span className="text-sm">加载中...</span>
-          </div>
-        ) : todayMeds && todayMeds.length > 0 ? (
+        {medications.length > 0 ? (
           <div className="space-y-2">
-            {todayMeds.map((med: any) => {
-              const medKey = `${med.reminderId}-${med.timeIndex ?? 0}`;
-              const isToggling =
-                (confirmTakenMutation.isPending && confirmTakenMutation.variables?.reminderId === med.reminderId && confirmTakenMutation.variables?.timeIndex === med.timeIndex) ||
-                (unconfirmTakenMutation.isPending && unconfirmTakenMutation.variables?.reminderId === med.reminderId && unconfirmTakenMutation.variables?.timeIndex === med.timeIndex);
-              return (
-                <motion.button
-                  key={medKey}
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  onClick={() => handleToggleMedTaken(med.reminderId, med.taken, med.timeIndex)}
-                  disabled={isToggling}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
-                    med.taken
-                      ? "bg-sage/10 border border-sage/30"
-                      : "bg-muted/30 border border-border/50 hover:border-sage/40 hover:bg-sage/5"
-                  } ${isToggling ? "opacity-60" : ""}`}
+            {medications.map((med, idx) => (
+              <div key={idx} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
+                <MedicationAutocomplete
+                  value={med.name}
+                  onChange={(v) => updateMedication(idx, "name", v)}
+                  onSelectSuggestion={(name, dosage) => {
+                    setMedications((prev) =>
+                      prev.map((m, i) =>
+                        i === idx ? { ...m, name, dosage: dosage || m.dosage } : m
+                      )
+                    );
+                  }}
+                  placeholder="如：布洛芬"
+                  className="text-sm bg-muted/50 border-0 h-9"
+                  field="name"
+                />
+                <MedicationAutocomplete
+                  value={med.dosage}
+                  onChange={(v) => updateMedication(idx, "dosage", v)}
+                  placeholder="如：200mg"
+                  className="text-sm bg-muted/50 border-0 h-9 w-24"
+                  field="dosage"
+                  currentMedName={med.name}
+                />
+                <button
+                  onClick={() => removeMedication(idx)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                 >
-                  {/* Checkbox */}
-                  <div className="shrink-0">
-                    {isToggling ? (
-                      <Loader2 className="w-5 h-5 animate-spin text-sage" />
-                    ) : med.taken ? (
-                      <CheckCircle2 className="w-5 h-5 text-sage" />
-                    ) : (
-                      <Circle className="w-5 h-5 text-muted-foreground/50" />
-                    )}
-                  </div>
-                  {/* Med info */}
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-medium ${
-                      med.taken ? "text-sage line-through" : "text-foreground"
-                    }`}>
-                      {med.name}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground flex items-center gap-2">
-                      <span>{med.dosage}</span>
-                      {med.reminderHour !== undefined && med.reminderMinute !== undefined && (
-                        <span className="flex items-center gap-0.5">
-                          <Clock className="w-3 h-3" />
-                          {String(med.reminderHour).padStart(2, "0")}:{String(med.reminderMinute).padStart(2, "0")}
-                        </span>
-                      )}
-                      {med.timeIndex !== undefined && med.timeIndex !== null && (
-                        <span className="text-[10px] bg-muted/60 px-1 py-0.5 rounded">
-                          第{med.timeIndex + 1}次
-                        </span>
-                      )}
-                      {med.intervalHours && (
-                        <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1 py-0.5 rounded flex items-center gap-0.5">
-                          <Timer className="w-2.5 h-2.5" />
-                          每{med.intervalHours}h
-                        </span>
-                      )}
-                      {med.lastTakenAt && !med.taken && (() => {
-                        const lastTime = new Date(med.lastTakenAt);
-                        const nextTime = new Date(lastTime.getTime() + (med.intervalHours || 0) * 3600000);
-                        const now = new Date();
-                        const diffMs = nextTime.getTime() - now.getTime();
-                        if (diffMs > 0) {
-                          const hours = Math.floor(diffMs / 3600000);
-                          const mins = Math.floor((diffMs % 3600000) / 60000);
-                          return (
-                            <span className="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1 py-0.5 rounded">
-                              {hours}h{mins}m后可服
-                            </span>
-                          );
-                        }
-                        return null;
-                      })()}
-                    </div>
-                  </div>
-                  {/* Status badge */}
-                  {med.taken && (
-                    <span className="text-[10px] text-sage font-medium bg-sage/15 px-1.5 py-0.5 rounded shrink-0">
-                      ✓ 已服
-                    </span>
-                  )}
-                </motion.button>
-              );
-            })}
-
-            {/* Manual add extra medication */}
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
             <button
               onClick={addMedicationRow}
               className="w-full py-2 rounded-lg border border-dashed border-border/60 text-muted-foreground hover:border-terracotta/40 hover:text-terracotta transition-colors flex items-center justify-center gap-1.5 text-xs"
             >
               <Plus className="w-3.5 h-3.5" />
-              添加额外药品
-            </button>
-
-            {/* Manual medication rows (extra meds not from reminders) */}
-            {medications.filter((m) => !m.reminderId).length > 0 && (
-              <div className="space-y-2 pt-2 border-t border-border/30">
-                <p className="text-[11px] text-muted-foreground">额外药品</p>
-                {medications
-                  .map((med, idx) => ({ med, idx }))
-                  .filter(({ med }) => !med.reminderId)
-                  .map(({ med, idx }) => (
-                    <div key={idx} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
-                      <MedicationAutocomplete
-                        value={med.name}
-                        onChange={(v) => updateMedication(idx, "name", v)}
-                        onSelectSuggestion={(name, dosage) => {
-                          setMedications((prev) =>
-                            prev.map((m, i) =>
-                              i === idx ? { ...m, name, dosage: dosage || m.dosage } : m
-                            )
-                          );
-                        }}
-                        placeholder="如：布洛芬"
-                        className="text-sm bg-muted/50 border-0 h-9"
-                        field="name"
-                      />
-                      <MedicationAutocomplete
-                        value={med.dosage}
-                        onChange={(v) => updateMedication(idx, "dosage", v)}
-                        placeholder="如：200mg"
-                        className="text-sm bg-muted/50 border-0 h-9 w-24"
-                        field="dosage"
-                        currentMedName={med.name}
-                      />
-                      <button
-                        onClick={() => removeMedication(idx)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <div className="text-center py-4 text-muted-foreground">
-              <Pill className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">暂无用药提醒</p>
-              <p className="text-xs mt-1">可在设置中添加用药提醒，或手动添加药品</p>
-            </div>
-            <button
-              onClick={addMedicationRow}
-              className="w-full py-3 rounded-lg border-2 border-dashed border-border/60 text-muted-foreground hover:border-terracotta/40 hover:text-terracotta transition-colors flex items-center justify-center gap-2 text-sm"
-            >
-              <Plus className="w-4 h-4" />
               手动添加药品
             </button>
           </div>
+        ) : (
+          <button
+            onClick={addMedicationRow}
+            className="w-full py-3 rounded-lg border-2 border-dashed border-border/60 text-muted-foreground hover:border-terracotta/40 hover:text-terracotta transition-colors flex items-center justify-center gap-2 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            手动添加药品
+          </button>
         )}
+        <p className="text-[11px] text-muted-foreground mt-2">日常用药请在「用药」tab中打卡管理</p>
       </motion.div>
 
       {/* Custom Metric Sliders */}
