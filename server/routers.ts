@@ -68,6 +68,7 @@ const medicationSchema = z.object({
   name: z.string(),
   dosage: z.string(),
   reminderId: z.number().optional(), // Links to medication_reminders.id
+  timeIndex: z.number().optional(), // Which time slot for multi-dose reminders
 });
 
 const entryInputSchema = z.object({
@@ -465,6 +466,7 @@ export const appRouter = router({
           dosage: z.string().min(1).max(100),
           reminderHour: z.number().min(0).max(23),
           reminderMinute: z.number().min(0).max(59),
+          reminderTimes: z.array(z.object({ hour: z.number().min(0).max(23), minute: z.number().min(0).max(59) })).nullable().optional(),
           repeatDays: z.array(z.number().min(0).max(6)).optional(),
           offsetMinutes: z.number().min(-120).max(120).optional(),
           stockQuantity: z.number().min(0).nullable().optional(),
@@ -489,6 +491,7 @@ export const appRouter = router({
           dosage: z.string().min(1).max(100).optional(),
           reminderHour: z.number().min(0).max(23).optional(),
           reminderMinute: z.number().min(0).max(59).optional(),
+          reminderTimes: z.array(z.object({ hour: z.number().min(0).max(23), minute: z.number().min(0).max(59) })).nullable().optional(),
           enabled: z.number().min(0).max(1).optional(),
           repeatDays: z.array(z.number().min(0).max(6)).optional(),
           offsetMinutes: z.number().min(-120).max(120).optional(),
@@ -596,16 +599,16 @@ export const appRouter = router({
 
     /** Confirm medication taken (from push notification action) */
     confirmTaken: protectedProcedure
-      .input(z.object({ reminderId: z.number() }))
+      .input(z.object({ reminderId: z.number(), timeIndex: z.number().optional() }))
       .mutation(async ({ ctx, input }) => {
-        return confirmMedicationTaken(ctx.user.id, input.reminderId);
+        return confirmMedicationTaken(ctx.user.id, input.reminderId, input.timeIndex);
       }),
 
     /** Unconfirm medication taken (remove from today's entry and restore stock) */
     unconfirmTaken: protectedProcedure
-      .input(z.object({ reminderId: z.number() }))
+      .input(z.object({ reminderId: z.number(), timeIndex: z.number().optional() }))
       .mutation(async ({ ctx, input }) => {
-        return unconfirmMedicationTaken(ctx.user.id, input.reminderId);
+        return unconfirmMedicationTaken(ctx.user.id, input.reminderId, input.timeIndex);
       }),
 
     /** Get today's medications from reminders (for auto-filling symptom form) */

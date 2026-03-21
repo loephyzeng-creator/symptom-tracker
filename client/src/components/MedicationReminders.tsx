@@ -50,6 +50,7 @@ interface ReminderForm {
   dosage: string;
   reminderHour: number;
   reminderMinute: number;
+  reminderTimes: {hour: number; minute: number}[];
   repeatDays: number[];
   offsetMinutes: number;
   trackStock: boolean;
@@ -67,6 +68,7 @@ const EMPTY_FORM: ReminderForm = {
   dosage: "",
   reminderHour: 8,
   reminderMinute: 0,
+  reminderTimes: [],
   repeatDays: [...ALL_DAYS],
   offsetMinutes: 0,
   trackStock: false,
@@ -290,14 +292,121 @@ function ReminderFormFields({
         />
       </div>
       <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground">提醒时间</label>
-        <TimePicker
-          hour={formData.reminderHour}
-          minute={formData.reminderMinute}
-          onChange={(h, m) =>
-            setFormData({ ...formData, reminderHour: h, reminderMinute: m })
-          }
-        />
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium text-foreground">提醒时间</label>
+          {formData.reminderTimes.length === 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                // Switch to multi-time mode: add current time as first, then a new slot
+                setFormData({
+                  ...formData,
+                  reminderTimes: [
+                    { hour: formData.reminderHour, minute: formData.reminderMinute },
+                    { hour: Math.min(formData.reminderHour + 8, 23), minute: formData.reminderMinute },
+                  ],
+                });
+              }}
+              className="text-xs text-terracotta hover:text-terracotta/80 flex items-center gap-1"
+            >
+              <Plus className="w-3 h-3" />
+              添加多次服药
+            </button>
+          )}
+        </div>
+        {formData.reminderTimes.length === 0 ? (
+          /* Single time mode */
+          <TimePicker
+            hour={formData.reminderHour}
+            minute={formData.reminderMinute}
+            onChange={(h, m) =>
+              setFormData({ ...formData, reminderHour: h, reminderMinute: m })
+            }
+          />
+        ) : (
+          /* Multi-time mode */
+          <div className="space-y-2">
+            {formData.reminderTimes
+              .map((t, i) => ({ ...t, originalIndex: i }))
+              .sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute))
+              .map(({ hour, minute, originalIndex }) => (
+              <div key={originalIndex} className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground w-16 shrink-0">第{formData.reminderTimes
+                  .map((t, i) => ({ ...t, idx: i }))
+                  .sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute))
+                  .findIndex(t => t.idx === originalIndex) + 1}次</span>
+                <div className="flex-1">
+                  <TimePicker
+                    hour={hour}
+                    minute={minute}
+                    onChange={(h, m) => {
+                      const newTimes = [...formData.reminderTimes];
+                      newTimes[originalIndex] = { hour: h, minute: m };
+                      // Keep primary time synced with first sorted time
+                      const sorted = [...newTimes].sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute));
+                      setFormData({
+                        ...formData,
+                        reminderTimes: newTimes,
+                        reminderHour: sorted[0].hour,
+                        reminderMinute: sorted[0].minute,
+                      });
+                    }}
+                  />
+                </div>
+                {formData.reminderTimes.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newTimes = formData.reminderTimes.filter((_, i) => i !== originalIndex);
+                      if (newTimes.length <= 1) {
+                        // Switch back to single time mode
+                        const remaining = newTimes[0] || { hour: 8, minute: 0 };
+                        setFormData({
+                          ...formData,
+                          reminderTimes: [],
+                          reminderHour: remaining.hour,
+                          reminderMinute: remaining.minute,
+                        });
+                      } else {
+                        const sorted = [...newTimes].sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute));
+                        setFormData({
+                          ...formData,
+                          reminderTimes: newTimes,
+                          reminderHour: sorted[0].hour,
+                          reminderMinute: sorted[0].minute,
+                        });
+                      }
+                    }}
+                    className="text-muted-foreground hover:text-destructive p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                const lastTime = formData.reminderTimes[formData.reminderTimes.length - 1];
+                const nextHour = Math.min((lastTime?.hour ?? 8) + 6, 23);
+                setFormData({
+                  ...formData,
+                  reminderTimes: [
+                    ...formData.reminderTimes,
+                    { hour: nextHour, minute: lastTime?.minute ?? 0 },
+                  ],
+                });
+              }}
+              className="text-xs text-terracotta hover:text-terracotta/80 flex items-center gap-1 py-1"
+            >
+              <Plus className="w-3 h-3" />
+              添加时间点
+            </button>
+            <p className="text-xs text-muted-foreground">
+              共 {formData.reminderTimes.length} 次/天
+            </p>
+          </div>
+        )}
       </div>
       <DaySelector
         selected={formData.repeatDays}
@@ -639,10 +748,11 @@ export default function MedicationReminders() {
       dosage: form.dosage,
       reminderHour: form.reminderHour,
       reminderMinute: form.reminderMinute,
+      reminderTimes: form.reminderTimes.length > 0 ? form.reminderTimes : null,
       repeatDays: form.repeatDays,
       offsetMinutes: form.offsetMinutes,
       stockQuantity: form.trackStock ? form.stockQuantity : null,
-      dailyDosageCount: form.dailyDosageCount,
+      dailyDosageCount: form.reminderTimes.length > 0 ? form.reminderTimes.length : form.dailyDosageCount,
       stockAlertDays: form.stockAlertDays,
       instructionUrl: form.instructionUrl.trim() || null,
       expirationDate: form.expirationDate || null,
@@ -663,10 +773,11 @@ export default function MedicationReminders() {
       dosage: editForm.dosage,
       reminderHour: editForm.reminderHour,
       reminderMinute: editForm.reminderMinute,
+      reminderTimes: editForm.reminderTimes.length > 0 ? editForm.reminderTimes : null,
       repeatDays: editForm.repeatDays,
       offsetMinutes: editForm.offsetMinutes,
       stockQuantity: editForm.trackStock ? editForm.stockQuantity : null,
-      dailyDosageCount: editForm.dailyDosageCount,
+      dailyDosageCount: editForm.reminderTimes.length > 0 ? editForm.reminderTimes.length : editForm.dailyDosageCount,
       stockAlertDays: editForm.stockAlertDays,
       instructionUrl: editForm.instructionUrl.trim() || null,
       expirationDate: editForm.expirationDate || null,
@@ -682,6 +793,7 @@ export default function MedicationReminders() {
       dosage: reminder.dosage,
       reminderHour: reminder.reminderHour,
       reminderMinute: reminder.reminderMinute,
+      reminderTimes: reminder.reminderTimes ?? [],
       repeatDays: reminder.repeatDays ?? [...ALL_DAYS],
       offsetMinutes: reminder.offsetMinutes ?? 0,
       trackStock: reminder.stockQuantity !== null && reminder.stockQuantity !== undefined,
@@ -980,8 +1092,13 @@ export default function MedicationReminders() {
                             </Button>
                           </div>
                         </div>
-                        {/* Tags row: repeat days + offset + snooze */}
+                        {/* Tags row: times + repeat days + offset + snooze */}
                         <div className="flex items-center gap-2 flex-wrap pl-7">
+                          {reminder.reminderTimes && reminder.reminderTimes.length > 0 ? (
+                            <span className="text-xs bg-terracotta/10 text-terracotta px-2 py-0.5 rounded-full">
+                              {reminder.reminderTimes.length}次/天: {[...reminder.reminderTimes].sort((a: any, b: any) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute)).map((t: any) => formatTime(t.hour, t.minute)).join(", ")}
+                            </span>
+                          ) : null}
                           <span className="text-xs bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full">
                             {formatRepeatDays(reminder.repeatDays)}
                           </span>

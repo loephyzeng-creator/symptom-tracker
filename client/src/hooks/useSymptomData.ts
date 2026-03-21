@@ -5,6 +5,7 @@ export interface MedicationItem {
   name: string;
   dosage: string;
   reminderId?: number; // Links to medication_reminders.id for data sync
+  timeIndex?: number; // Which time slot for multi-dose reminders
 }
 
 export interface SymptomEntry {

@@ -99,6 +99,13 @@
       "when": 1774071423157,
       "tag": "0013_known_brood",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1774073430942,
+      "tag": "0014_living_silver_fox",
+      "breakpoints": true
     }
   ]
 }

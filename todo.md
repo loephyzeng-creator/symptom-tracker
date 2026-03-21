@@ -328,3 +328,17 @@
 - [x] 前端：handleSave合并已勾选提醒药品+手动额外药品
 - [x] 前端：显示已服/总数计数徽章（如 2/3 已服）
 - [x] 测试验证（378个测试全部通过）
+
+## 用药提醒支持一天多次服药
+- [x] 分析现有数据结构，确定多次服药的改造方案
+- [x] 数据库：medication_reminders表新增reminderTimes JSON字段（保留reminderHour/reminderMinute兼容旧数据）
+- [x] 后端：更新add/update API支持reminderTimes参数
+- [x] 后端：调度器适配多时间点推送（每个时间点独立发送通知）
+- [x] 后端：todayMeds API为每个时间点生成独立条目（含timeIndex+taken状态）
+- [x] 后端：confirmTaken/unconfirmTaken支持timeIndex参数
+- [x] 后端：medMatchHelper支持timeIndex精确匹配（reminderTimeKeys）
+- [x] 前端：提醒表单支持添加多个提醒时间（“一天多次”按钮+时间列表）
+- [x] 前端：提醒卡片显示多时间点标签（如“3次/天: 08:00, 14:00, 20:00”）
+- [x] 前端：今日用药区域按时间点分别显示勾选（含“第N次”标签）
+- [x] 前端：打卡日历通过medMatchHelper自动适配多次服药逻辑
+- [x] 测试验证（389个测试全部通过）

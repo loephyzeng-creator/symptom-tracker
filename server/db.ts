@@ -997,6 +997,7 @@ export async function addMedicationReminder(
     dosage: string;
     reminderHour: number;
     reminderMinute: number;
+    reminderTimes?: {hour: number; minute: number}[] | null;
     repeatDays?: number[] | null;
     offsetMinutes?: number;
     stockQuantity?: number | null;
@@ -1010,16 +1011,20 @@ export async function addMedicationReminder(
 ) {
   const db = await getDb();
   if (!db) return null;
+  // If reminderTimes is provided, auto-compute dailyDosageCount from the number of times
+  const times = data.reminderTimes;
+  const effectiveDailyDosageCount = times && times.length > 0 ? times.length : (data.dailyDosageCount ?? 1);
   const [result] = await db.insert(medicationReminders).values({
     userId,
     medicationName: data.medicationName,
     dosage: data.dosage,
     reminderHour: data.reminderHour,
     reminderMinute: data.reminderMinute,
+    reminderTimes: times ?? null,
     repeatDays: data.repeatDays ?? [0, 1, 2, 3, 4, 5, 6],
     offsetMinutes: data.offsetMinutes ?? 0,
     stockQuantity: data.stockQuantity ?? null,
-    dailyDosageCount: data.dailyDosageCount ?? 1,
+    dailyDosageCount: effectiveDailyDosageCount,
     stockAlertDays: data.stockAlertDays ?? 7,
     instructionUrl: data.instructionUrl ?? null,
     expirationDate: data.expirationDate ?? null,
@@ -1041,6 +1046,7 @@ export async function updateMedicationReminder(
     dosage: string;
     reminderHour: number;
     reminderMinute: number;
+    reminderTimes: {hour: number; minute: number}[] | null;
     enabled: number;
     repeatDays: number[] | null;
     offsetMinutes: number;
@@ -1086,6 +1092,7 @@ export async function getMedicationRemindersToSend(todayStr: string) {
       dosage: medicationReminders.dosage,
       reminderHour: medicationReminders.reminderHour,
       reminderMinute: medicationReminders.reminderMinute,
+      reminderTimes: medicationReminders.reminderTimes,
       repeatDays: medicationReminders.repeatDays,
       offsetMinutes: medicationReminders.offsetMinutes,
       snoozedUntil: medicationReminders.snoozedUntil,
@@ -1507,30 +1514,65 @@ export async function getTodayMedications(userId: number, dateStr: string) {
 
   // Get today's entry to check which meds are already taken
   const entry = await getEntryByUserAndDate(userId, dateStr);
-  const takenMeds: { name: string; dosage: string; reminderId?: number }[] =
+  const takenMeds: { name: string; dosage: string; reminderId?: number; timeIndex?: number }[] =
     entry && Array.isArray(entry.medications) ? entry.medications : [];
 
-  return reminders
-    .filter((r) => {
-      const days = r.repeatDays;
-      if (!days || (Array.isArray(days) && days.length === 0)) return true;
-      return Array.isArray(days) && days.includes(dayOfWeek);
-    })
-    .map((r) => {
-      // Check if this medication was already taken today
+  const result: Array<{
+    name: string;
+    dosage: string;
+    reminderId: number;
+    reminderHour: number;
+    reminderMinute: number;
+    groupId: number | null;
+    taken: boolean;
+    timeIndex: number;
+    totalTimes: number;
+  }> = [];
+
+  for (const r of reminders) {
+    const days = r.repeatDays;
+    if (days && Array.isArray(days) && days.length > 0 && !days.includes(dayOfWeek)) continue;
+
+    // Build the list of all time points for this reminder
+    const allTimes = getAllReminderTimes(r);
+
+    for (let ti = 0; ti < allTimes.length; ti++) {
+      const t = allTimes[ti];
+      // Check if this specific time slot was taken
       const taken = takenMeds.some(
-        (m) => m.reminderId === r.id || m.name.toLowerCase() === r.medicationName.toLowerCase()
+        (m) =>
+          (m.reminderId === r.id || m.name.toLowerCase() === r.medicationName.toLowerCase()) &&
+          (allTimes.length === 1 || m.timeIndex === ti)
       );
-      return {
+      result.push({
         name: r.medicationName,
         dosage: r.dosage,
         reminderId: r.id,
-        reminderHour: r.reminderHour,
-        reminderMinute: r.reminderMinute,
+        reminderHour: t.hour,
+        reminderMinute: t.minute,
         groupId: r.groupId,
         taken,
-      };
-    });
+        timeIndex: ti,
+        totalTimes: allTimes.length,
+      });
+    }
+  }
+
+  // Sort by time
+  result.sort((a, b) => a.reminderHour * 60 + a.reminderMinute - (b.reminderHour * 60 + b.reminderMinute));
+  return result;
+}
+
+/**
+ * Helper: get all reminder times for a medication reminder.
+ * If reminderTimes is set, returns that array; otherwise returns [{hour, minute}] from the primary fields.
+ */
+export function getAllReminderTimes(reminder: { reminderHour: number; reminderMinute: number; reminderTimes?: {hour: number; minute: number}[] | null }): {hour: number; minute: number}[] {
+  if (reminder.reminderTimes && Array.isArray(reminder.reminderTimes) && reminder.reminderTimes.length > 0) {
+    // Sort by time
+    return [...reminder.reminderTimes].sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute));
+  }
+  return [{ hour: reminder.reminderHour, minute: reminder.reminderMinute }];
 }
 
 /**
@@ -1540,7 +1582,8 @@ export async function getTodayMedications(userId: number, dateStr: string) {
  */
 export async function confirmMedicationTaken(
   userId: number,
-  reminderId: number
+  reminderId: number,
+  timeIndex?: number
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1569,18 +1612,28 @@ export async function confirmMedicationTaken(
     return chinaTime.toISOString().slice(0, 10);
   })();
 
+  const allTimes = getAllReminderTimes(med);
+  const effectiveTimeIndex = timeIndex ?? 0;
+
   // Check if there's already an entry for today
   const existing = await getEntryByUserAndDate(userId, todayStr);
 
-  const newMed = { name: med.medicationName, dosage: med.dosage, reminderId: med.id };
+  const newMed: { name: string; dosage: string; reminderId: number; timeIndex?: number } = {
+    name: med.medicationName,
+    dosage: med.dosage,
+    reminderId: med.id,
+    ...(allTimes.length > 1 ? { timeIndex: effectiveTimeIndex } : {}),
+  };
 
   if (existing) {
-    // Append medication if not already recorded
-    const currentMeds: { name: string; dosage: string; reminderId?: number }[] = Array.isArray(existing.medications)
+    // Append medication if not already recorded for this time slot
+    const currentMeds: { name: string; dosage: string; reminderId?: number; timeIndex?: number }[] = Array.isArray(existing.medications)
       ? existing.medications
       : [];
     const alreadyRecorded = currentMeds.some(
-      (m) => m.reminderId === med.id || m.name.toLowerCase() === newMed.name.toLowerCase()
+      (m) =>
+        (m.reminderId === med.id || m.name.toLowerCase() === newMed.name.toLowerCase()) &&
+        (allTimes.length === 1 || m.timeIndex === effectiveTimeIndex)
     );
     if (!alreadyRecorded) {
       const updatedMeds = [...currentMeds, newMed];
@@ -1610,7 +1663,7 @@ export async function confirmMedicationTaken(
     });
   }
 
-  // Deduct stock
+  // Deduct stock (one dose per confirmation)
   await deductMedicationStock(userId, med.medicationName);
 
   return {
@@ -1618,6 +1671,7 @@ export async function confirmMedicationTaken(
     medicationName: med.medicationName,
     dosage: med.dosage,
     date: todayStr,
+    timeIndex: effectiveTimeIndex,
   };
 }
 
@@ -1627,7 +1681,8 @@ export async function confirmMedicationTaken(
  */
 export async function unconfirmMedicationTaken(
   userId: number,
-  reminderId: number
+  reminderId: number,
+  timeIndex?: number
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1649,6 +1704,9 @@ export async function unconfirmMedicationTaken(
   }
 
   const med = reminder[0];
+  const allTimes = getAllReminderTimes(med);
+  const effectiveTimeIndex = timeIndex ?? 0;
+
   const todayStr = (() => {
     const now = new Date();
     const offset = 8 * 60 * 60 * 1000;
@@ -1662,13 +1720,18 @@ export async function unconfirmMedicationTaken(
     return { success: true, medicationName: med.medicationName };
   }
 
-  const currentMeds: { name: string; dosage: string; reminderId?: number }[] =
+  const currentMeds: { name: string; dosage: string; reminderId?: number; timeIndex?: number }[] =
     Array.isArray(existing.medications) ? existing.medications : [];
 
-  // Remove the medication by reminderId or name match
-  const updatedMeds = currentMeds.filter(
-    (m) => !(m.reminderId === med.id || m.name.toLowerCase() === med.medicationName.toLowerCase())
-  );
+  // Remove the specific time slot's medication record
+  const updatedMeds = currentMeds.filter((m) => {
+    const isMatch = m.reminderId === med.id || m.name.toLowerCase() === med.medicationName.toLowerCase();
+    if (!isMatch) return true; // keep non-matching meds
+    // For single-time reminders, remove any match
+    if (allTimes.length === 1) return false;
+    // For multi-time reminders, only remove the specific timeIndex
+    return m.timeIndex !== effectiveTimeIndex;
+  });
 
   if (updatedMeds.length < currentMeds.length) {
     await db
@@ -1676,12 +1739,11 @@ export async function unconfirmMedicationTaken(
       .set({ medications: updatedMeds })
       .where(eq(symptomEntries.id, existing.id));
 
-    // Restore stock
+    // Restore stock (one dose per unconfirmation)
     if (med.stockQuantity !== null) {
-      const restoreAmount = med.dailyDosageCount ?? 1;
       await db
         .update(medicationReminders)
-        .set({ stockQuantity: (med.stockQuantity ?? 0) + restoreAmount })
+        .set({ stockQuantity: (med.stockQuantity ?? 0) + 1 })
         .where(eq(medicationReminders.id, med.id));
     }
   }
@@ -2105,7 +2167,7 @@ export async function getMedicationCheckInDayDetail(
     }
   }
 
-  const matchInfo = { names: recordedNames, reminderIds: recordedReminderIds };
+  const matchInfo = { names: recordedNames, reminderIds: recordedReminderIds, reminderTimeKeys: new Set<string>() };
 
   const taken: { name: string; dosage: string; id: number }[] = [];
   const missed: { name: string; dosage: string; id: number }[] = [];

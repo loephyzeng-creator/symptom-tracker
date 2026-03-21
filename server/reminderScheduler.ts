@@ -232,44 +232,63 @@ async function checkAndSendMedicationReminders() {
         continue;
       }
 
-      // --- Time check with offset ---
-      const effective = applyOffset(
-        reminder.reminderHour,
-        reminder.reminderMinute,
-        reminder.offsetMinutes ?? 0
-      );
-
-      if (!isReminderTime(effective.hour, effective.minute, hour, minute)) {
-        console.log(`[MedReminder] Skipping ${reminder.medicationName}: not in time window (effective ${effective.hour}:${String(effective.minute).padStart(2, "0")}, current ${hour}:${String(minute).padStart(2, "0")})`);
-        continue;
+      // --- Time check with offset (supports multi-time reminders) ---
+      const timesToCheck: { hour: number; minute: number; timeIndex?: number }[] = [];
+      if (reminder.reminderTimes && Array.isArray(reminder.reminderTimes) && reminder.reminderTimes.length > 0) {
+        // Multi-time mode: check each time slot
+        for (let ti = 0; ti < reminder.reminderTimes.length; ti++) {
+          const t = reminder.reminderTimes[ti] as { hour: number; minute: number };
+          timesToCheck.push({ ...applyOffset(t.hour, t.minute, reminder.offsetMinutes ?? 0), timeIndex: ti });
+        }
+      } else {
+        // Single time mode
+        timesToCheck.push(applyOffset(reminder.reminderHour, reminder.reminderMinute, reminder.offsetMinutes ?? 0));
       }
 
-      console.log(
-        `[MedReminder] Sending medication reminder: ${reminder.medicationName} ${reminder.dosage} to user ${reminder.userId}`
-      );
-
-      try {
-        const sent = await sendWebPush(
-          reminder.userId,
-          `💊 用药提醒：${reminder.medicationName}`,
-          `请服用 ${reminder.medicationName} ${reminder.dosage}`,
-          `med-reminder-${reminder.id}`,
-          [
-            { action: "confirm-taken", title: "✅ 已服药" },
-            { action: "snooze", title: "⏰ 再等15分钟" },
-          ],
-          { reminderId: reminder.id, userId: reminder.userId }
-        );
-
-        if (sent) {
-          await markMedicationReminderNotified(reminder.id, todayStr);
-          console.log(`[MedReminder] Successfully notified for medication ${reminder.medicationName} (id: ${reminder.id})`);
+      let anyTimeMatched = false;
+      for (const effective of timesToCheck) {
+        if (!isReminderTime(effective.hour, effective.minute, hour, minute)) {
+          continue;
         }
-      } catch (error) {
-        console.error(
-          `[MedReminder] Error sending reminder for ${reminder.medicationName}:`,
-          error
+        anyTimeMatched = true;
+
+        const timeLabel = effective.timeIndex !== undefined
+          ? `第${effective.timeIndex + 1}次`
+          : "";
+
+        console.log(
+          `[MedReminder] Sending medication reminder: ${reminder.medicationName} ${reminder.dosage} ${timeLabel} to user ${reminder.userId}`
         );
+
+        try {
+          const sent = await sendWebPush(
+            reminder.userId,
+            `💊 用药提醒：${reminder.medicationName}${timeLabel ? ` (${timeLabel})` : ""}`,
+            `请服用 ${reminder.medicationName} ${reminder.dosage}`,
+            `med-reminder-${reminder.id}-t${effective.timeIndex ?? 0}`,
+            [
+              { action: "confirm-taken", title: "✅ 已服药" },
+              { action: "snooze", title: "⏰ 再等15分钟" },
+            ],
+            { reminderId: reminder.id, userId: reminder.userId, timeIndex: effective.timeIndex }
+          );
+
+          if (sent) {
+            console.log(`[MedReminder] Successfully notified for medication ${reminder.medicationName} ${timeLabel} (id: ${reminder.id})`);
+          }
+        } catch (error) {
+          console.error(
+            `[MedReminder] Error sending reminder for ${reminder.medicationName} ${timeLabel}:`,
+            error
+          );
+        }
+      }
+
+      if (anyTimeMatched) {
+        await markMedicationReminderNotified(reminder.id, todayStr);
+      } else {
+        const timeStrs = timesToCheck.map(t => `${t.hour}:${String(t.minute).padStart(2, "0")}`).join(", ");
+        console.log(`[MedReminder] Skipping ${reminder.medicationName}: no time match (times: ${timeStrs}, current ${hour}:${String(minute).padStart(2, "0")})`);
       }
     }
   } catch (error) {

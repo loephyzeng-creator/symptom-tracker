@@ -192,8 +192,8 @@ export default function SymptomForm({
       // Merge: taken reminder meds + manual extra meds
       const takenReminderMeds: MedicationItem[] = todayMeds
         ? todayMeds
-            .filter((m) => m.taken)
-            .map((m) => ({ name: m.name, dosage: m.dosage, reminderId: m.reminderId }))
+            .filter((m: any) => m.taken)
+            .map((m: any) => ({ name: m.name, dosage: m.dosage, reminderId: m.reminderId, timeIndex: m.timeIndex }))
         : [];
       const extraMeds = medications.filter((m) => !m.reminderId && m.name.trim());
       const allMeds = [...takenReminderMeds, ...extraMeds];
@@ -285,13 +285,13 @@ export default function SymptomForm({
 
   const deductStockMutation = trpc.medReminders.deductStock.useMutation();
 
-  const handleToggleMedTaken = async (reminderId: number, currentlyTaken: boolean) => {
+  const handleToggleMedTaken = async (reminderId: number, currentlyTaken: boolean, timeIndex?: number) => {
     try {
       if (currentlyTaken) {
-        await unconfirmTakenMutation.mutateAsync({ reminderId });
+        await unconfirmTakenMutation.mutateAsync({ reminderId, timeIndex });
         toast.success("已取消服药记录");
       } else {
-        await confirmTakenMutation.mutateAsync({ reminderId });
+        await confirmTakenMutation.mutateAsync({ reminderId, timeIndex });
         toast.success("已确认服药");
       }
     } catch {
@@ -534,16 +534,17 @@ export default function SymptomForm({
           </div>
         ) : todayMeds && todayMeds.length > 0 ? (
           <div className="space-y-2">
-            {todayMeds.map((med) => {
+            {todayMeds.map((med: any) => {
+              const medKey = `${med.reminderId}-${med.timeIndex ?? 0}`;
               const isToggling =
-                (confirmTakenMutation.isPending && confirmTakenMutation.variables?.reminderId === med.reminderId) ||
-                (unconfirmTakenMutation.isPending && unconfirmTakenMutation.variables?.reminderId === med.reminderId);
+                (confirmTakenMutation.isPending && confirmTakenMutation.variables?.reminderId === med.reminderId && confirmTakenMutation.variables?.timeIndex === med.timeIndex) ||
+                (unconfirmTakenMutation.isPending && unconfirmTakenMutation.variables?.reminderId === med.reminderId && unconfirmTakenMutation.variables?.timeIndex === med.timeIndex);
               return (
                 <motion.button
-                  key={med.reminderId}
+                  key={medKey}
                   initial={{ opacity: 0, y: -5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  onClick={() => handleToggleMedTaken(med.reminderId, med.taken)}
+                  onClick={() => handleToggleMedTaken(med.reminderId, med.taken, med.timeIndex)}
                   disabled={isToggling}
                   className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
                     med.taken
@@ -574,6 +575,11 @@ export default function SymptomForm({
                         <span className="flex items-center gap-0.5">
                           <Clock className="w-3 h-3" />
                           {String(med.reminderHour).padStart(2, "0")}:{String(med.reminderMinute).padStart(2, "0")}
+                        </span>
+                      )}
+                      {med.timeIndex !== undefined && med.timeIndex !== null && (
+                        <span className="text-[10px] bg-muted/60 px-1 py-0.5 rounded">
+                          第{med.timeIndex + 1}次
                         </span>
                       )}
                     </div>

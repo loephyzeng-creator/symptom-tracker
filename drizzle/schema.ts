@@ -35,7 +35,7 @@ export const symptomEntries = mysqlTable("symptom_entries", {
   motionSickness: int("motionSickness").default(0).notNull(),
   palpitations: int("palpitations").default(0).notNull(),
   mood: int("mood").default(5).notNull(),
-  medications: json("medications").$type<{ name: string; dosage: string; reminderId?: number }[]>().default([]).notNull(),
+  medications: json("medications").$type<{ name: string; dosage: string; reminderId?: number; timeIndex?: number }[]>().default([]).notNull(),
   triggers: json("triggers").$type<string[]>().default([]).notNull(),
   severeHeadache: int("severeHeadache").default(0).notNull(), // 1 = yes, 0 = no
   notes: text("notes"),
@@ -171,8 +171,9 @@ export const medicationReminders = mysqlTable("medication_reminders", {
   userId: int("userId").notNull(),
   medicationName: varchar("medicationName", { length: 200 }).notNull(),
   dosage: varchar("dosage", { length: 100 }).notNull(),
-  reminderHour: int("reminderHour").notNull(), // 0-23
-  reminderMinute: int("reminderMinute").notNull(), // 0-59
+  reminderHour: int("reminderHour").notNull(), // 0-23 (primary time, kept for backward compat)
+  reminderMinute: int("reminderMinute").notNull(), // 0-59 (primary time)
+  reminderTimes: json("reminderTimes").$type<{hour: number; minute: number}[]>(), // additional reminder times, null = single time (use reminderHour/reminderMinute)
   enabled: int("enabled").default(1).notNull(), // 1 = on, 0 = off
   repeatDays: json("repeatDays").$type<number[]>(), // 0=Sun..6=Sat, null means every day
   offsetMinutes: int("offsetMinutes").default(0).notNull(), // negative=before, positive=after
