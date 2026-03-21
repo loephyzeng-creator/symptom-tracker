@@ -1,0 +1,1 @@
+ALTER TABLE `medication_reminders` MODIFY COLUMN `repeatDays` json;

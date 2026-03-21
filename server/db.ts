@@ -995,6 +995,8 @@ export async function addMedicationReminder(
     dosage: string;
     reminderHour: number;
     reminderMinute: number;
+    repeatDays?: number[] | null;
+    offsetMinutes?: number;
   }
 ) {
   const db = await getDb();
@@ -1005,6 +1007,8 @@ export async function addMedicationReminder(
     dosage: data.dosage,
     reminderHour: data.reminderHour,
     reminderMinute: data.reminderMinute,
+    repeatDays: data.repeatDays ?? [0, 1, 2, 3, 4, 5, 6],
+    offsetMinutes: data.offsetMinutes ?? 0,
     enabled: 1,
   });
   return { id: result.insertId };
@@ -1022,6 +1026,9 @@ export async function updateMedicationReminder(
     reminderHour: number;
     reminderMinute: number;
     enabled: number;
+    repeatDays: number[] | null;
+    offsetMinutes: number;
+    snoozedUntil: string | null;
   }>
 ) {
   const db = await getDb();
@@ -1057,6 +1064,9 @@ export async function getMedicationRemindersToSend(todayStr: string) {
       dosage: medicationReminders.dosage,
       reminderHour: medicationReminders.reminderHour,
       reminderMinute: medicationReminders.reminderMinute,
+      repeatDays: medicationReminders.repeatDays,
+      offsetMinutes: medicationReminders.offsetMinutes,
+      snoozedUntil: medicationReminders.snoozedUntil,
       lastNotifiedDate: medicationReminders.lastNotifiedDate,
     })
     .from(medicationReminders)
@@ -1069,6 +1079,31 @@ export async function getMedicationRemindersToSend(todayStr: string) {
 }
 
 /**
+ * Snooze a medication reminder for 15 minutes from now.
+ */
+export async function snoozeMedicationReminder(id: number, userId: number, snoozeUntil: string) {
+  const db = await getDb();
+  if (!db) return;
+  // Reset lastNotifiedDate so it can fire again, and set snoozedUntil
+  await db
+    .update(medicationReminders)
+    .set({ snoozedUntil: snoozeUntil, lastNotifiedDate: null })
+    .where(and(eq(medicationReminders.id, id), eq(medicationReminders.userId, userId)));
+}
+
+/**
+ * Clear snooze after sending the snoozed notification.
+ */
+export async function clearMedicationSnooze(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(medicationReminders)
+    .set({ snoozedUntil: null })
+    .where(eq(medicationReminders.id, id));
+}
+
+/**
  * Mark a medication reminder as notified for today.
  */
 export async function markMedicationReminderNotified(id: number, todayStr: string) {
@@ -1078,4 +1113,145 @@ export async function markMedicationReminderNotified(id: number, todayStr: strin
     .update(medicationReminders)
     .set({ lastNotifiedDate: todayStr })
     .where(eq(medicationReminders.id, id));
+}
+
+// ─── Medication Adherence Statistics ──────────────────────────────────
+
+/**
+ * Calculate medication adherence statistics for a user.
+ * Compares medication reminders (expected) with actual medication entries (recorded).
+ *
+ * Returns:
+ * - overall adherence rate (percentage)
+ * - per-medication adherence breakdown
+ * - daily adherence data for charting
+ */
+export async function getMedicationAdherence(
+  userId: number,
+  startDate: string,
+  endDate: string
+) {
+  const db = await getDb();
+  if (!db) return { overallRate: 0, perMedication: [], dailyData: [] };
+
+  // 1. Get all medication reminders for this user (including disabled ones for historical accuracy)
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(eq(medicationReminders.userId, userId));
+
+  if (reminders.length === 0) {
+    return { overallRate: 0, perMedication: [], dailyData: [] };
+  }
+
+  // 2. Get all symptom entries in the date range
+  const entries = await db
+    .select({
+      date: symptomEntries.date,
+      medications: symptomEntries.medications,
+    })
+    .from(symptomEntries)
+    .where(
+      and(
+        eq(symptomEntries.userId, userId),
+        gte(symptomEntries.date, startDate),
+        lte(symptomEntries.date, endDate)
+      )
+    )
+    .orderBy(symptomEntries.date);
+
+  // Build a map of date -> recorded medication names (lowercased for matching)
+  const entryMap = new Map<string, Set<string>>();
+  for (const entry of entries) {
+    const meds = entry.medications;
+    const names = new Set<string>();
+    if (Array.isArray(meds)) {
+      for (const m of meds) {
+        if (m.name && m.name.trim()) {
+          names.add(m.name.trim().toLowerCase());
+        }
+      }
+    }
+    entryMap.set(entry.date, names);
+  }
+
+  // 3. For each day in range, check which reminders were expected and which were fulfilled
+  const start = new Date(startDate + "T00:00:00Z");
+  const end = new Date(endDate + "T00:00:00Z");
+
+  const perMedMap = new Map<
+    string,
+    { name: string; expected: number; taken: number }
+  >();
+
+  const dailyData: Array<{
+    date: string;
+    expected: number;
+    taken: number;
+    rate: number;
+  }> = [];
+
+  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const dayOfWeek = d.getUTCDay(); // 0=Sun..6=Sat
+
+    let dayExpected = 0;
+    let dayTaken = 0;
+
+    for (const reminder of reminders) {
+      // Check if this reminder was active on this day of week
+      const repeatDays: number[] | null = reminder.repeatDays as number[] | null;
+      if (repeatDays && repeatDays.length > 0 && !repeatDays.includes(dayOfWeek)) {
+        continue; // Not scheduled for this day
+      }
+
+      // Only count enabled reminders (or all if we want historical)
+      dayExpected++;
+
+      const medName = reminder.medicationName.trim().toLowerCase();
+      const recordedMeds = entryMap.get(dateStr);
+      const wasTaken = recordedMeds ? recordedMeds.has(medName) : false;
+
+      if (wasTaken) {
+        dayTaken++;
+      }
+
+      // Per-medication tracking
+      const existing = perMedMap.get(medName);
+      if (existing) {
+        existing.expected++;
+        if (wasTaken) existing.taken++;
+      } else {
+        perMedMap.set(medName, {
+          name: reminder.medicationName,
+          expected: 1,
+          taken: wasTaken ? 1 : 0,
+        });
+      }
+    }
+
+    if (dayExpected > 0) {
+      dailyData.push({
+        date: dateStr,
+        expected: dayExpected,
+        taken: dayTaken,
+        rate: Math.round((dayTaken / dayExpected) * 100),
+      });
+    }
+  }
+
+  // 4. Calculate overall rate
+  const totalExpected = dailyData.reduce((s, d) => s + d.expected, 0);
+  const totalTaken = dailyData.reduce((s, d) => s + d.taken, 0);
+  const overallRate = totalExpected > 0 ? Math.round((totalTaken / totalExpected) * 100) : 0;
+
+  // 5. Per-medication breakdown
+  const perMedication = Array.from(perMedMap.values()).map((m) => ({
+    name: m.name,
+    expected: m.expected,
+    taken: m.taken,
+    rate: m.expected > 0 ? Math.round((m.taken / m.expected) * 100) : 0,
+  }));
+
+  return { overallRate, perMedication, dailyData };
 }

@@ -5,6 +5,7 @@ import {
   removePushSubscriptionById,
   getMedicationRemindersToSend,
   markMedicationReminderNotified,
+  clearMedicationSnooze,
 } from "./db";
 import webpush from "web-push";
 import { ENV } from "./_core/env";
@@ -42,16 +43,32 @@ function getTodayStr(): string {
 }
 
 /**
- * Get current hour and minute in China timezone (UTC+8)
+ * Get current hour, minute, and day of week in China timezone (UTC+8)
  */
-function getChinaTime(): { hour: number; minute: number } {
+function getChinaTime(): { hour: number; minute: number; dayOfWeek: number } {
   const now = new Date();
   const offset = 8 * 60 * 60 * 1000;
   const chinaTime = new Date(now.getTime() + offset);
   return {
     hour: chinaTime.getUTCHours(),
     minute: chinaTime.getUTCMinutes(),
+    dayOfWeek: chinaTime.getUTCDay(), // 0=Sunday, 6=Saturday
   };
+}
+
+/**
+ * Get current China time as ISO-like string for snooze comparison "YYYY-MM-DDTHH:MM"
+ */
+function getChinaTimeStr(): string {
+  const now = new Date();
+  const offset = 8 * 60 * 60 * 1000;
+  const chinaTime = new Date(now.getTime() + offset);
+  const y = chinaTime.getUTCFullYear();
+  const mo = String(chinaTime.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(chinaTime.getUTCDate()).padStart(2, "0");
+  const h = String(chinaTime.getUTCHours()).padStart(2, "0");
+  const mi = String(chinaTime.getUTCMinutes()).padStart(2, "0");
+  return `${y}-${mo}-${d}T${h}:${mi}`;
 }
 
 /**
@@ -71,10 +88,44 @@ function isReminderTime(
 }
 
 /**
+ * Check if the current day of week is in the repeatDays array.
+ * If repeatDays is null/undefined/empty, treat as "every day".
+ */
+function isDayActive(repeatDays: number[] | null | undefined, currentDayOfWeek: number): boolean {
+  if (!repeatDays || repeatDays.length === 0) return true; // null = every day
+  return repeatDays.includes(currentDayOfWeek);
+}
+
+/**
+ * Calculate the effective reminder time after applying offset.
+ * Returns { hour, minute } clamped to 0-23:0-59.
+ */
+function applyOffset(
+  hour: number,
+  minute: number,
+  offsetMinutes: number
+): { hour: number; minute: number } {
+  let totalMinutes = hour * 60 + minute + offsetMinutes;
+  // Clamp to same day (0:00 - 23:59)
+  if (totalMinutes < 0) totalMinutes = 0;
+  if (totalMinutes > 23 * 60 + 59) totalMinutes = 23 * 60 + 59;
+  return {
+    hour: Math.floor(totalMinutes / 60),
+    minute: totalMinutes % 60,
+  };
+}
+
+/**
  * Send Web Push notification to all subscriptions of a user.
  * Returns true if at least one push was sent successfully.
  */
-async function sendWebPush(userId: number, title: string, body: string, tag?: string): Promise<boolean> {
+async function sendWebPush(
+  userId: number,
+  title: string,
+  body: string,
+  tag?: string,
+  actions?: Array<{ action: string; title: string }>
+): Promise<boolean> {
   const subscriptions = await getPushSubscriptionsByUserId(userId);
   if (subscriptions.length === 0) {
     console.log(`[Reminder] No push subscriptions for user ${userId}`);
@@ -90,6 +141,7 @@ async function sendWebPush(userId: number, title: string, body: string, tag?: st
     data: {
       url: "/",
     },
+    actions: actions || [],
   });
 
   let anySuccess = false;
@@ -124,18 +176,58 @@ async function sendWebPush(userId: number, title: string, body: string, tag?: st
 
 /**
  * Check and send medication reminders.
- * Each medication has its own schedule — different meds can fire at different times.
+ * Supports: repeat days (weekday filter), time offset, and snooze.
  */
 async function checkAndSendMedicationReminders() {
   try {
     const todayStr = getTodayStr();
-    const { hour, minute } = getChinaTime();
+    const { hour, minute, dayOfWeek } = getChinaTime();
+    const nowStr = getChinaTimeStr();
 
     const reminders = await getMedicationRemindersToSend(todayStr);
 
     for (const reminder of reminders) {
-      // Check if it's the right time for this medication
-      if (!isReminderTime(reminder.reminderHour, reminder.reminderMinute, hour, minute)) {
+      // --- Snooze check: if snoozed, check if snooze time has arrived ---
+      if (reminder.snoozedUntil) {
+        if (nowStr >= reminder.snoozedUntil) {
+          // Snooze time reached — send notification
+          console.log(
+            `[MedReminder] Snooze expired for ${reminder.medicationName}, sending now`
+          );
+          try {
+            const sent = await sendWebPush(
+              reminder.userId,
+              `💊 用药提醒（稍后提醒）：${reminder.medicationName}`,
+              `请服用 ${reminder.medicationName} ${reminder.dosage}`,
+              `med-reminder-${reminder.id}`,
+              [{ action: "snooze", title: "再等15分钟" }]
+            );
+            if (sent) {
+              await markMedicationReminderNotified(reminder.id, todayStr);
+              await clearMedicationSnooze(reminder.id);
+              console.log(`[MedReminder] Snoozed reminder sent for ${reminder.medicationName}`);
+            }
+          } catch (error) {
+            console.error(`[MedReminder] Error sending snoozed reminder:`, error);
+          }
+        }
+        // Whether or not snooze time arrived, skip normal flow for snoozed reminders
+        continue;
+      }
+
+      // --- Day of week check ---
+      if (!isDayActive(reminder.repeatDays, dayOfWeek)) {
+        continue;
+      }
+
+      // --- Time check with offset ---
+      const effective = applyOffset(
+        reminder.reminderHour,
+        reminder.reminderMinute,
+        reminder.offsetMinutes ?? 0
+      );
+
+      if (!isReminderTime(effective.hour, effective.minute, hour, minute)) {
         continue;
       }
 
@@ -148,7 +240,8 @@ async function checkAndSendMedicationReminders() {
           reminder.userId,
           `💊 用药提醒：${reminder.medicationName}`,
           `请服用 ${reminder.medicationName} ${reminder.dosage}`,
-          `med-reminder-${reminder.id}`
+          `med-reminder-${reminder.id}`,
+          [{ action: "snooze", title: "再等15分钟" }]
         );
 
         if (sent) {
@@ -258,4 +351,15 @@ export function stopReminderScheduler() {
 }
 
 // Export for testing
-export { checkAndSendReminders, checkAndSendMedicationReminders, isReminderTime, getTodayStr, getChinaTime, sendWebPush, configureWebPush };
+export {
+  checkAndSendReminders,
+  checkAndSendMedicationReminders,
+  isReminderTime,
+  isDayActive,
+  applyOffset,
+  getTodayStr,
+  getChinaTime,
+  getChinaTimeStr,
+  sendWebPush,
+  configureWebPush,
+};

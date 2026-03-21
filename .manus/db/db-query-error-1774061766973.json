@@ -1,0 +1,8 @@
+{
+  "query": "ALTER TABLE medication_reminders ADD COLUMN repeatDays json DEFAULT ('[0,1,2,3,4,5,6]') NOT NULL; ALTER TABLE medication_reminders ADD COLUMN offsetMinutes int DEFAULT 0 NOT NULL; ALTER TABLE medication_reminders ADD COLUMN snoozedUntil varchar(20);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute ALTER TABLE medication_reminders ADD COLUMN repeatDays json DEFAULT ('[0,1,2,3,4,5,6]') NOT NULL; ALTER TABLE medication_reminders ADD COLUMN offsetMinutes int DEFAULT 0 NOT NULL; ALTER TABLE medication_reminders ADD COLUMN snoozedUntil varchar(20);",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your TiDB version for the right syntax to use line 1 column 86 near \"'[0,1,2,3,4,5,6]') NOT NULL\""
+  ]
+}

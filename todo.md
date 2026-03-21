@@ -173,3 +173,23 @@
 - [x] 前端：MedicationReminders组件（添加/编辑/删除/启用切换+药品名自动补全+按时间分组）
 - [x] 前端：集成到提醒设置面板（铃铛图标）
 - [x] 测试验证（164个测试全部通过，含15个用药提醒测试）
+
+## 用药提醒重复规则
+- [x] 数据库：medication_reminders表添加repeatDays字段（JSON数组，存储周几0-6）
+- [x] 后端：调度器检查当前星期几是否在repeatDays中（isDayActive函数）
+- [x] 前端：添加周几选择器（支持"每天"/"工作日"/"周末"快捷按钮和单独选择）
+- [x] 测试验证（199个测试全部通过，含35个新增测试）
+
+## 用药依从性统计
+- [x] 后端：新增依从性分析API（getMedicationAdherence，对比提醒记录和实际用药记录）
+- [x] 后端：计算总体依从率、各药品依从率、每日服药情况
+- [x] 前端：统计页面新增"依从"tab（MedicationAdherence组件，环形图+进度条+柱状图）
+- [x] 测试验证
+
+## 提醒时间微调
+- [x] 数据库：medication_reminders表添加offsetMinutes和snoozedUntil字段
+- [x] 后端：调度器计算实际提醒时间 = 设定时间 + offset（applyOffset函数）
+- [x] 后端：稍后提醒API（snoozeMedicationReminder，推迟15分钟再次推送）
+- [x] 前端：提醒编辑界面添加"提前/延后"选项（-60到+60分钟）
+- [x] 前端：推送通知添加"稍后提醒"交互按钮
+- [x] 测试验证

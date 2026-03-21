@@ -13,13 +13,31 @@ import {
   Check,
   X,
   Bell,
+  CalendarDays,
+  Timer,
 } from "lucide-react";
+
+const DAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const WEEKDAYS = [1, 2, 3, 4, 5];
+
+const OFFSET_OPTIONS = [
+  { value: -60, label: "提前60分钟" },
+  { value: -30, label: "提前30分钟" },
+  { value: -15, label: "提前15分钟" },
+  { value: 0, label: "准时" },
+  { value: 15, label: "延后15分钟" },
+  { value: 30, label: "延后30分钟" },
+  { value: 60, label: "延后60分钟" },
+];
 
 interface ReminderForm {
   medicationName: string;
   dosage: string;
   reminderHour: number;
   reminderMinute: number;
+  repeatDays: number[];
+  offsetMinutes: number;
 }
 
 const EMPTY_FORM: ReminderForm = {
@@ -27,7 +45,132 @@ const EMPTY_FORM: ReminderForm = {
   dosage: "",
   reminderHour: 8,
   reminderMinute: 0,
+  repeatDays: [...ALL_DAYS],
+  offsetMinutes: 0,
 };
+
+function DaySelector({
+  selected,
+  onChange,
+}: {
+  selected: number[];
+  onChange: (days: number[]) => void;
+}) {
+  const isAllDays =
+    selected.length === 7 && ALL_DAYS.every((d) => selected.includes(d));
+  const isWeekdays =
+    selected.length === 5 && WEEKDAYS.every((d) => selected.includes(d));
+
+  const toggleDay = (day: number) => {
+    if (selected.includes(day)) {
+      const next = selected.filter((d) => d !== day);
+      if (next.length === 0) return; // Must have at least one day
+      onChange(next);
+    } else {
+      onChange([...selected, day].sort());
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <CalendarDays className="w-4 h-4 text-muted-foreground" />
+        <span className="text-sm font-medium text-foreground">重复日</span>
+      </div>
+      <div className="flex gap-1.5 flex-wrap">
+        <button
+          type="button"
+          onClick={() => onChange([...ALL_DAYS])}
+          className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+            isAllDays
+              ? "bg-terracotta text-white border-terracotta"
+              : "border-border text-muted-foreground hover:border-terracotta/50"
+          }`}
+        >
+          每天
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange([...WEEKDAYS])}
+          className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+            isWeekdays && !isAllDays
+              ? "bg-terracotta text-white border-terracotta"
+              : "border-border text-muted-foreground hover:border-terracotta/50"
+          }`}
+        >
+          工作日
+        </button>
+      </div>
+      <div className="flex gap-1">
+        {ALL_DAYS.map((day) => (
+          <button
+            key={day}
+            type="button"
+            onClick={() => toggleDay(day)}
+            className={`w-8 h-8 rounded-full text-xs font-medium transition-colors ${
+              selected.includes(day)
+                ? "bg-terracotta/90 text-white"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            {DAY_LABELS[day]}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OffsetSelector({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Timer className="w-4 h-4 text-muted-foreground" />
+        <span className="text-sm font-medium text-foreground">提醒偏移</span>
+      </div>
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="bg-transparent border border-border rounded-md px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-terracotta"
+      >
+        {OFFSET_OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function formatRepeatDays(days: number[] | null): string {
+  if (!days || days.length === 0 || days.length === 7) return "每天";
+  const sorted = [...days].sort();
+  if (
+    sorted.length === 5 &&
+    WEEKDAYS.every((d) => sorted.includes(d))
+  )
+    return "工作日";
+  if (
+    sorted.length === 2 &&
+    sorted.includes(0) &&
+    sorted.includes(6)
+  )
+    return "周末";
+  return sorted.map((d) => `周${DAY_LABELS[d]}`).join("、");
+}
+
+function formatOffset(offset: number): string {
+  if (offset === 0) return "";
+  if (offset < 0) return `提前${Math.abs(offset)}分钟`;
+  return `延后${offset}分钟`;
+}
 
 export default function MedicationReminders() {
   const [showAdd, setShowAdd] = useState(false);
@@ -36,8 +179,10 @@ export default function MedicationReminders() {
   const [editForm, setEditForm] = useState<ReminderForm>({ ...EMPTY_FORM });
 
   const utils = trpc.useUtils();
-  const { data: reminders = [], isLoading } = trpc.medReminders.list.useQuery(undefined);
-  const { data: medHistory = [] } = trpc.medications.history.useQuery(undefined);
+  const { data: reminders = [], isLoading } =
+    trpc.medReminders.list.useQuery(undefined);
+  const { data: medHistory = [] } =
+    trpc.medications.history.useQuery(undefined);
 
   const addMutation = trpc.medReminders.add.useMutation({
     onSuccess: () => {
@@ -72,6 +217,14 @@ export default function MedicationReminders() {
     },
   });
 
+  const snoozeMutation = trpc.medReminders.snooze.useMutation({
+    onSuccess: () => {
+      utils.medReminders.list.invalidate();
+      toast.success("已设置15分钟后再次提醒");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   // Medication name suggestions from history
   const medSuggestions = useMemo(() => {
     return medHistory
@@ -84,7 +237,14 @@ export default function MedicationReminders() {
       toast.error("请填写药品名称和剂量");
       return;
     }
-    addMutation.mutate(form);
+    addMutation.mutate({
+      medicationName: form.medicationName,
+      dosage: form.dosage,
+      reminderHour: form.reminderHour,
+      reminderMinute: form.reminderMinute,
+      repeatDays: form.repeatDays,
+      offsetMinutes: form.offsetMinutes,
+    });
   };
 
   const handleUpdate = () => {
@@ -93,7 +253,15 @@ export default function MedicationReminders() {
       return;
     }
     if (editingId === null) return;
-    updateMutation.mutate({ id: editingId, ...editForm });
+    updateMutation.mutate({
+      id: editingId,
+      medicationName: editForm.medicationName,
+      dosage: editForm.dosage,
+      reminderHour: editForm.reminderHour,
+      reminderMinute: editForm.reminderMinute,
+      repeatDays: editForm.repeatDays,
+      offsetMinutes: editForm.offsetMinutes,
+    });
   };
 
   const startEdit = (reminder: any) => {
@@ -103,6 +271,8 @@ export default function MedicationReminders() {
       dosage: reminder.dosage,
       reminderHour: reminder.reminderHour,
       reminderMinute: reminder.reminderMinute,
+      repeatDays: reminder.repeatDays ?? [...ALL_DAYS],
+      offsetMinutes: reminder.offsetMinutes ?? 0,
     });
   };
 
@@ -144,12 +314,90 @@ export default function MedicationReminders() {
     </div>
   );
 
+  const ReminderFormFields = ({
+    formData,
+    setFormData,
+    onSubmit,
+    submitLabel,
+    isPending,
+    onCancel,
+  }: {
+    formData: ReminderForm;
+    setFormData: (f: ReminderForm) => void;
+    onSubmit: () => void;
+    submitLabel: string;
+    isPending: boolean;
+    onCancel: () => void;
+  }) => (
+    <div className="bg-card border border-border/50 rounded-xl p-4 space-y-3">
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-foreground">药品名称</label>
+        <Input
+          value={formData.medicationName}
+          onChange={(e) =>
+            setFormData({ ...formData, medicationName: e.target.value })
+          }
+          placeholder="输入药品名称"
+          list="med-suggestions-form"
+        />
+        <datalist id="med-suggestions-form">
+          {medSuggestions.map((name: string, i: number) => (
+            <option key={i} value={name} />
+          ))}
+        </datalist>
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-foreground">剂量</label>
+        <Input
+          value={formData.dosage}
+          onChange={(e) =>
+            setFormData({ ...formData, dosage: e.target.value })
+          }
+          placeholder="如：10mg、1片、2粒"
+        />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-foreground">提醒时间</label>
+        <TimeInput
+          hour={formData.reminderHour}
+          minute={formData.reminderMinute}
+          onChange={(h, m) =>
+            setFormData({ ...formData, reminderHour: h, reminderMinute: m })
+          }
+        />
+      </div>
+      <DaySelector
+        selected={formData.repeatDays}
+        onChange={(days) => setFormData({ ...formData, repeatDays: days })}
+      />
+      <OffsetSelector
+        value={formData.offsetMinutes}
+        onChange={(v) => setFormData({ ...formData, offsetMinutes: v })}
+      />
+      <div className="flex gap-2 pt-1">
+        <Button
+          size="sm"
+          onClick={onSubmit}
+          disabled={isPending}
+          className="bg-terracotta hover:bg-terracotta/90 text-white"
+        >
+          {isPending ? "处理中..." : submitLabel}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onCancel}>
+          取消
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Pill className="w-5 h-5 text-terracotta" />
-          <h3 className="font-serif font-semibold text-foreground">用药提醒</h3>
+          <h3 className="font-serif font-semibold text-foreground">
+            用药提醒
+          </h3>
         </div>
         <Button
           variant="outline"
@@ -163,67 +411,22 @@ export default function MedicationReminders() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        为每种药品设置独立的提醒时间和剂量，到时间自动推送通知。
+        为每种药品设置独立的提醒时间、剂量和重复日，到时间自动推送通知。支持提前/延后提醒和稍后提醒。
       </p>
 
       {/* Add form */}
       {showAdd && (
-        <div className="bg-card border border-border/50 rounded-xl p-4 space-y-3">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">药品名称</label>
-            <Input
-              value={form.medicationName}
-              onChange={(e) =>
-                setForm({ ...form, medicationName: e.target.value })
-              }
-              placeholder="输入药品名称"
-              list="med-suggestions-add"
-            />
-            <datalist id="med-suggestions-add">
-              {medSuggestions.map((name: string, i: number) => (
-                <option key={i} value={name} />
-              ))}
-            </datalist>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">剂量</label>
-            <Input
-              value={form.dosage}
-              onChange={(e) => setForm({ ...form, dosage: e.target.value })}
-              placeholder="如：10mg、1片、2粒"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">提醒时间</label>
-            <TimeInput
-              hour={form.reminderHour}
-              minute={form.reminderMinute}
-              onChange={(h, m) =>
-                setForm({ ...form, reminderHour: h, reminderMinute: m })
-              }
-            />
-          </div>
-          <div className="flex gap-2 pt-1">
-            <Button
-              size="sm"
-              onClick={handleAdd}
-              disabled={addMutation.isPending}
-              className="bg-terracotta hover:bg-terracotta/90 text-white"
-            >
-              {addMutation.isPending ? "添加中..." : "确认添加"}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setShowAdd(false);
-                setForm({ ...EMPTY_FORM });
-              }}
-            >
-              取消
-            </Button>
-          </div>
-        </div>
+        <ReminderFormFields
+          formData={form}
+          setFormData={setForm}
+          onSubmit={handleAdd}
+          submitLabel="确认添加"
+          isPending={addMutation.isPending}
+          onCancel={() => {
+            setShowAdd(false);
+            setForm({ ...EMPTY_FORM });
+          }}
+        />
       )}
 
       {/* Reminders list grouped by time */}
@@ -256,109 +459,87 @@ export default function MedicationReminders() {
                 >
                   {editingId === reminder.id ? (
                     /* Edit mode */
-                    <div className="space-y-3">
-                      <Input
-                        value={editForm.medicationName}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            medicationName: e.target.value,
-                          })
-                        }
-                        placeholder="药品名称"
-                        list="med-suggestions-edit"
-                      />
-                      <datalist id="med-suggestions-edit">
-                        {medSuggestions.map((name: string, i: number) => (
-                          <option key={i} value={name} />
-                        ))}
-                      </datalist>
-                      <div className="flex gap-2">
-                        <Input
-                          value={editForm.dosage}
-                          onChange={(e) =>
-                            setEditForm({ ...editForm, dosage: e.target.value })
-                          }
-                          placeholder="剂量"
-                          className="flex-1"
-                        />
-                        <TimeInput
-                          hour={editForm.reminderHour}
-                          minute={editForm.reminderMinute}
-                          onChange={(h, m) =>
-                            setEditForm({
-                              ...editForm,
-                              reminderHour: h,
-                              reminderMinute: m,
-                            })
-                          }
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={handleUpdate}
-                          disabled={updateMutation.isPending}
-                          className="gap-1 bg-terracotta hover:bg-terracotta/90 text-white"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          保存
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingId(null)}
-                          className="gap-1"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          取消
-                        </Button>
-                      </div>
-                    </div>
+                    <ReminderFormFields
+                      formData={editForm}
+                      setFormData={setEditForm}
+                      onSubmit={handleUpdate}
+                      submitLabel="保存"
+                      isPending={updateMutation.isPending}
+                      onCancel={() => setEditingId(null)}
+                    />
                   ) : (
                     /* View mode */
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Pill className="w-4 h-4 text-terracotta shrink-0" />
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground text-sm truncate">
-                            {reminder.medicationName}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {reminder.dosage}
-                          </p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Pill className="w-4 h-4 text-terracotta shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-medium text-foreground text-sm truncate">
+                              {reminder.medicationName}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {reminder.dosage}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Switch
+                            checked={reminder.enabled === 1}
+                            onCheckedChange={(checked) =>
+                              toggleMutation.mutate({
+                                id: reminder.id,
+                                enabled: checked ? 1 : 0,
+                              })
+                            }
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => startEdit(reminder)}
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => {
+                              if (confirm("确定删除此用药提醒？")) {
+                                deleteMutation.mutate({ id: reminder.id });
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Switch
-                          checked={reminder.enabled === 1}
-                          onCheckedChange={(checked) =>
-                            toggleMutation.mutate({
-                              id: reminder.id,
-                              enabled: checked ? 1 : 0,
-                            })
-                          }
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => startEdit(reminder)}
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => {
-                            if (confirm("确定删除此用药提醒？")) {
-                              deleteMutation.mutate({ id: reminder.id });
+                      {/* Tags row: repeat days + offset + snooze */}
+                      <div className="flex items-center gap-2 flex-wrap pl-7">
+                        <span className="text-xs bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full">
+                          {formatRepeatDays(reminder.repeatDays)}
+                        </span>
+                        {(reminder.offsetMinutes ?? 0) !== 0 && (
+                          <span className="text-xs bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full">
+                            {formatOffset(reminder.offsetMinutes)}
+                          </span>
+                        )}
+                        {reminder.snoozedUntil && (
+                          <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full">
+                            已暂停至 {reminder.snoozedUntil.slice(11)}
+                          </span>
+                        )}
+                        {reminder.enabled === 1 && !reminder.snoozedUntil && (
+                          <button
+                            onClick={() =>
+                              snoozeMutation.mutate({ id: reminder.id })
                             }
-                          }}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                            className="text-xs text-muted-foreground hover:text-terracotta transition-colors"
+                            title="推迟15分钟提醒"
+                          >
+                            稍后提醒
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}

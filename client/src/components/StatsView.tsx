@@ -14,14 +14,15 @@ import SymptomSummary from "@/components/SymptomSummary";
 import MedicationChart from "@/components/MedicationChart";
 import TriggerBubbleChart from "@/components/TriggerBubbleChart";
 import AIAnalysis from "@/components/AIAnalysis";
+import MedicationAdherence from "@/components/MedicationAdherence";
 import { motion } from "framer-motion";
-import { Calendar, TrendingDown, TrendingUp, Minus, BarChart3, Flame, Sparkles } from "lucide-react";
+import { Calendar, TrendingDown, TrendingUp, Minus, BarChart3, Flame, Sparkles, Pill } from "lucide-react";
 
 interface StatsViewProps {
   entries: SymptomEntry[];
 }
 
-type StatsTab = "trends" | "triggers" | "ai";
+type StatsTab = "trends" | "triggers" | "adherence" | "ai";
 
 const RANGES = [
   { key: "7d", label: "7天", days: 7 },
@@ -171,6 +172,17 @@ export default function StatsView({ entries }: StatsViewProps) {
           诱因
         </button>
         <button
+          onClick={() => setStatsTab("adherence")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
+            statsTab === "adherence"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Pill className="w-4 h-4" />
+          依从
+        </button>
+        <button
           onClick={() => setStatsTab("ai")}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
             statsTab === "ai"
@@ -185,6 +197,8 @@ export default function StatsView({ entries }: StatsViewProps) {
 
       {statsTab === "ai" ? (
         <AIAnalysis entryCount={entries.length} />
+      ) : statsTab === "adherence" ? (
+        <MedicationAdherence />
       ) : statsTab === "triggers" ? (
         <>
           <TriggerBubbleChart entries={filteredEntries} />

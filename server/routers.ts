@@ -38,6 +38,8 @@ import {
   addMedicationReminder,
   updateMedicationReminder,
   deleteMedicationReminder,
+  snoozeMedicationReminder,
+  getMedicationAdherence,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -426,6 +428,8 @@ export const appRouter = router({
           dosage: z.string().min(1).max(100),
           reminderHour: z.number().min(0).max(23),
           reminderMinute: z.number().min(0).max(59),
+          repeatDays: z.array(z.number().min(0).max(6)).optional(),
+          offsetMinutes: z.number().min(-120).max(120).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -442,6 +446,8 @@ export const appRouter = router({
           reminderHour: z.number().min(0).max(23).optional(),
           reminderMinute: z.number().min(0).max(59).optional(),
           enabled: z.number().min(0).max(1).optional(),
+          repeatDays: z.array(z.number().min(0).max(6)).optional(),
+          offsetMinutes: z.number().min(-120).max(120).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -450,12 +456,42 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    /** Snooze a medication reminder for 15 minutes */
+    snooze: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        // Calculate snooze time: now + 15 minutes in China timezone
+        const now = new Date();
+        const offset = 8 * 60 * 60 * 1000;
+        const chinaTime = new Date(now.getTime() + offset + 15 * 60 * 1000);
+        const y = chinaTime.getUTCFullYear();
+        const mo = String(chinaTime.getUTCMonth() + 1).padStart(2, "0");
+        const d = String(chinaTime.getUTCDate()).padStart(2, "0");
+        const h = String(chinaTime.getUTCHours()).padStart(2, "0");
+        const mi = String(chinaTime.getUTCMinutes()).padStart(2, "0");
+        const snoozeUntil = `${y}-${mo}-${d}T${h}:${mi}`;
+        await snoozeMedicationReminder(input.id, ctx.user.id, snoozeUntil);
+        return { success: true, snoozeUntil };
+      }),
+
     /** Delete a medication reminder */
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
         await deleteMedicationReminder(input.id, ctx.user.id);
         return { success: true };
+      }),
+
+    /** Get medication adherence statistics */
+    adherence: protectedProcedure
+      .input(
+        z.object({
+          startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        return getMedicationAdherence(ctx.user.id, input.startDate, input.endDate);
       }),
   }),
 

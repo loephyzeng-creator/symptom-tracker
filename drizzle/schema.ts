@@ -174,6 +174,9 @@ export const medicationReminders = mysqlTable("medication_reminders", {
   reminderHour: int("reminderHour").notNull(), // 0-23
   reminderMinute: int("reminderMinute").notNull(), // 0-59
   enabled: int("enabled").default(1).notNull(), // 1 = on, 0 = off
+  repeatDays: json("repeatDays").$type<number[]>(), // 0=Sun..6=Sat, null means every day
+  offsetMinutes: int("offsetMinutes").default(0).notNull(), // negative=before, positive=after
+  snoozedUntil: varchar("snoozedUntil", { length: 20 }), // ISO datetime for snooze, e.g. "2026-03-21T08:15"
   lastNotifiedDate: varchar("lastNotifiedDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
