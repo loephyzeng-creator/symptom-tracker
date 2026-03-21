@@ -44,8 +44,9 @@ describe("Headache Attack Level + Painkiller Feature", () => {
       expect(routerContent).toContain("painkillerUsage: protectedProcedure");
     });
 
-    it("should return days and limit", () => {
-      expect(routerContent).toContain("days: count, limit: 10");
+    it("should return days and dynamic limit", () => {
+      expect(routerContent).toContain("days: count, limit");
+      expect(routerContent).toContain("getPainkillerDayLimit");
     });
 
     it("should import getPainkillerUsageLast30Days", () => {
@@ -241,6 +242,51 @@ describe("Headache Attack Level + Painkiller Feature", () => {
     it("should warn when painkiller usage exceeds 10 days", () => {
       expect(summaryContent).toContain("painkillerDays >= 10");
       expect(summaryContent).toContain("建议咨询医生");
+    });
+  });
+
+  describe("Configurable Painkiller Threshold", () => {
+    it("should have painkillerDayLimit column in schema", () => {
+      expect(schemaContent).toContain("painkillerDayLimit");
+    });
+
+    it("should have getPainkillerDayLimit function in db.ts", () => {
+      expect(dbContent).toContain("export async function getPainkillerDayLimit");
+    });
+
+    it("should have updatePainkillerDayLimit function in db.ts", () => {
+      expect(dbContent).toContain("export async function updatePainkillerDayLimit");
+    });
+
+    it("should have updatePainkillerLimit endpoint in router", () => {
+      expect(routerContent).toContain("updatePainkillerLimit: protectedProcedure");
+    });
+
+    it("should validate limit range 1-30", () => {
+      expect(routerContent).toContain("z.number().min(1).max(30)");
+    });
+
+    it("should use dynamic limit from getPainkillerDayLimit in painkillerUsage", () => {
+      expect(routerContent).toContain("const limit = await getPainkillerDayLimit");
+    });
+
+    it("should have PainkillerLimitSetting component", () => {
+      const componentPath = path.resolve(__dirname, "../client/src/components/PainkillerLimitSetting.tsx");
+      const componentContent = fs.readFileSync(componentPath, "utf-8");
+      expect(componentContent).toContain("painkillerDayLimit");
+      expect(componentContent).toContain("updatePainkillerLimit");
+      expect(componentContent).toContain("止疼药阈值已更新");
+    });
+
+    it("should include PainkillerLimitSetting in settings page", () => {
+      const homePath = path.resolve(__dirname, "../client/src/pages/Home.tsx");
+      const homeContent = fs.readFileSync(homePath, "utf-8");
+      expect(homeContent).toContain("PainkillerLimitSetting");
+      expect(homeContent).toContain("止疼药用量控制");
+    });
+
+    it("should include painkillerDayLimit in getSettings default", () => {
+      expect(routerContent).toContain("painkillerDayLimit: 10");
     });
   });
 });

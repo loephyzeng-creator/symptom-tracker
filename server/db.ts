@@ -327,6 +327,42 @@ export async function upsertNotificationSettings(
 }
 
 /**
+ * Get the painkiller day limit for a user (from notification_settings).
+ * Returns the configured limit or 10 as default.
+ */
+export async function getPainkillerDayLimit(userId: number): Promise<number> {
+  const settings = await getNotificationSettings(userId);
+  return settings?.painkillerDayLimit ?? 10;
+}
+
+/**
+ * Update the painkiller day limit for a user.
+ */
+export async function updatePainkillerDayLimit(
+  userId: number,
+  limit: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await getNotificationSettings(userId);
+  if (existing) {
+    await db
+      .update(notificationSettings)
+      .set({ painkillerDayLimit: limit })
+      .where(eq(notificationSettings.userId, userId));
+  } else {
+    await db.insert(notificationSettings).values({
+      userId,
+      enabled: 1,
+      reminderHour: 21,
+      reminderMinute: 0,
+      painkillerDayLimit: limit,
+    });
+  }
+}
+
+/**
  * Get all users who have notifications enabled and haven't been notified today.
  * Also checks if they have an entry for today.
  */

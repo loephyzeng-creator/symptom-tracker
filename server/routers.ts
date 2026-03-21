@@ -66,6 +66,8 @@ import {
   checkDrugInteractionsForMed,
   getMedCompletionByDates,
   getPainkillerUsageLast30Days,
+  getPainkillerDayLimit,
+  updatePainkillerDayLimit,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -148,7 +150,8 @@ export const appRouter = router({
       .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
       .query(async ({ ctx, input }) => {
         const count = await getPainkillerUsageLast30Days(ctx.user.id, input.date);
-        return { days: count, limit: 10 };
+        const limit = await getPainkillerDayLimit(ctx.user.id);
+        return { days: count, limit };
       }),
 
     /** Delete an entry by id */
@@ -192,10 +195,19 @@ export const appRouter = router({
           enabled: 1,
           reminderHour: 21,
           reminderMinute: 0,
+          painkillerDayLimit: 10,
         }),
         hasPushSubscription: subs.length > 0,
       };
     }),
+
+    /** Update painkiller day limit */
+    updatePainkillerLimit: protectedProcedure
+      .input(z.object({ limit: z.number().min(1).max(30) }))
+      .mutation(async ({ ctx, input }) => {
+        await updatePainkillerDayLimit(ctx.user.id, input.limit);
+        return { success: true, limit: input.limit };
+      }),
 
     /** Update notification settings */
     updateSettings: protectedProcedure

@@ -28,6 +28,7 @@ import MedicationView from "@/components/MedicationView";
 import BackupRestore from "@/components/BackupRestore";
 import SyncStatus from "@/components/SyncStatus";
 import CustomMetricsManager from "@/components/CustomMetricsManager";
+import PainkillerLimitSetting from "@/components/PainkillerLimitSetting";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2,
@@ -256,6 +257,10 @@ function SettingsView({
 
       <SettingsSection title="异常预警" icon={Bell} defaultOpen={false}>
         <AlertSettings />
+      </SettingsSection>
+
+      <SettingsSection title="止疼药用量控制" icon={Pill} defaultOpen={false}>
+        <PainkillerLimitSetting />
       </SettingsSection>
 
       {/* Data Management */}

@@ -127,6 +127,13 @@
       "when": 1774098789097,
       "tag": "0017_demonic_multiple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1774100291687,
+      "tag": "0018_stormy_aaron_stack",
+      "breakpoints": true
     }
   ]
 }

@@ -70,6 +70,7 @@ export const notificationSettings = mysqlTable("notification_settings", {
   reminderHour: int("reminderHour").default(21).notNull(), // 0-23, default 9pm
   reminderMinute: int("reminderMinute").default(0).notNull(), // 0-59
   lastNotifiedDate: varchar("lastNotifiedDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate notifications
+  painkillerDayLimit: int("painkillerDayLimit").default(10).notNull(), // max painkiller days in 30-day window
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

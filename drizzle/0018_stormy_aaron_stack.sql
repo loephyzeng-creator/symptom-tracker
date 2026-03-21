@@ -1,0 +1,1 @@
+ALTER TABLE `notification_settings` ADD `painkillerDayLimit` int DEFAULT 10 NOT NULL;
