@@ -171,24 +171,24 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
             <span className="hidden sm:inline"> 条记录</span>
             <span className="sm:hidden"> 条</span>
           </span>
-          <div className="flex bg-muted rounded-lg p-0.5">
+          <div className="flex gap-1 bg-muted rounded-lg p-1">
             <button
               onClick={() => setViewMode("list")}
-              className={`p-1 rounded-md transition-colors ${viewMode === "list" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               title="列表视图"
             >
               <List className="w-4 h-4" />
             </button>
             <button
               onClick={() => setViewMode("calendar")}
-              className={`p-1 rounded-md transition-colors ${viewMode === "calendar" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === "calendar" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               title="日历视图"
             >
               <CalendarDays className="w-4 h-4" />
             </button>
             <button
               onClick={() => setViewMode("medication")}
-              className={`p-1 rounded-md transition-colors ${viewMode === "medication" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === "medication" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               title="用药时间线"
             >
               <Pill className="w-4 h-4" />
