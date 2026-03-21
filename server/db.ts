@@ -1008,6 +1008,8 @@ export async function addMedicationReminder(
     expirationDate?: string | null;
     expirationAlertDays?: number;
     groupId?: number | null;
+    intervalHours?: number | null;
+    startDate?: string | null;
   }
 ) {
   const db = await getDb();
@@ -1031,6 +1033,8 @@ export async function addMedicationReminder(
     expirationDate: data.expirationDate ?? null,
     expirationAlertDays: data.expirationAlertDays ?? 30,
     groupId: data.groupId ?? null,
+    intervalHours: data.intervalHours ?? null,
+    startDate: data.startDate ?? null,
     enabled: 1,
   });
   return { id: result.insertId };
@@ -1058,6 +1062,8 @@ export async function updateMedicationReminder(
     expirationDate: string | null;
     expirationAlertDays: number;
     groupId: number | null;
+    intervalHours: number | null;
+    startDate: string | null;
   }>
 ) {
   const db = await getDb();
@@ -1098,6 +1104,7 @@ export async function getMedicationRemindersToSend(todayStr: string) {
       offsetMinutes: medicationReminders.offsetMinutes,
       snoozedUntil: medicationReminders.snoozedUntil,
       lastNotifiedDate: medicationReminders.lastNotifiedDate,
+      startDate: medicationReminders.startDate,
     })
     .from(medicationReminders)
     .where(
@@ -1203,17 +1210,15 @@ export async function getMissedMedicationAlerts(
   for (const reminder of reminders) {
     let consecutiveMissed = 0;
     const medName = reminder.medicationName.trim().toLowerCase();
-    const repeatDays: number[] | null = reminder.repeatDays as number[] | null;
 
     // Check backwards from yesterday (today might not be recorded yet)
     for (let i = 1; i <= 14; i++) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().slice(0, 10);
-      const dayOfWeek = d.getDay();
 
-      // Skip days not in repeat schedule
-      if (repeatDays && repeatDays.length > 0 && !repeatDays.includes(dayOfWeek)) {
+      // Skip days not scheduled (repeatDays + startDate)
+      if (!isReminderScheduledOnDate(reminder, dateStr)) {
         continue;
       }
 
@@ -1310,9 +1315,8 @@ export async function getMedicationAdherence(
     let dayTaken = 0;
 
     for (const reminder of reminders) {
-      // Check if this reminder was active on this day of week
-      const repeatDays: number[] | null = reminder.repeatDays as number[] | null;
-      if (repeatDays && repeatDays.length > 0 && !repeatDays.includes(dayOfWeek)) {
+      // Check if this reminder was scheduled on this date (repeatDays + startDate)
+      if (!isReminderScheduledOnDate(reminder, dateStr)) {
         continue; // Not scheduled for this day
       }
 
@@ -1533,8 +1537,7 @@ export async function getTodayMedications(userId: number, dateStr: string) {
   }> = [];
 
   for (const r of reminders) {
-    const days = r.repeatDays;
-    if (days && Array.isArray(days) && days.length > 0 && !days.includes(dayOfWeek)) continue;
+    if (!isReminderScheduledOnDate(r, dateStr)) continue;
 
     // Build the list of all time points for this reminder
     const allTimes = getAllReminderTimes(r);
@@ -1578,6 +1581,29 @@ export function getAllReminderTimes(reminder: { reminderHour: number; reminderMi
     return [...reminder.reminderTimes].sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute));
   }
   return [{ hour: reminder.reminderHour, minute: reminder.reminderMinute }];
+}
+
+/**
+ * Check if a medication reminder is scheduled on a given date.
+ * Considers both repeatDays (day of week) and startDate (medication start date).
+ * Returns false if the date is before the reminder's startDate or not in repeatDays.
+ */
+export function isReminderScheduledOnDate(
+  reminder: { repeatDays?: number[] | null; startDate?: string | null },
+  dateStr: string
+): boolean {
+  // Check startDate: if the date is before the start date, not scheduled
+  if (reminder.startDate && dateStr < reminder.startDate) {
+    return false;
+  }
+  // Check repeatDays
+  const dayDate = new Date(dateStr + "T00:00:00");
+  const dayOfWeek = dayDate.getDay();
+  const days = reminder.repeatDays;
+  if (days && Array.isArray(days) && days.length > 0 && !days.includes(dayOfWeek)) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -1830,12 +1856,8 @@ export async function getMedicationTimeline(
     const recordedMeds = entryMap.get(dateStr);
 
     const dayMeds = reminders.map((reminder) => {
-      // Check if scheduled for this day
-      const repeatDays: number[] | null = reminder.repeatDays as number[] | null;
-      const isScheduled =
-        !repeatDays || repeatDays.length === 0 || repeatDays.includes(dayOfWeek);
-
-      if (!isScheduled) {
+      // Check if scheduled for this day (repeatDays + startDate)
+      if (!isReminderScheduledOnDate(reminder, dateStr)) {
         return {
           name: reminder.medicationName,
           status: "not-scheduled" as const,
@@ -1934,13 +1956,10 @@ export async function getMedicationCheckInCalendar(
       continue;
     }
 
-    // Count scheduled medications for this day
+    // Count scheduled medications for this day (considering repeatDays + startDate)
     const scheduledReminders: { id: number; name: string }[] = [];
     for (const reminder of reminders) {
-      const repeatDays: number[] | null = reminder.repeatDays as number[] | null;
-      const isScheduled =
-        !repeatDays || repeatDays.length === 0 || repeatDays.includes(dayOfWeek);
-      if (isScheduled) {
+      if (isReminderScheduledOnDate(reminder, dateStr)) {
         scheduledReminders.push({ id: reminder.id, name: reminder.medicationName });
       }
     }
@@ -2141,12 +2160,10 @@ export async function getMedicationCheckInDayDetail(
       )
     );
 
-  // Find scheduled medications for this day
+  // Find scheduled medications for this day (considering repeatDays + startDate)
   const scheduled: { name: string; dosage: string; id: number }[] = [];
   for (const r of reminders) {
-    const repeatDays: number[] | null = r.repeatDays as number[] | null;
-    const isScheduled = !repeatDays || repeatDays.length === 0 || repeatDays.includes(dayOfWeek);
-    if (isScheduled) {
+    if (isReminderScheduledOnDate(r, date)) {
       scheduled.push({ name: r.medicationName, dosage: r.dosage, id: r.id });
     }
   }
@@ -2426,16 +2443,8 @@ export async function confirmGroupMedicationsTaken(
     return chinaTime.toISOString().slice(0, 10);
   })();
 
-  // Check today's day of week
-  const todayDate = new Date(todayStr + "T00:00:00");
-  const dayOfWeek = todayDate.getDay();
-
-  // Filter to medications scheduled for today
-  const scheduledReminders = reminders.filter((r) => {
-    const days = r.repeatDays as number[] | null;
-    if (!days || days.length === 0) return true;
-    return days.includes(dayOfWeek);
-  });
+  // Filter to medications scheduled for today (considering repeatDays + startDate)
+  const scheduledReminders = reminders.filter((r) => isReminderScheduledOnDate(r, todayStr));
 
   if (scheduledReminders.length === 0) {
     return { confirmed: 0, skipped: 0 };
@@ -2691,13 +2700,10 @@ export async function getMedCompletionByDates(
     const dayDate = new Date(dateStr + "T00:00:00");
     const dayOfWeek = dayDate.getDay();
 
-    // Count scheduled medications for this day
+    // Count scheduled medications for this day (considering repeatDays + startDate)
     const scheduledReminders: { id: number; name: string }[] = [];
     for (const reminder of reminders) {
-      const repeatDays: number[] | null = reminder.repeatDays as number[] | null;
-      const isScheduled =
-        !repeatDays || repeatDays.length === 0 || repeatDays.includes(dayOfWeek);
-      if (isScheduled) {
+      if (isReminderScheduledOnDate(reminder, dateStr)) {
         scheduledReminders.push({ id: reminder.id, name: reminder.medicationName });
       }
     }

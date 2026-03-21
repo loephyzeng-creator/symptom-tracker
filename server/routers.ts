@@ -483,6 +483,7 @@ export const appRouter = router({
           expirationAlertDays: z.number().min(1).max(365).optional(),
           groupId: z.number().nullable().optional(),
           intervalHours: z.number().min(1).max(72).nullable().optional(),
+          startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -510,6 +511,7 @@ export const appRouter = router({
           expirationAlertDays: z.number().min(1).max(365).optional(),
           groupId: z.number().nullable().optional(),
           intervalHours: z.number().min(1).max(72).nullable().optional(),
+          startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {

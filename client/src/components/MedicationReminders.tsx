@@ -62,6 +62,7 @@ interface ReminderForm {
   expirationAlertDays: number | string;
   groupId: number | null;
   intervalHours: number | null;
+  startDate: string;
 }
 
 const EMPTY_FORM: ReminderForm = {
@@ -81,6 +82,7 @@ const EMPTY_FORM: ReminderForm = {
   expirationAlertDays: 30,
   groupId: null,
   intervalHours: null,
+  startDate: new Date().toISOString().slice(0, 10),
 };
 
 function DaySelector({
@@ -491,6 +493,20 @@ function ReminderFormFields({
           className="h-8 text-sm"
         />
       </div>
+      {/* 用药起始日期 */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <CalendarPlus className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-foreground">用药起始日期</span>
+          <span className="text-xs text-muted-foreground">(起始日期前不计入打卡)</span>
+        </div>
+        <Input
+          type="date"
+          value={formData.startDate}
+          onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+          className="h-8 text-sm"
+        />
+      </div>
       {/* 药品有效期 */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
@@ -810,6 +826,7 @@ export default function MedicationReminders() {
       expirationAlertDays: Number(form.expirationAlertDays) || 30,
       groupId: form.groupId,
       intervalHours: form.intervalHours,
+      startDate: form.startDate || null,
     });
   };
 
@@ -836,6 +853,7 @@ export default function MedicationReminders() {
       expirationAlertDays: Number(editForm.expirationAlertDays) || 30,
       groupId: editForm.groupId,
       intervalHours: editForm.intervalHours,
+      startDate: editForm.startDate || null,
     });
   };
 
@@ -858,6 +876,7 @@ export default function MedicationReminders() {
       expirationAlertDays: reminder.expirationAlertDays ?? 30,
       groupId: reminder.groupId ?? null,
       intervalHours: reminder.intervalHours ?? null,
+      startDate: reminder.startDate ?? "",
     });
   };
 
@@ -1178,6 +1197,12 @@ export default function MedicationReminders() {
                               })()
                             }`}>
                               库存 {reminder.stockQuantity}
+                            </span>
+                          )}
+                          {reminder.startDate && (
+                            <span className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <CalendarPlus className="w-3 h-3" />
+                              起始 {reminder.startDate}
                             </span>
                           )}
                           {reminder.expirationDate && (() => {

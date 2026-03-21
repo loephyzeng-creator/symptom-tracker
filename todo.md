@@ -394,3 +394,10 @@
 - [x] 药品列表按时间段分组显示（早/中/晚）
 - [x] 服药备注功能（打卡时可选填备注，后端confirmTaken支持note字段）
 - [x] 历史记录按服药完成度筛选（新增completionByDates批量接口）
+
+## 用药提醒支持设置用药起始日期
+- [x] 数据库：medication_reminders表添加startDate字段
+- [x] 后端：add/update接口支持startDate参数
+- [x] 后端：打卡日历/依从性统计/todayMeds/timeline/dayDetail/completionByDates/allConfirm等逻辑均排除起始日期之前的数据
+- [x] 前端：提醒表单添加起始日期选择器，卡片展示起始日期标签
+- [x] 测试验证（406个测试全部通过）
