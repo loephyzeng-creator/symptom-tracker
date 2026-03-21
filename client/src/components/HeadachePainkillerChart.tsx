@@ -1,10 +1,10 @@
 /**
  * Headache Attack Frequency & Painkiller Usage Trend Chart
- * Shows weekly aggregation of headache attack levels and painkiller usage days
+ * Shows daily headache attack levels and painkiller usage
  */
 import { useMemo, useState } from "react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
 import type { SymptomEntry } from "@/hooks/useSymptomData";
 import { motion } from "framer-motion";
@@ -22,44 +22,58 @@ interface HeadachePainkillerChartProps {
   entries: SymptomEntry[];
 }
 
-function getWeekLabel(dateStr: string): string {
+function formatDateLabel(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
-  const month = d.getMonth() + 1;
-  const day = d.getDate();
-  return `${month}/${day}`;
+  return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-function getWeekKey(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  const startOfYear = new Date(d.getFullYear(), 0, 1);
-  const diff = d.getTime() - startOfYear.getTime();
-  const weekNum = Math.ceil((diff / (1000 * 60 * 60 * 24) + startOfYear.getDay() + 1) / 7);
-  return `${d.getFullYear()}-W${weekNum}`;
+interface DayData {
+  date: string;
+  dateLabel: string;
+  headacheLevel: number;
+  headacheLevelLabel: string;
+  painkillerTaken: boolean;
 }
 
-interface WeekData {
-  weekKey: string;
-  weekLabel: string;
-  headacheNone: number;
-  headacheMild: number;
-  headacheModerate: number;
-  headacheSevere: number;
-  painkillerDays: number;
-  totalDays: number;
-}
-
-function CustomTooltip({ active, payload, label }: any) {
-  if (!active || !payload) return null;
+function HeadacheTooltip({ active, payload }: any) {
+  if (!active || !payload?.[0]) return null;
+  const data = payload[0].payload as DayData;
+  const level = HEADACHE_LEVELS[data.headacheLevel] || HEADACHE_LEVELS[0];
   return (
     <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-xs">
-      <p className="font-serif text-sm font-semibold mb-2">周起始: {label}</p>
-      {payload.map((p: any) => (
-        <div key={p.dataKey} className="flex items-center gap-2 mb-0.5">
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.fill || p.color }} />
-          <span className="text-muted-foreground">{p.name}:</span>
-          <span className="font-medium">{p.value} 天</span>
+      <p className="font-serif text-sm font-semibold mb-1">{data.dateLabel}</p>
+      <div className="flex items-center gap-2">
+        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: level.color }} />
+        <span className="text-muted-foreground">头痛等级：</span>
+        <span className="font-medium">{level.label}</span>
+      </div>
+      {data.painkillerTaken && (
+        <div className="flex items-center gap-2 mt-1">
+          <Pill className="w-2.5 h-2.5 text-[#e8944a]" />
+          <span className="text-muted-foreground">已服止疼药</span>
         </div>
-      ))}
+      )}
+    </div>
+  );
+}
+
+function PainkillerTooltip({ active, payload }: any) {
+  if (!active || !payload?.[0]) return null;
+  const data = payload[0].payload as DayData;
+  return (
+    <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-xs">
+      <p className="font-serif text-sm font-semibold mb-1">{data.dateLabel}</p>
+      <div className="flex items-center gap-2">
+        <Pill className="w-2.5 h-2.5 text-[#e8944a]" />
+        <span className="text-muted-foreground">止疼药：</span>
+        <span className="font-medium">{data.painkillerTaken ? "已服用" : "未服用"}</span>
+      </div>
+      {data.headacheLevel > 0 && (
+        <div className="flex items-center gap-2 mt-1">
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: HEADACHE_LEVELS[data.headacheLevel]?.color }} />
+          <span className="text-muted-foreground">头痛等级：{HEADACHE_LEVELS[data.headacheLevel]?.label}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -68,78 +82,46 @@ export default function HeadachePainkillerChart({ entries }: HeadachePainkillerC
   const [today] = useState(() => new Date().toISOString().slice(0, 10));
   const painkillerUsage = trpc.entries.painkillerUsage.useQuery({ date: today });
 
-  const weeklyData = useMemo(() => {
+  // Daily data sorted by date, last 30 days
+  const dailyData = useMemo(() => {
     if (entries.length === 0) return [];
 
-    // Group entries by week
-    const weekMap = new Map<string, {
-      startDate: string;
-      headacheNone: number;
-      headacheMild: number;
-      headacheModerate: number;
-      headacheSevere: number;
-      painkillerDays: number;
-      totalDays: number;
-    }>();
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
 
-    entries.forEach((e) => {
-      const wk = getWeekKey(e.date);
-      if (!weekMap.has(wk)) {
-        weekMap.set(wk, {
-          startDate: e.date,
-          headacheNone: 0,
-          headacheMild: 0,
-          headacheModerate: 0,
-          headacheSevere: 0,
-          painkillerDays: 0,
-          totalDays: 0,
-        });
-      }
-      const w = weekMap.get(wk)!;
-      w.totalDays++;
-      if (e.date < w.startDate) w.startDate = e.date;
-
-      const level = e.severeHeadache ?? 0;
-      if (level === 0) w.headacheNone++;
-      else if (level === 1) w.headacheMild++;
-      else if (level === 2) w.headacheModerate++;
-      else if (level >= 3) w.headacheSevere++;
-
-      if ((e as any).painkillerTaken) w.painkillerDays++;
-    });
-
-    // Sort by week key and convert to array
-    return Array.from(weekMap.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .slice(-12) // last 12 weeks
-      .map(([weekKey, data]) => ({
-        weekKey,
-        weekLabel: getWeekLabel(data.startDate),
-        ...data,
+    return entries
+      .filter((e) => new Date(e.date + "T00:00:00") >= cutoff)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((e) => ({
+        date: e.date,
+        dateLabel: formatDateLabel(e.date),
+        headacheLevel: e.severeHeadache ?? 0,
+        headacheLevelLabel: HEADACHE_LEVELS[e.severeHeadache ?? 0]?.label ?? "无",
+        painkillerTaken: !!(e as any).painkillerTaken,
       }));
   }, [entries]);
 
   // Calculate summary stats
   const summary = useMemo(() => {
-    const last30 = entries.filter((e) => {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 30);
-      return new Date(e.date + "T00:00:00") >= cutoff;
-    });
-
-    const attackDays = last30.filter((e) => (e.severeHeadache ?? 0) > 0).length;
-    const severeDays = last30.filter((e) => (e.severeHeadache ?? 0) >= 3).length;
-    const painkillerDays = last30.filter((e) => e.painkillerTaken).length;
-    const avgLevel = last30.length > 0
-      ? Math.round(last30.reduce((sum, e) => sum + (e.severeHeadache ?? 0), 0) / last30.length * 10) / 10
+    const attackDays = dailyData.filter((d) => d.headacheLevel > 0).length;
+    const severeDays = dailyData.filter((d) => d.headacheLevel >= 3).length;
+    const painkillerDays = dailyData.filter((d) => d.painkillerTaken).length;
+    const avgLevel = dailyData.length > 0
+      ? Math.round(dailyData.reduce((sum, d) => sum + d.headacheLevel, 0) / dailyData.length * 10) / 10
       : 0;
 
-    return { attackDays, severeDays, painkillerDays, totalDays: last30.length, avgLevel };
-  }, [entries]);
+    return { attackDays, severeDays, painkillerDays, totalDays: dailyData.length, avgLevel };
+  }, [dailyData]);
 
   if (entries.length === 0) return null;
 
   const limit = painkillerUsage.data?.limit ?? 10;
+
+  // Custom Y axis tick for headache levels
+  const headacheLevelTick = (value: number) => {
+    const labels: Record<number, string> = { 0: "无", 1: "轻微", 2: "明显", 3: "严重" };
+    return labels[value] ?? "";
+  };
 
   return (
     <motion.div
@@ -188,13 +170,13 @@ export default function HeadachePainkillerChart({ entries }: HeadachePainkillerC
         </div>
       </div>
 
-      {/* Headache Attack Level Distribution Chart */}
+      {/* Headache Attack Level by Day */}
       <div className="bg-card rounded-xl p-4 border border-border/50 shadow-sm">
         <div className="flex items-center gap-2 mb-1">
           <Brain className="w-4 h-4 text-muted-foreground" />
-          <h3 className="font-serif font-semibold text-sm">头痛发作分布（按周）</h3>
+          <h3 className="font-serif font-semibold text-sm">头痛发作等级（按日）</h3>
         </div>
-        <p className="text-[10px] text-muted-foreground mb-3">最近12周每周头痛发作等级天数分布</p>
+        <p className="text-[10px] text-muted-foreground mb-3">近30天每日头痛发作等级</p>
 
         {/* Legend */}
         <div className="flex flex-wrap gap-3 mb-3">
@@ -208,73 +190,82 @@ export default function HeadachePainkillerChart({ entries }: HeadachePainkillerC
 
         <div className="h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={weeklyData} barCategoryGap="20%">
+            <BarChart data={dailyData} barCategoryGap="15%">
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
-                dataKey="weekLabel"
+                dataKey="dateLabel"
                 tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border)" }}
+                interval={dailyData.length > 15 ? Math.floor(dailyData.length / 8) : 0}
               />
               <YAxis
                 tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border)" }}
-                allowDecimals={false}
+                domain={[0, 3]}
+                ticks={[0, 1, 2, 3]}
+                tickFormatter={headacheLevelTick}
+                width={36}
               />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="headacheMild" name="轻微" stackId="headache" fill="#f0c674" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="headacheModerate" name="明显" stackId="headache" fill="#e8944a" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="headacheSevere" name="严重" stackId="headache" fill="#c45c5c" radius={[2, 2, 0, 0]} />
+              <Tooltip content={<HeadacheTooltip />} />
+              <Bar dataKey="headacheLevel" radius={[3, 3, 0, 0]}>
+                {dailyData.map((d, index) => (
+                  <Cell
+                    key={index}
+                    fill={HEADACHE_LEVELS[d.headacheLevel]?.color ?? "#d4d4d4"}
+                  />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Painkiller Usage Trend */}
+      {/* Painkiller Usage by Day */}
       <div className="bg-card rounded-xl p-4 border border-border/50 shadow-sm">
         <div className="flex items-center gap-2 mb-1">
           <Pill className="w-4 h-4 text-muted-foreground" />
-          <h3 className="font-serif font-semibold text-sm">止疼药使用趋势（按周）</h3>
+          <h3 className="font-serif font-semibold text-sm">止疼药使用（按日）</h3>
         </div>
-        <p className="text-[10px] text-muted-foreground mb-3">最近12周每周服用止疼药天数</p>
+        <p className="text-[10px] text-muted-foreground mb-3">近30天每日止疼药服用情况</p>
 
-        <div className="h-[180px]">
+        <div className="h-[150px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={weeklyData} barCategoryGap="20%">
+            <BarChart data={dailyData} barCategoryGap="15%">
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
-                dataKey="weekLabel"
+                dataKey="dateLabel"
                 tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border)" }}
+                interval={dailyData.length > 15 ? Math.floor(dailyData.length / 8) : 0}
               />
               <YAxis
                 tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border)" }}
-                allowDecimals={false}
+                domain={[0, 1]}
+                ticks={[0, 1]}
+                tickFormatter={(v: number) => v === 1 ? "是" : "否"}
+                width={24}
               />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="painkillerDays" name="止疼药" radius={[4, 4, 0, 0]}>
-                {weeklyData.map((entry, index) => {
-                  // Color based on weekly painkiller usage relative to limit
-                  const weeklyLimit = Math.ceil(limit / 4.3); // ~weekly portion of monthly limit
-                  const color = entry.painkillerDays >= weeklyLimit
-                    ? "#c45c5c"
-                    : entry.painkillerDays > 0
-                      ? "#e8944a"
-                      : "#d4d4d4";
-                  return <Cell key={index} fill={color} />;
-                })}
+              <Tooltip content={<PainkillerTooltip />} />
+              <Bar dataKey={(d: DayData) => d.painkillerTaken ? 1 : 0} name="止疼药" radius={[3, 3, 0, 0]}>
+                {dailyData.map((d, index) => (
+                  <Cell
+                    key={index}
+                    fill={d.painkillerTaken ? "#e8944a" : "transparent"}
+                  />
+                ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Weekly average indicator */}
+        {/* Monthly limit indicator */}
         <div className="text-center text-[10px] text-muted-foreground mt-2">
-          建议每周不超过 {Math.ceil(limit / 4.3)} 天 · 月度上限 {limit} 天
+          月度上限 {limit} 天 · 已使用 {summary.painkillerDays} 天
         </div>
       </div>
     </motion.div>
