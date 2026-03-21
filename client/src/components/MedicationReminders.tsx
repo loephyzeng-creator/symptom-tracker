@@ -17,6 +17,7 @@ import {
   Timer,
   Package,
 } from "lucide-react";
+import TimePicker from "@/components/TimePicker";
 
 const DAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
@@ -310,28 +311,7 @@ export default function MedicationReminders() {
     return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
   }, [reminders]);
 
-  const TimeInput = ({
-    hour,
-    minute,
-    onChange,
-  }: {
-    hour: number;
-    minute: number;
-    onChange: (h: number, m: number) => void;
-  }) => (
-    <div className="flex items-center gap-1">
-      <Clock className="w-4 h-4 text-muted-foreground" />
-      <input
-        type="time"
-        value={formatTime(hour, minute)}
-        onChange={(e) => {
-          const [h, m] = e.target.value.split(":").map(Number);
-          onChange(h, m);
-        }}
-        className="bg-transparent border border-border rounded-md px-2 py-1 text-sm w-24 focus:outline-none focus:ring-1 focus:ring-terracotta"
-      />
-    </div>
-  );
+  // TimeInput now uses custom TimePicker component (see below import)
 
   const ReminderFormFields = ({
     formData,
@@ -377,7 +357,7 @@ export default function MedicationReminders() {
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium text-foreground">提醒时间</label>
-        <TimeInput
+        <TimePicker
           hour={formData.reminderHour}
           minute={formData.reminderMinute}
           onChange={(h, m) =>

@@ -219,3 +219,8 @@
 - [x] 排查服务器日志确认调度器是否正常运行
 - [x] 检查Web Push订阅和推送逻辑
 - [x] 修复问题并验证（原因：getUsersNeedingReminder查询报错导致整个检查函数中断，已改为独立 try-catch）
+
+## Bug: 用药提醒时间选择器滑动后弹窗自动关闭
+- [x] 排查时间选择器组件的交互逻辑（原因：iOS Safari原生<input type="time">滑动触发onChange导致重新渲染）
+- [x] 修复：替换为自定义TimePicker组件（时/分列表选择+确认按钮）
+- [x] 测试验证（241个测试全部通过）
