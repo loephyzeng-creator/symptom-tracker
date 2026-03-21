@@ -1,0 +1,343 @@
+import { useState, useMemo } from "react";
+import { trpc } from "@/lib/trpc";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Flame,
+  Check,
+  X,
+  Minus,
+  CalendarCheck,
+  Trophy,
+} from "lucide-react";
+
+const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
+
+type DayStatus = "all-taken" | "partial" | "missed" | "no-schedule" | "future";
+
+function getStatusColor(status: DayStatus) {
+  switch (status) {
+    case "all-taken":
+      return "bg-emerald-500 text-white";
+    case "partial":
+      return "bg-amber-400 text-white";
+    case "missed":
+      return "bg-red-400/80 text-white";
+    case "no-schedule":
+      return "bg-muted/50 text-muted-foreground/50";
+    case "future":
+      return "bg-transparent text-muted-foreground/30";
+    default:
+      return "";
+  }
+}
+
+function getStatusIcon(status: DayStatus, size = 12) {
+  switch (status) {
+    case "all-taken":
+      return <Check className={`w-[${size}px] h-[${size}px]`} strokeWidth={3} />;
+    case "partial":
+      return <Minus className={`w-[${size}px] h-[${size}px]`} strokeWidth={3} />;
+    case "missed":
+      return <X className={`w-[${size}px] h-[${size}px]`} strokeWidth={3} />;
+    default:
+      return null;
+  }
+}
+
+export default function MedicationCheckInCalendar() {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+
+  const { data, isLoading } = trpc.medReminders.checkInCalendar.useQuery(
+    { year, month },
+    { staleTime: 60_000 }
+  );
+
+  // Build calendar grid
+  const calendarGrid = useMemo(() => {
+    const firstDay = new Date(year, month - 1, 1).getDay();
+    const lastDate = new Date(year, month, 0).getDate();
+
+    const grid: Array<{
+      date: string;
+      day: number;
+      status: DayStatus;
+      scheduledCount: number;
+      takenCount: number;
+    } | null> = [];
+
+    // Fill leading empty cells
+    for (let i = 0; i < firstDay; i++) {
+      grid.push(null);
+    }
+
+    // Fill day cells
+    for (let d = 1; d <= lastDate; d++) {
+      const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const dayData = data?.days.find((dd) => dd.date === dateStr);
+      grid.push({
+        date: dateStr,
+        day: d,
+        status: dayData?.status ?? "future",
+        scheduledCount: dayData?.scheduledCount ?? 0,
+        takenCount: dayData?.takenCount ?? 0,
+      });
+    }
+
+    return grid;
+  }, [year, month, data]);
+
+  const handlePrevMonth = () => {
+    if (month === 1) {
+      setYear(year - 1);
+      setMonth(12);
+    } else {
+      setMonth(month - 1);
+    }
+    setSelectedDay(null);
+  };
+
+  const handleNextMonth = () => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    // Don't go beyond current month
+    if (year === currentYear && month === currentMonth) return;
+    if (month === 12) {
+      setYear(year + 1);
+      setMonth(1);
+    } else {
+      setMonth(month + 1);
+    }
+    setSelectedDay(null);
+  };
+
+  const isCurrentMonth =
+    year === now.getFullYear() && month === now.getMonth() + 1;
+
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  const selectedDayData = selectedDay
+    ? calendarGrid.find((d) => d?.date === selectedDay)
+    : null;
+
+  // Streak message
+  const streakMessage = useMemo(() => {
+    if (!data || data.streak === 0) return null;
+    if (data.streak >= 30) return `🔥 连续打卡 ${data.streak} 天！太棒了！`;
+    if (data.streak >= 14) return `🔥 连续打卡 ${data.streak} 天！坚持就是胜利！`;
+    if (data.streak >= 7) return `🔥 连续打卡 ${data.streak} 天！一周达成！`;
+    if (data.streak >= 3) return `🔥 连续打卡 ${data.streak} 天！继续加油！`;
+    return `🔥 连续打卡 ${data.streak} 天`;
+  }, [data]);
+
+  return (
+    <div className="bg-card rounded-2xl border border-border/50 shadow-sm overflow-hidden">
+      {/* Header with stats */}
+      <div className="px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <CalendarCheck className="w-5 h-5 text-emerald-600" />
+            <h3 className="font-serif text-base font-semibold text-foreground">
+              服药打卡
+            </h3>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        {data && !isLoading && (
+          <div className="flex items-center gap-3 mb-3">
+            {/* Streak */}
+            {data.streak > 0 && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-950/30 border border-orange-200/50 dark:border-orange-800/30">
+                <Flame className="w-3.5 h-3.5 text-orange-500" />
+                <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                  {data.streak}天
+                </span>
+              </div>
+            )}
+            {/* Monthly rate */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-800/30">
+              <Trophy className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                本月 {data.monthlyRate}%
+              </span>
+            </div>
+            {/* Completed / Total */}
+            <span className="text-xs text-muted-foreground">
+              {data.totalCompleted}/{data.totalScheduled}
+            </span>
+          </div>
+        )}
+
+        {/* Streak motivational message */}
+        {streakMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-xs font-medium text-center py-1.5 px-3 rounded-lg bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20 text-orange-700 dark:text-orange-300 mb-3 border border-orange-100/50 dark:border-orange-800/20"
+          >
+            {streakMessage}
+          </motion.div>
+        )}
+      </div>
+
+      {/* Month navigation */}
+      <div className="flex items-center justify-between px-4 pb-2">
+        <button
+          onClick={handlePrevMonth}
+          className="p-1.5 rounded-lg hover:bg-muted/60 transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+        </button>
+        <span className="font-serif text-sm font-semibold text-foreground">
+          {year}年{month}月
+        </span>
+        <button
+          onClick={handleNextMonth}
+          disabled={isCurrentMonth}
+          className="p-1.5 rounded-lg hover:bg-muted/60 transition-colors disabled:opacity-30"
+        >
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+        </button>
+      </div>
+
+      {/* Calendar grid */}
+      <div className="px-3 pb-3">
+        {/* Weekday headers */}
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {WEEKDAY_LABELS.map((label) => (
+            <div
+              key={label}
+              className="text-center text-[10px] font-medium text-muted-foreground/70 py-1"
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+
+        {/* Day cells */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-7 gap-1">
+            {calendarGrid.map((cell, idx) => {
+              if (!cell) {
+                return <div key={`empty-${idx}`} className="aspect-square" />;
+              }
+
+              const isToday = cell.date === todayStr;
+              const isSelected = cell.date === selectedDay;
+
+              return (
+                <motion.button
+                  key={cell.date}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() =>
+                    setSelectedDay(
+                      selectedDay === cell.date ? null : cell.date
+                    )
+                  }
+                  className={`
+                    aspect-square rounded-lg flex flex-col items-center justify-center relative transition-all
+                    ${getStatusColor(cell.status)}
+                    ${isToday ? "ring-2 ring-terracotta ring-offset-1 ring-offset-card" : ""}
+                    ${isSelected ? "ring-2 ring-foreground/40 ring-offset-1 ring-offset-card" : ""}
+                    ${cell.status === "future" ? "cursor-default" : "cursor-pointer hover:opacity-80"}
+                  `}
+                  disabled={cell.status === "future"}
+                >
+                  <span
+                    className={`text-xs font-medium leading-none ${
+                      cell.status === "future"
+                        ? "text-muted-foreground/30"
+                        : ""
+                    }`}
+                  >
+                    {cell.day}
+                  </span>
+                  {cell.status !== "future" &&
+                    cell.status !== "no-schedule" && (
+                      <span className="mt-0.5 opacity-80">
+                        {getStatusIcon(cell.status, 10)}
+                      </span>
+                    )}
+                </motion.button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Selected day detail */}
+      <AnimatePresence>
+        {selectedDayData && selectedDayData.status !== "future" && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 py-3 border-t border-border/50 bg-muted/30">
+              <p className="text-xs font-medium text-foreground mb-1">
+                {selectedDayData.date.replace(/-/g, "/")}
+              </p>
+              {selectedDayData.status === "no-schedule" ? (
+                <p className="text-xs text-muted-foreground">当日无用药安排</p>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      selectedDayData.status === "all-taken"
+                        ? "bg-emerald-500"
+                        : selectedDayData.status === "partial"
+                          ? "bg-amber-400"
+                          : "bg-red-400"
+                    }`}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {selectedDayData.status === "all-taken"
+                      ? "全部按时服药"
+                      : selectedDayData.status === "partial"
+                        ? `部分服药 (${selectedDayData.takenCount}/${selectedDayData.scheduledCount})`
+                        : "未服药"}
+                  </span>
+                  <span className="text-xs text-muted-foreground/60 ml-auto">
+                    {selectedDayData.takenCount}/{selectedDayData.scheduledCount} 种
+                  </span>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Legend */}
+      <div className="px-4 py-2.5 border-t border-border/30 flex items-center justify-center gap-4 flex-wrap">
+        <div className="flex items-center gap-1">
+          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+          <span className="text-[10px] text-muted-foreground">全部服药</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2.5 h-2.5 rounded-sm bg-amber-400" />
+          <span className="text-[10px] text-muted-foreground">部分服药</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2.5 h-2.5 rounded-sm bg-red-400/80" />
+          <span className="text-[10px] text-muted-foreground">未服药</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2.5 h-2.5 rounded-sm bg-muted/50 border border-border/50" />
+          <span className="text-[10px] text-muted-foreground">无安排</span>
+        </div>
+      </div>
+    </div>
+  );
+}

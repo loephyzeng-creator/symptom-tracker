@@ -47,6 +47,7 @@ import {
   getTodayMedications,
   confirmMedicationTaken,
   getMedicationTimeline,
+  getMedicationCheckInCalendar,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -560,6 +561,18 @@ export const appRouter = router({
       )
       .query(async ({ ctx, input }) => {
         return getMedicationTimeline(ctx.user.id, input.startDate, input.endDate);
+      }),
+
+    /** Get check-in calendar data for a given month */
+    checkInCalendar: protectedProcedure
+      .input(
+        z.object({
+          year: z.number().int().min(2020).max(2100),
+          month: z.number().int().min(1).max(12),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        return getMedicationCheckInCalendar(ctx.user.id, input.year, input.month);
       }),
 
     /** Confirm medication taken (from push notification action) */

@@ -21,6 +21,7 @@ import AlertSettings from "@/components/AlertSettings";
 import MedicationReminders from "@/components/MedicationReminders";
 import MissedMedicationAlert from "@/components/MissedMedicationAlert";
 import MedicationStock from "@/components/MedicationStock";
+import MedicationCheckInCalendar from "@/components/MedicationCheckInCalendar";
 import BackupRestore from "@/components/BackupRestore";
 import SyncStatus from "@/components/SyncStatus";
 import CustomMetricsManager from "@/components/CustomMetricsManager";
@@ -440,6 +441,12 @@ export default function Home() {
                   {/* Today Widget - overview card */}
                   {selectedDate === todayStr && !dataLoading && (
                     <TodayWidget entries={entries} />
+                  )}
+                  {/* Medication Check-in Calendar */}
+                  {selectedDate === todayStr && !dataLoading && (
+                    <div className="mb-4">
+                      <MedicationCheckInCalendar />
+                    </div>
                   )}
                   {/* Shared Date Picker - above mode toggle */}
                   <DatePicker

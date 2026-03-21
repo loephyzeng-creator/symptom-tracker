@@ -1708,3 +1708,156 @@ export async function getMedicationTimeline(
 
   return { medications: medicationNames, days };
 }
+
+/**
+ * Get medication check-in calendar data for a given month.
+ * Returns per-day check-in status: "all-taken" | "partial" | "missed" | "no-schedule"
+ * Also computes streak (consecutive all-taken days up to today) and monthly rate.
+ */
+export async function getMedicationCheckInCalendar(
+  userId: number,
+  year: number,
+  month: number // 1-12
+) {
+  const db = await getDb();
+  if (!db) return { days: [], streak: 0, monthlyRate: 0, totalScheduled: 0, totalCompleted: 0 };
+
+  // Build date range for the month
+  const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+  // Get all medication reminders
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.userId, userId),
+        eq(medicationReminders.enabled, 1)
+      )
+    );
+
+  if (reminders.length === 0) {
+    return { days: [], streak: 0, monthlyRate: 0, totalScheduled: 0, totalCompleted: 0 };
+  }
+
+  // Get all symptom entries in the month
+  const entries = await db
+    .select({
+      date: symptomEntries.date,
+      medications: symptomEntries.medications,
+    })
+    .from(symptomEntries)
+    .where(
+      and(
+        eq(symptomEntries.userId, userId),
+        gte(symptomEntries.date, startDate),
+        lte(symptomEntries.date, endDate)
+      )
+    );
+
+  // Build a map of date -> recorded medication names (lowercased)
+  const entryMap = new Map<string, Set<string>>();
+  for (const entry of entries) {
+    const meds = entry.medications;
+    const names = new Set<string>();
+    if (Array.isArray(meds)) {
+      for (const m of meds) {
+        if (m.name && m.name.trim()) {
+          names.add(m.name.trim().toLowerCase());
+        }
+      }
+    }
+    entryMap.set(entry.date, names);
+  }
+
+  // Today's date string for limiting future dates
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  // Build per-day check-in data
+  type DayStatus = {
+    date: string;
+    status: "all-taken" | "partial" | "missed" | "no-schedule" | "future";
+    scheduledCount: number;
+    takenCount: number;
+  };
+
+  const days: DayStatus[] = [];
+  let totalScheduled = 0;
+  let totalCompleted = 0;
+
+  for (let d = 1; d <= lastDay; d++) {
+    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const dayDate = new Date(year, month - 1, d);
+    const dayOfWeek = dayDate.getDay();
+
+    // Future dates
+    if (dateStr > todayStr) {
+      days.push({ date: dateStr, status: "future", scheduledCount: 0, takenCount: 0 });
+      continue;
+    }
+
+    // Count scheduled medications for this day
+    const scheduledMeds: string[] = [];
+    for (const reminder of reminders) {
+      const repeatDays: number[] | null = reminder.repeatDays as number[] | null;
+      const isScheduled =
+        !repeatDays || repeatDays.length === 0 || repeatDays.includes(dayOfWeek);
+      if (isScheduled) {
+        scheduledMeds.push(reminder.medicationName.trim().toLowerCase());
+      }
+    }
+
+    if (scheduledMeds.length === 0) {
+      days.push({ date: dateStr, status: "no-schedule", scheduledCount: 0, takenCount: 0 });
+      continue;
+    }
+
+    // Count taken medications
+    const recordedMeds = entryMap.get(dateStr);
+    let takenCount = 0;
+    for (const medName of scheduledMeds) {
+      if (recordedMeds && recordedMeds.has(medName)) {
+        takenCount++;
+      }
+    }
+
+    totalScheduled += scheduledMeds.length;
+    totalCompleted += takenCount;
+
+    let status: "all-taken" | "partial" | "missed";
+    if (takenCount === scheduledMeds.length) {
+      status = "all-taken";
+    } else if (takenCount > 0) {
+      status = "partial";
+    } else {
+      status = "missed";
+    }
+
+    days.push({ date: dateStr, status, scheduledCount: scheduledMeds.length, takenCount });
+  }
+
+  // Calculate streak: consecutive "all-taken" days ending at today (or yesterday if today has no data yet)
+  let streak = 0;
+  // Walk backwards from today
+  const todayIndex = days.findIndex((d) => d.date === todayStr);
+  if (todayIndex >= 0) {
+    for (let i = todayIndex; i >= 0; i--) {
+      const day = days[i];
+      if (day.status === "all-taken") {
+        streak++;
+      } else if (day.status === "no-schedule") {
+        // Skip non-scheduled days, don't break streak
+        continue;
+      } else {
+        break;
+      }
+    }
+  }
+
+  const monthlyRate = totalScheduled > 0 ? Math.round((totalCompleted / totalScheduled) * 100) : 0;
+
+  return { days, streak, monthlyRate, totalScheduled, totalCompleted };
+}
