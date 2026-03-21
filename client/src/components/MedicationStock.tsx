@@ -18,7 +18,9 @@ import {
   TrendingDown,
   Plus,
   Minus,
+  CalendarPlus,
 } from "lucide-react";
+import { exportSingleStockReminder, exportAllStockReminders } from "@/lib/icsExport";
 
 function getRemainingColor(days: number, alertDays: number): string {
   if (days <= 0) return "#c45c5c"; // red - empty
@@ -224,6 +226,19 @@ export default function MedicationStock() {
               </div>
               <button
                 onClick={() => {
+                  exportSingleStockReminder(item);
+                  toast.success("已生成备药提醒日历文件");
+                }}
+                className="text-xs text-muted-foreground hover:text-terracotta transition-colors"
+                title="导出备药提醒到系统日历"
+              >
+                <span className="flex items-center gap-1">
+                  <CalendarPlus className="w-3 h-3" />
+                  导入日历
+                </span>
+              </button>
+              <button
+                onClick={() => {
                   setEditingId(item.reminderId);
                   setEditQuantity(String(item.stockQuantity));
                 }}
@@ -240,6 +255,24 @@ export default function MedicationStock() {
 
   return (
     <div className="space-y-4">
+      {/* Export all button */}
+      {stockItems.length > 0 && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              exportAllStockReminders(stockItems);
+              toast.success("已生成全部备药提醒日历文件");
+            }}
+            className="gap-1"
+          >
+            <CalendarPlus className="w-4 h-4" />
+            全部导入日历
+          </Button>
+        </div>
+      )}
+
       {/* Low stock warnings */}
       {lowStock.length > 0 && (
         <div className="space-y-2">

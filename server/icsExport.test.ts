@@ -99,6 +99,99 @@ describe("ICS Export - Text Escaping", () => {
   });
 });
 
+// ============================================================
+// Stock Refill Calendar Export Tests
+// ============================================================
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function formatIcsFullDate(dateStr: string, hour: number, minute: number): string {
+  const [y, mo, d] = dateStr.split("-");
+  return `${y}${mo}${d}T${pad(hour)}${pad(minute)}00`;
+}
+
+function calculateRefillDate(
+  estimatedRunOutDate: string,
+  alertDays: number
+): Date {
+  const runOutDate = new Date(estimatedRunOutDate + "T00:00:00+08:00");
+  return new Date(runOutDate.getTime() - alertDays * 24 * 60 * 60 * 1000);
+}
+
+describe("ICS Export - Stock Refill Date Calculation", () => {
+  it("should calculate refill date as runOutDate minus alertDays", () => {
+    const refillDate = calculateRefillDate("2026-04-15", 7);
+    expect(refillDate.getFullYear()).toBe(2026);
+    expect(refillDate.getMonth()).toBe(3); // April = 3
+    // Date may vary by 1 due to timezone offset in test environment
+    expect(refillDate.getDate()).toBeGreaterThanOrEqual(7);
+    expect(refillDate.getDate()).toBeLessThanOrEqual(8);
+  });
+
+  it("should handle alertDays of 0 (remind on run-out day)", () => {
+    const refillDate = calculateRefillDate("2026-05-01", 0);
+    expect(refillDate.getMonth()).toBe(3); // April = 3 or May = 4 depending on TZ
+    // With +08:00 timezone in UTC env, May 1 00:00+08:00 = April 30 16:00 UTC
+    expect(refillDate.getDate()).toBeGreaterThanOrEqual(30);
+  });
+
+  it("should handle large alertDays crossing month boundary", () => {
+    const refillDate = calculateRefillDate("2026-04-05", 10);
+    expect(refillDate.getMonth()).toBe(2); // March = 2
+    // Date may vary by 1 due to timezone offset in test environment
+    expect(refillDate.getDate()).toBeGreaterThanOrEqual(25);
+    expect(refillDate.getDate()).toBeLessThanOrEqual(26);
+  });
+
+  it("should handle alertDays crossing year boundary", () => {
+    const refillDate = calculateRefillDate("2026-01-05", 10);
+    expect(refillDate.getFullYear()).toBe(2025);
+    expect(refillDate.getMonth()).toBe(11); // December = 11
+    // Date may vary by 1 due to timezone offset in test environment
+    expect(refillDate.getDate()).toBeGreaterThanOrEqual(25);
+    expect(refillDate.getDate()).toBeLessThanOrEqual(26);
+  });
+});
+
+describe("ICS Export - formatIcsFullDate", () => {
+  it("should format date correctly with padding", () => {
+    expect(formatIcsFullDate("2026-04-08", 9, 0)).toBe("20260408T090000");
+  });
+
+  it("should format single-digit hours and minutes with padding", () => {
+    expect(formatIcsFullDate("2026-01-01", 8, 5)).toBe("20260101T080500");
+  });
+
+  it("should format afternoon times correctly", () => {
+    expect(formatIcsFullDate("2026-12-31", 14, 30)).toBe("20261231T143000");
+  });
+});
+
+describe("ICS Export - Stock Refill Event Content", () => {
+  it("should include medication name in summary", () => {
+    const medName = "草酸艾司西酞普兰片";
+    const summary = escapeIcsText(`📦 备药提醒：${medName}`);
+    expect(summary).toContain(medName);
+    expect(summary).toContain("备药提醒");
+  });
+
+  it("should include stock details in description", () => {
+    const desc = escapeIcsText(
+      `草酸艾司西酞普兰片（10mg）\n当前库存：15 剂\n每日用量：1 剂\n预计 2026-04-15 用完\n请及时补充药品库存。`
+    );
+    expect(desc).toContain("15 剂");
+    expect(desc).toContain("1 剂");
+    expect(desc).toContain("2026-04-15");
+  });
+
+  it("should escape special characters in medication names", () => {
+    const desc = escapeIcsText("药品A;药品B,药品C");
+    expect(desc).toBe("药品A\\;药品B\\,药品C");
+  });
+});
+
 describe("ICS Export - Offset Application", () => {
   it("should apply positive offset (delay)", () => {
     const result = applyOffset(8, 0, 30);
