@@ -141,7 +141,7 @@ function SettingsSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="bg-card rounded-xl border border-border/40 overflow-hidden">
+    <div className="bg-card rounded-xl border border-border/40">
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-accent/30 transition-colors"
@@ -158,19 +158,9 @@ function SettingsSection({
           }`}
         />
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="px-4 pb-4 pt-1">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {open && (
+        <div className="px-4 pb-4 pt-1">{children}</div>
+      )}
     </div>
   );
 }

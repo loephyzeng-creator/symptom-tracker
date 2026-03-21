@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -189,156 +189,29 @@ function formatOffset(offset: number): string {
   return `延后${offset}分钟`;
 }
 
-export default function MedicationReminders() {
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState<ReminderForm>({ ...EMPTY_FORM });
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<ReminderForm>({ ...EMPTY_FORM });
-
-  const utils = trpc.useUtils();
-  const { data: reminders = [], isLoading } =
-    trpc.medReminders.list.useQuery(undefined);
-  const { data: medHistory = [] } =
-    trpc.medications.history.useQuery(undefined);
-
-  const addMutation = trpc.medReminders.add.useMutation({
-    onSuccess: () => {
-      utils.medReminders.list.invalidate();
-      setShowAdd(false);
-      setForm({ ...EMPTY_FORM });
-      toast.success("用药提醒已添加");
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  const updateMutation = trpc.medReminders.update.useMutation({
-    onSuccess: () => {
-      utils.medReminders.list.invalidate();
-      setEditingId(null);
-      toast.success("用药提醒已更新");
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  const deleteMutation = trpc.medReminders.delete.useMutation({
-    onSuccess: () => {
-      utils.medReminders.list.invalidate();
-      toast.success("用药提醒已删除");
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  const toggleMutation = trpc.medReminders.update.useMutation({
-    onSuccess: () => {
-      utils.medReminders.list.invalidate();
-    },
-  });
-
-  const snoozeMutation = trpc.medReminders.snooze.useMutation({
-    onSuccess: () => {
-      utils.medReminders.list.invalidate();
-      toast.success("已设置15分钟后再次提醒");
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  // Medication name suggestions from history
-  const medSuggestions = useMemo(() => {
-    return medHistory
-      .map((m: any) => m.name)
-      .filter((name: string) => name && name.trim());
-  }, [medHistory]);
-
-  const handleAdd = () => {
-    if (!form.medicationName.trim() || !form.dosage.trim()) {
-      toast.error("请填写药品名称和剂量");
-      return;
-    }
-    addMutation.mutate({
-      medicationName: form.medicationName,
-      dosage: form.dosage,
-      reminderHour: form.reminderHour,
-      reminderMinute: form.reminderMinute,
-      repeatDays: form.repeatDays,
-      offsetMinutes: form.offsetMinutes,
-      stockQuantity: form.trackStock ? form.stockQuantity : null,
-      dailyDosageCount: form.dailyDosageCount,
-      stockAlertDays: form.stockAlertDays,
-      instructionUrl: form.instructionUrl.trim() || null,
-    });
-  };
-
-  const handleUpdate = () => {
-    if (!editForm.medicationName.trim() || !editForm.dosage.trim()) {
-      toast.error("请填写药品名称和剂量");
-      return;
-    }
-    if (editingId === null) return;
-    updateMutation.mutate({
-      id: editingId,
-      medicationName: editForm.medicationName,
-      dosage: editForm.dosage,
-      reminderHour: editForm.reminderHour,
-      reminderMinute: editForm.reminderMinute,
-      repeatDays: editForm.repeatDays,
-      offsetMinutes: editForm.offsetMinutes,
-      stockQuantity: editForm.trackStock ? editForm.stockQuantity : null,
-      dailyDosageCount: editForm.dailyDosageCount,
-      stockAlertDays: editForm.stockAlertDays,
-      instructionUrl: editForm.instructionUrl.trim() || null,
-    });
-  };
-
-  const startEdit = (reminder: any) => {
-    setEditingId(reminder.id);
-    setEditForm({
-      medicationName: reminder.medicationName,
-      dosage: reminder.dosage,
-      reminderHour: reminder.reminderHour,
-      reminderMinute: reminder.reminderMinute,
-      repeatDays: reminder.repeatDays ?? [...ALL_DAYS],
-      offsetMinutes: reminder.offsetMinutes ?? 0,
-      trackStock: reminder.stockQuantity !== null && reminder.stockQuantity !== undefined,
-      stockQuantity: reminder.stockQuantity ?? 30,
-      dailyDosageCount: reminder.dailyDosageCount ?? 1,
-      stockAlertDays: reminder.stockAlertDays ?? 7,
-      instructionUrl: reminder.instructionUrl ?? "",
-    });
-  };
-
-  const formatTime = (h: number, m: number) => {
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-  };
-
-  // Group reminders by time
-  const groupedReminders = useMemo(() => {
-    const groups: Record<string, typeof reminders> = {};
-    for (const r of reminders) {
-      const key = formatTime(r.reminderHour, r.reminderMinute);
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(r);
-    }
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
-  }, [reminders]);
-
-  // TimeInput now uses custom TimePicker component (see below import)
-
-  const ReminderFormFields = ({
-    formData,
-    setFormData,
-    onSubmit,
-    submitLabel,
-    isPending,
-    onCancel,
-  }: {
-    formData: ReminderForm;
-    setFormData: (f: ReminderForm) => void;
-    onSubmit: () => void;
-    submitLabel: string;
-    isPending: boolean;
-    onCancel: () => void;
-  }) => (
-    <div className="bg-card border border-border/50 rounded-xl p-4 space-y-3">
+/* ─── ReminderFormFields: Extracted as top-level component to prevent re-mount on parent re-render ─── */
+function ReminderFormFields({
+  formData,
+  setFormData,
+  onSubmit,
+  submitLabel,
+  isPending,
+  onCancel,
+  medSuggestions,
+}: {
+  formData: ReminderForm;
+  setFormData: (f: ReminderForm) => void;
+  onSubmit: () => void;
+  submitLabel: string;
+  isPending: boolean;
+  onCancel: () => void;
+  medSuggestions: string[];
+}) {
+  return (
+    <div
+      className="bg-card border border-border/50 rounded-xl p-4 space-y-3"
+      onClick={(e) => e.stopPropagation()}
+    >
       <div className="space-y-2">
         <label className="text-sm font-medium text-foreground">药品名称</label>
         <Input
@@ -465,6 +338,234 @@ export default function MedicationReminders() {
       </div>
     </div>
   );
+}
+
+/* ─── SwipeToDelete: Touch-based swipe-to-reveal delete button ─── */
+function SwipeToDelete({
+  children,
+  onDelete,
+}: {
+  children: React.ReactNode;
+  onDelete: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const startXRef = useRef(0);
+  const currentXRef = useRef(0);
+  const [offset, setOffset] = useState(0);
+  const [showDelete, setShowDelete] = useState(false);
+  const DELETE_THRESHOLD = 80;
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    startXRef.current = e.touches[0].clientX;
+    currentXRef.current = 0;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const diff = startXRef.current - e.touches[0].clientX;
+    currentXRef.current = diff;
+    // Only allow left swipe
+    if (diff > 0) {
+      setOffset(Math.min(diff, DELETE_THRESHOLD));
+    } else {
+      setOffset(0);
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (currentXRef.current >= DELETE_THRESHOLD) {
+      setOffset(DELETE_THRESHOLD);
+      setShowDelete(true);
+    } else {
+      setOffset(0);
+      setShowDelete(false);
+    }
+  }, []);
+
+  const handleReset = useCallback(() => {
+    setOffset(0);
+    setShowDelete(false);
+  }, []);
+
+  return (
+    <div className="relative overflow-hidden rounded-xl" ref={containerRef}>
+      {/* Delete button behind */}
+      <div
+        className="absolute inset-y-0 right-0 flex items-center justify-center bg-destructive text-white transition-all"
+        style={{ width: `${DELETE_THRESHOLD}px`, opacity: offset / DELETE_THRESHOLD }}
+      >
+        <button
+          onClick={() => {
+            onDelete();
+            handleReset();
+          }}
+          className="flex flex-col items-center gap-1 px-3"
+        >
+          <Trash2 className="w-5 h-5" />
+          <span className="text-xs font-medium">删除</span>
+        </button>
+      </div>
+      {/* Content layer */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          transform: `translateX(-${offset}px)`,
+          transition: currentXRef.current === 0 ? "transform 0.2s ease" : "none",
+        }}
+        className="relative bg-card"
+      >
+        {children}
+      </div>
+      {/* Tap outside to reset */}
+      {showDelete && (
+        <div
+          className="absolute inset-0"
+          style={{ right: `${DELETE_THRESHOLD}px` }}
+          onClick={handleReset}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function MedicationReminders() {
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState<ReminderForm>({ ...EMPTY_FORM });
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<ReminderForm>({ ...EMPTY_FORM });
+
+  const utils = trpc.useUtils();
+  const { data: reminders = [], isLoading } =
+    trpc.medReminders.list.useQuery(undefined);
+  const { data: medHistory = [] } =
+    trpc.medications.history.useQuery(undefined);
+
+  const addMutation = trpc.medReminders.add.useMutation({
+    onSuccess: () => {
+      utils.medReminders.list.invalidate();
+      setShowAdd(false);
+      setForm({ ...EMPTY_FORM });
+      toast.success("用药提醒已添加");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const updateMutation = trpc.medReminders.update.useMutation({
+    onSuccess: () => {
+      utils.medReminders.list.invalidate();
+      setEditingId(null);
+      toast.success("用药提醒已更新");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const deleteMutation = trpc.medReminders.delete.useMutation({
+    onSuccess: () => {
+      utils.medReminders.list.invalidate();
+      toast.success("用药提醒已删除");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const toggleMutation = trpc.medReminders.update.useMutation({
+    onSuccess: () => {
+      utils.medReminders.list.invalidate();
+    },
+  });
+
+  const snoozeMutation = trpc.medReminders.snooze.useMutation({
+    onSuccess: () => {
+      utils.medReminders.list.invalidate();
+      toast.success("已设置15分钟后再次提醒");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // Medication name suggestions from history
+  const medSuggestions = useMemo(() => {
+    return medHistory
+      .map((m: any) => m.name)
+      .filter((name: string) => name && name.trim());
+  }, [medHistory]);
+
+  const handleAdd = () => {
+    if (!form.medicationName.trim() || !form.dosage.trim()) {
+      toast.error("请填写药品名称和剂量");
+      return;
+    }
+    addMutation.mutate({
+      medicationName: form.medicationName,
+      dosage: form.dosage,
+      reminderHour: form.reminderHour,
+      reminderMinute: form.reminderMinute,
+      repeatDays: form.repeatDays,
+      offsetMinutes: form.offsetMinutes,
+      stockQuantity: form.trackStock ? form.stockQuantity : null,
+      dailyDosageCount: form.dailyDosageCount,
+      stockAlertDays: form.stockAlertDays,
+      instructionUrl: form.instructionUrl.trim() || null,
+    });
+  };
+
+  const handleUpdate = () => {
+    if (!editForm.medicationName.trim() || !editForm.dosage.trim()) {
+      toast.error("请填写药品名称和剂量");
+      return;
+    }
+    if (editingId === null) return;
+    updateMutation.mutate({
+      id: editingId,
+      medicationName: editForm.medicationName,
+      dosage: editForm.dosage,
+      reminderHour: editForm.reminderHour,
+      reminderMinute: editForm.reminderMinute,
+      repeatDays: editForm.repeatDays,
+      offsetMinutes: editForm.offsetMinutes,
+      stockQuantity: editForm.trackStock ? editForm.stockQuantity : null,
+      dailyDosageCount: editForm.dailyDosageCount,
+      stockAlertDays: editForm.stockAlertDays,
+      instructionUrl: editForm.instructionUrl.trim() || null,
+    });
+  };
+
+  const startEdit = (reminder: any) => {
+    setEditingId(reminder.id);
+    setEditForm({
+      medicationName: reminder.medicationName,
+      dosage: reminder.dosage,
+      reminderHour: reminder.reminderHour,
+      reminderMinute: reminder.reminderMinute,
+      repeatDays: reminder.repeatDays ?? [...ALL_DAYS],
+      offsetMinutes: reminder.offsetMinutes ?? 0,
+      trackStock: reminder.stockQuantity !== null && reminder.stockQuantity !== undefined,
+      stockQuantity: reminder.stockQuantity ?? 30,
+      dailyDosageCount: reminder.dailyDosageCount ?? 1,
+      stockAlertDays: reminder.stockAlertDays ?? 7,
+      instructionUrl: reminder.instructionUrl ?? "",
+    });
+  };
+
+  const handleDeleteWithConfirm = (id: number, name: string) => {
+    if (confirm(`确定删除「${name}」的用药提醒？`)) {
+      deleteMutation.mutate({ id });
+    }
+  };
+
+  const formatTime = (h: number, m: number) => {
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  };
+
+  // Group reminders by time
+  const groupedReminders = useMemo(() => {
+    const groups: Record<string, typeof reminders> = {};
+    for (const r of reminders) {
+      const key = formatTime(r.reminderHour, r.reminderMinute);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(r);
+    }
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [reminders]);
 
   return (
     <div className="space-y-4">
@@ -509,7 +610,7 @@ export default function MedicationReminders() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        为每种药品设置独立的提醒时间、剂量和重复日，到时间自动推送通知。点击"导入日历"可将提醒添加到 iPhone 系统日历，即使关闭应用也能收到提醒。
+        为每种药品设置独立的提醒时间、剂量和重复日，到时间自动推送通知。点击"导入日历"可将提醒添加到 iPhone 系统日历，即使关闭应用也能收到提醒。左滑可快速删除提醒。
       </p>
 
       {/* Add form */}
@@ -524,6 +625,7 @@ export default function MedicationReminders() {
             setShowAdd(false);
             setForm({ ...EMPTY_FORM });
           }}
+          medSuggestions={medSuggestions}
         />
       )}
 
@@ -547,141 +649,142 @@ export default function MedicationReminders() {
                 <span>{time}</span>
               </div>
               {items.map((reminder: any) => (
-                <div
+                <SwipeToDelete
                   key={reminder.id}
-                  className={`bg-card border rounded-xl p-3 transition-all ${
-                    reminder.enabled
-                      ? "border-border/50"
-                      : "border-border/30 opacity-60"
-                  }`}
+                  onDelete={() => handleDeleteWithConfirm(reminder.id, reminder.medicationName)}
                 >
-                  {editingId === reminder.id ? (
-                    /* Edit mode */
-                    <ReminderFormFields
-                      formData={editForm}
-                      setFormData={setEditForm}
-                      onSubmit={handleUpdate}
-                      submitLabel="保存"
-                      isPending={updateMutation.isPending}
-                      onCancel={() => setEditingId(null)}
-                    />
-                  ) : (
-                    /* View mode */
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <Pill className="w-4 h-4 text-terracotta shrink-0" />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="font-medium text-foreground text-sm truncate">
-                                {reminder.medicationName}
+                  <div
+                    className={`border rounded-xl p-3 transition-all ${
+                      reminder.enabled
+                        ? "border-border/50"
+                        : "border-border/30 opacity-60"
+                    }`}
+                  >
+                    {editingId === reminder.id ? (
+                      /* Edit mode */
+                      <ReminderFormFields
+                        formData={editForm}
+                        setFormData={setEditForm}
+                        onSubmit={handleUpdate}
+                        submitLabel="保存"
+                        isPending={updateMutation.isPending}
+                        onCancel={() => setEditingId(null)}
+                        medSuggestions={medSuggestions}
+                      />
+                    ) : (
+                      /* View mode */
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Pill className="w-4 h-4 text-terracotta shrink-0" />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-medium text-foreground text-sm truncate">
+                                  {reminder.medicationName}
+                                </p>
+                                {reminder.instructionUrl && (
+                                  <a
+                                    href={reminder.instructionUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-terracotta hover:text-terracotta/80 shrink-0"
+                                    title="查看说明书"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <FileText className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {reminder.dosage}
                               </p>
-                              {reminder.instructionUrl && (
-                                <a
-                                  href={reminder.instructionUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-terracotta hover:text-terracotta/80 shrink-0"
-                                  title="查看说明书"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <FileText className="w-3.5 h-3.5" />
-                                </a>
-                              )}
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              {reminder.dosage}
-                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Switch
+                              checked={reminder.enabled === 1}
+                              onCheckedChange={(checked) =>
+                                toggleMutation.mutate({
+                                  id: reminder.id,
+                                  enabled: checked ? 1 : 0,
+                                })
+                              }
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => startEdit(reminder)}
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                exportSingleReminder(reminder);
+                                toast.success("已生成日历文件");
+                              }}
+                              title="导出到系统日历"
+                            >
+                              <CalendarPlus className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteWithConfirm(reminder.id, reminder.medicationName)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Switch
-                            checked={reminder.enabled === 1}
-                            onCheckedChange={(checked) =>
-                              toggleMutation.mutate({
-                                id: reminder.id,
-                                enabled: checked ? 1 : 0,
-                              })
-                            }
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => startEdit(reminder)}
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => {
-                              exportSingleReminder(reminder);
-                              toast.success("已生成日历文件");
-                            }}
-                            title="导出到系统日历"
-                          >
-                            <CalendarPlus className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => {
-                              if (confirm("确定删除此用药提醒？")) {
-                                deleteMutation.mutate({ id: reminder.id });
+                        {/* Tags row: repeat days + offset + snooze */}
+                        <div className="flex items-center gap-2 flex-wrap pl-7">
+                          <span className="text-xs bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full">
+                            {formatRepeatDays(reminder.repeatDays)}
+                          </span>
+                          {(reminder.offsetMinutes ?? 0) !== 0 && (
+                            <span className="text-xs bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full">
+                              {formatOffset(reminder.offsetMinutes)}
+                            </span>
+                          )}
+                          {reminder.snoozedUntil && (
+                            <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full">
+                              已暂停至 {reminder.snoozedUntil.slice(11)}
+                            </span>
+                          )}
+                          {reminder.stockQuantity !== null && reminder.stockQuantity !== undefined && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              (() => {
+                                const daily = reminder.dailyDosageCount ?? 1;
+                                const days = daily > 0 ? Math.floor(reminder.stockQuantity / daily) : 999;
+                                const alertDays = reminder.stockAlertDays ?? 7;
+                                return days <= alertDays
+                                  ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                                  : "bg-muted/60 text-muted-foreground";
+                              })()
+                            }`}>
+                              库存 {reminder.stockQuantity}
+                            </span>
+                          )}
+                          {reminder.enabled === 1 && !reminder.snoozedUntil && (
+                            <button
+                              onClick={() =>
+                                snoozeMutation.mutate({ id: reminder.id })
                               }
-                            }}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
+                              className="text-xs text-muted-foreground hover:text-terracotta transition-colors"
+                              title="推迟15分钟提醒"
+                            >
+                              稍后提醒
+                            </button>
+                          )}
                         </div>
                       </div>
-                      {/* Tags row: repeat days + offset + snooze */}
-                      <div className="flex items-center gap-2 flex-wrap pl-7">
-                        <span className="text-xs bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full">
-                          {formatRepeatDays(reminder.repeatDays)}
-                        </span>
-                        {(reminder.offsetMinutes ?? 0) !== 0 && (
-                          <span className="text-xs bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full">
-                            {formatOffset(reminder.offsetMinutes)}
-                          </span>
-                        )}
-                        {reminder.snoozedUntil && (
-                          <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full">
-                            已暂停至 {reminder.snoozedUntil.slice(11)}
-                          </span>
-                        )}
-                        {reminder.stockQuantity !== null && reminder.stockQuantity !== undefined && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            (() => {
-                              const daily = reminder.dailyDosageCount ?? 1;
-                              const days = daily > 0 ? Math.floor(reminder.stockQuantity / daily) : 999;
-                              const alertDays = reminder.stockAlertDays ?? 7;
-                              return days <= alertDays
-                                ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
-                                : "bg-muted/60 text-muted-foreground";
-                            })()
-                          }`}>
-                            库存 {reminder.stockQuantity}
-                          </span>
-                        )}
-                        {reminder.enabled === 1 && !reminder.snoozedUntil && (
-                          <button
-                            onClick={() =>
-                              snoozeMutation.mutate({ id: reminder.id })
-                            }
-                            className="text-xs text-muted-foreground hover:text-terracotta transition-colors"
-                            title="推迟15分钟提醒"
-                          >
-                            稍后提醒
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                </SwipeToDelete>
               ))}
             </div>
           ))}
