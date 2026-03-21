@@ -7,6 +7,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import MedicationCheckInCalendar from "@/components/MedicationCheckInCalendar";
 import DrugInteractionChecker from "@/components/DrugInteractionChecker";
+import PainkillerTrendChart from "@/components/PainkillerTrendChart";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -446,6 +447,9 @@ export default function MedicationView() {
           </div>
         )}
       </motion.div>
+
+      {/* Painkiller Trend Chart */}
+      <PainkillerTrendChart />
 
       {/* Drug Interaction Checker */}
       <motion.div

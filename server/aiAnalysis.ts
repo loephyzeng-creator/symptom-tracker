@@ -43,6 +43,129 @@ function normTriggers(triggers: any): string[] {
   return [];
 }
 
+/** Build painkiller-headache correlation analysis data */
+function buildPainkillerHeadacheCorrelation(entries: SymptomEntryForAnalysis[]): string {
+  if (entries.length < 3) return "";
+
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+
+  // Days with painkiller vs without
+  const withPainkiller = sorted.filter(e => e.painkillerTaken === 1);
+  const withoutPainkiller = sorted.filter(e => e.painkillerTaken !== 1);
+
+  if (withPainkiller.length === 0) return "";
+
+  // Average headache score on painkiller days vs non-painkiller days
+  const avgHeadacheWith = withPainkiller.length > 0
+    ? Math.round((withPainkiller.reduce((s, e) => s + e.headache, 0) / withPainkiller.length) * 10) / 10
+    : 0;
+  const avgHeadacheWithout = withoutPainkiller.length > 0
+    ? Math.round((withoutPainkiller.reduce((s, e) => s + e.headache, 0) / withoutPainkiller.length) * 10) / 10
+    : 0;
+
+  // Headache attack level distribution on painkiller days
+  const attackLevelOnPainkiller = [0, 0, 0, 0]; // none, mild, moderate, severe
+  for (const e of withPainkiller) {
+    const level = Math.min(3, Math.max(0, e.severeHeadache));
+    attackLevelOnPainkiller[level]++;
+  }
+
+  // Headache attack level distribution on non-painkiller days
+  const attackLevelNoPainkiller = [0, 0, 0, 0];
+  for (const e of withoutPainkiller) {
+    const level = Math.min(3, Math.max(0, e.severeHeadache));
+    attackLevelNoPainkiller[level]++;
+  }
+
+  // Next-day effect: compare headache on day after taking painkiller
+  let nextDayBetter = 0;
+  let nextDayWorse = 0;
+  let nextDaySame = 0;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (sorted[i].painkillerTaken === 1) {
+      const todayH = sorted[i].headache;
+      const nextH = sorted[i + 1].headache;
+      if (nextH < todayH) nextDayBetter++;
+      else if (nextH > todayH) nextDayWorse++;
+      else nextDaySame++;
+    }
+  }
+
+  // Weekly painkiller usage pattern
+  const weeklyUsage: Record<string, { total: number; painkiller: number }> = {};
+  for (const e of sorted) {
+    const weekStart = getWeekStart(e.date);
+    if (!weeklyUsage[weekStart]) weeklyUsage[weekStart] = { total: 0, painkiller: 0 };
+    weeklyUsage[weekStart].total++;
+    if (e.painkillerTaken === 1) weeklyUsage[weekStart].painkiller++;
+  }
+
+  // Consecutive painkiller usage detection
+  let maxConsecutive = 0;
+  let currentConsecutive = 0;
+  for (const e of sorted) {
+    if (e.painkillerTaken === 1) {
+      currentConsecutive++;
+      maxConsecutive = Math.max(maxConsecutive, currentConsecutive);
+    } else {
+      currentConsecutive = 0;
+    }
+  }
+
+  // Average other symptoms on painkiller days vs non-painkiller days
+  const otherSymptoms = ["dizziness", "anxiety", "fatigue", "sleepQuality", "mood"] as const;
+  const symptomComparison: string[] = [];
+  const labels: Record<string, string> = {
+    dizziness: "头晕", anxiety: "焦虑", fatigue: "疲劳", sleepQuality: "睡眠质量", mood: "心情",
+  };
+  for (const f of otherSymptoms) {
+    const avgWith = withPainkiller.length > 0
+      ? Math.round((withPainkiller.reduce((s, e) => s + (e[f] ?? 0), 0) / withPainkiller.length) * 10) / 10
+      : 0;
+    const avgWithout = withoutPainkiller.length > 0
+      ? Math.round((withoutPainkiller.reduce((s, e) => s + (e[f] ?? 0), 0) / withoutPainkiller.length) * 10) / 10
+      : 0;
+    symptomComparison.push(`  ${labels[f]}: 服药日 ${avgWith} vs 未服药日 ${avgWithout}`);
+  }
+
+  let section = "\n\n止疼药使用与头痛关联分析数据：\n";
+  section += `- 止疼药使用天数：${withPainkiller.length} 天（共 ${sorted.length} 天记录）\n`;
+  section += `- 服药日平均头痛评分：${avgHeadacheWith}，未服药日平均头痛评分：${avgHeadacheWithout}\n`;
+  section += `- 服药日头痛发作等级分布：无${attackLevelOnPainkiller[0]}天 / 轻微${attackLevelOnPainkiller[1]}天 / 明显${attackLevelOnPainkiller[2]}天 / 严重${attackLevelOnPainkiller[3]}天\n`;
+  section += `- 未服药日头痛发作等级分布：无${attackLevelNoPainkiller[0]}天 / 轻微${attackLevelNoPainkiller[1]}天 / 明显${attackLevelNoPainkiller[2]}天 / 严重${attackLevelNoPainkiller[3]}天\n`;
+
+  if (nextDayBetter + nextDayWorse + nextDaySame > 0) {
+    section += `- 服药次日效果：好转${nextDayBetter}次 / 加重${nextDayWorse}次 / 持平${nextDaySame}次\n`;
+  }
+
+  if (maxConsecutive > 1) {
+    section += `- 最长连续服药天数：${maxConsecutive} 天\n`;
+  }
+
+  section += "- 服药日 vs 未服药日其他症状对比：\n";
+  section += symptomComparison.join("\n") + "\n";
+
+  // Weekly usage trend
+  const weeks = Object.entries(weeklyUsage).sort((a, b) => a[0].localeCompare(b[0]));
+  if (weeks.length > 1) {
+    section += "- 每周止疼药使用频率：\n";
+    for (const [week, data] of weeks.slice(-8)) {
+      section += `  ${week}周: ${data.painkiller}/${data.total}天\n`;
+    }
+  }
+
+  return section;
+}
+
+/** Get ISO week start date string */
+function getWeekStart(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setDate(diff));
+  return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+}
+
 /** Build a concise data summary for the LLM prompt */
 function buildDataSummary(entries: SymptomEntryForAnalysis[]): string {
   if (entries.length === 0) return "暂无数据记录。";
@@ -134,6 +257,9 @@ function buildDataSummary(entries: SymptomEntryForAnalysis[]): string {
     .map(([m, c]) => `${m}(${c}次)`)
     .join("、") || "无";
 
+  // Build painkiller-headache correlation section
+  const painkillerCorrelation = buildPainkillerHeadacheCorrelation(entries);
+
   return `数据概览：
 - 记录范围：${dateRange}，共 ${totalDays} 天
 - 头痛发作天数：${attackCount} 天（其中明显/严重 ${severeCount} 天）
@@ -145,7 +271,7 @@ function buildDataSummary(entries: SymptomEntryForAnalysis[]): string {
   运动敏感: ${avgs.motionSickness}  |  心慌程度: ${avgs.palpitations}  |  整体心情: ${avgs.mood}
 
 常见诱因：${triggerStr}
-常用药物：${medStr}${trendSection}${dataTable}`;
+常用药物：${medStr}${trendSection}${painkillerCorrelation}${dataTable}`;
 }
 
 interface AdherenceData {
@@ -223,6 +349,10 @@ export async function analyzeSymptoms(
 - 负面指标（越低越好）：头晕脑胀、头痛程度、焦虑程度、疲劳程度、畏光程度、运动敏感、心慌程度
 - 正面指标（越高越好）：睡眠质量、整体心情
 
+此外，用户还记录了：
+- 头痛发作等级（无/轻微/明显/严重）
+- 是否服用止疼药（每日标记）
+
 请基于用户的历史数据，提供以下分析：
 
 ## 分析要求
@@ -230,19 +360,27 @@ export async function analyzeSymptoms(
 1. **症状模式识别**：发现症状之间的关联模式（如哪些症状经常同时出现或此消彼长）
 2. **诱因关联分析**：分析特定诱因出现时各症状的变化规律
 3. **用药效果评估**：分析用药前后症状的变化趋势
-4. **用药依从性与症状关联**：如果有依从性数据，分析服药规律与症状改善之间的相关性。特别关注：
+4. **止疼药使用与头痛关联分析**（重点章节）：
+   - 分析止疼药使用频率是否合理（30天内建议不超过10天）
+   - 对比服药日与未服药日的头痛评分和发作等级差异
+   - 评估止疼药的即时效果和次日效果
+   - 识别是否存在"药物过度使用性头痛"（MOH）风险：如果止疼药使用频率过高（月超10天），且头痛反而加重，需要特别警示
+   - 分析服药日其他症状（头晕、焦虑、疲劳等）的变化，评估止疼药对整体状态的影响
+   - 给出止疼药使用的具体建议（何时该用、何时应避免、替代缓解方法）
+5. **用药依从性与症状关联**：如果有依从性数据，分析服药规律与症状改善之间的相关性。特别关注：
    - 漏服天数与症状加重的时间关系
    - 依从率较低的药品是否影响了治疗效果
    - 连续服药期间与间断服药期间的症状对比
-5. **时间规律发现**：发现是否存在周期性波动（如周末vs工作日、月初vs月末等）
-6. **个性化建议**：基于数据给出具体、可操作的健康管理建议，包括用药依从性改善建议
+6. **时间规律发现**：发现是否存在周期性波动（如周末vs工作日、月初vs月末等）
+7. **个性化建议**：基于数据给出具体、可操作的健康管理建议，包括用药依从性改善建议和止疼药使用优化建议
 
 ## 输出格式
 
-请使用 Markdown 格式输出，包含清暙的标题和段落。语言风格应温和、专业、鼓励性。
-不要使用过于绝对的医学诊断语言，而是用“数据显示”、“可能存在”、“建议关注”等表述。
+请使用 Markdown 格式输出，包含清晰的标题和段落。语言风格应温和、专业、鼓励性。
+不要使用过于绝对的医学诊断语言，而是用"数据显示"、"可能存在"、"建议关注"等表述。
 如果数据量较少，请如实说明分析的局限性。
-如果提供了用药依从性数据，请在报告中单独设置一个“用药依从性与症状关联分析”章节。
+**必须**包含一个独立的"止疼药使用与头痛关联分析"章节，即使止疼药使用天数为0也要说明。
+如果提供了用药依从性数据，请在报告中单独设置一个"用药依从性与症状关联分析"章节。
 
 重要：你是数据分析助手，不是医生。请在报告末尾提醒用户，AI分析仅供参考，不能替代专业医疗建议。`;
 
@@ -277,5 +415,5 @@ ${dataSummary}${adherenceSummary}${stockSummary}`;
   return String(content);
 }
 
-/** Export buildDataSummary for testing */
-export { buildDataSummary };
+/** Export buildDataSummary and buildPainkillerHeadacheCorrelation for testing */
+export { buildDataSummary, buildPainkillerHeadacheCorrelation };

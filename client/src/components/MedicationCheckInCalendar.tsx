@@ -518,7 +518,17 @@ export default function MedicationCheckInCalendar() {
                       </span>
                     )}
                   {cell.painkillerTaken && (
-                    <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-rose-500 border border-white/80 shadow-sm" title="服用止疼药" />
+                    <>
+                      {/* Prominent painkiller border ring */}
+                      <span className="absolute inset-0 rounded-lg ring-2 ring-rose-400/70 ring-inset pointer-events-none" />
+                      {/* Pill icon badge */}
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 border-2 border-card shadow-md flex items-center justify-center z-10" title="服用止疼药">
+                        <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M10.5 20H14a2 2 0 002-2V6a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          <line x1="8" y1="12" x2="16" y2="12" />
+                        </svg>
+                      </span>
+                    </>
                   )}
                 </motion.button>
               );
@@ -566,7 +576,9 @@ export default function MedicationCheckInCalendar() {
           <span className="text-[10px] text-muted-foreground">无安排</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+          <div className="w-3.5 h-3.5 rounded-md ring-2 ring-rose-400/70 ring-inset bg-rose-50 dark:bg-rose-950/30 relative">
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-rose-500 border border-card" />
+          </div>
           <span className="text-[10px] text-muted-foreground">止疼药</span>
         </div>
       </div>
