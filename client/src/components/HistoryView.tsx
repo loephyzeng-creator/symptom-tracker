@@ -172,35 +172,26 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
             <span className="hidden sm:inline"> 条记录</span>
             <span className="sm:hidden"> 条</span>
           </span>
-          <div className="flex gap-1 bg-muted rounded-lg p-1">
-            <button
-              onClick={() => setViewMode("list")}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              title="列表视图"
-            >
-              <List className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode("calendar")}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === "calendar" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              title="日历视图"
-            >
-              <CalendarDays className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode("medication")}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === "medication" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              title="用药时间线"
-            >
-              <Pill className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode("report")}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === "report" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              title="就诊报告"
-            >
-              <FileText className="w-4 h-4" />
-            </button>
+          <div className="flex gap-0.5 bg-muted rounded-lg p-0.5">
+            {([
+              { mode: "list" as const, icon: List, label: "列表" },
+              { mode: "calendar" as const, icon: CalendarDays, label: "日历" },
+              { mode: "medication" as const, icon: Pill, label: "用药" },
+              { mode: "report" as const, icon: FileText, label: "报告" },
+            ]).map(({ mode, icon: Icon, label }) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-md transition-colors ${
+                  viewMode === mode
+                    ? "bg-card shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span className="text-[10px] leading-none font-medium">{label}</span>
+              </button>
+            ))}
           </div>
         </div>
         <div className="flex items-center gap-1.5">
