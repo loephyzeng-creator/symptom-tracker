@@ -101,6 +101,7 @@ export function useSymptomData() {
         medications: normalizeMedications(entry.medications),
         triggers: entry.triggers,
         severeHeadache: entry.severeHeadache ?? 0,
+        painkillerTaken: entry.painkillerTaken ?? 0,
         notes: entry.notes ?? undefined,
       });
       return result;
