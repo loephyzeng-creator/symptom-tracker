@@ -157,7 +157,7 @@ export default function HeadachePainkillerChart({ entries }: HeadachePainkillerC
           </div>
           <div className="flex items-end gap-2">
             <span className="text-2xl font-serif font-bold text-[#c45c5c]">{summary.attackDays}</span>
-            <span className="text-xs text-muted-foreground mb-1">/ {summary.totalDays} 天</span>
+            <span className="text-xs text-muted-foreground mb-1">天</span>
           </div>
           <div className="text-[10px] text-muted-foreground mt-1">
             近30天 · 严重 {summary.severeDays} 天 · 均值 {summary.avgLevel}
