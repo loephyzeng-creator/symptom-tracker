@@ -24,6 +24,7 @@ import MissedMedicationAlert from "@/components/MissedMedicationAlert";
 import MedicationStock from "@/components/MedicationStock";
 import MedicationCheckInCalendar from "@/components/MedicationCheckInCalendar";
 import DrugInteractionChecker from "@/components/DrugInteractionChecker";
+import MedicationView from "@/components/MedicationView";
 import BackupRestore from "@/components/BackupRestore";
 import SyncStatus from "@/components/SyncStatus";
 import CustomMetricsManager from "@/components/CustomMetricsManager";
@@ -31,7 +32,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2,
   FileText, Bell, Settings, Sun, Moon, Zap, CalendarDays, User,
-  ChevronRight, Database, Shield, Activity, Palette
+  ChevronRight, Database, Shield, Activity, Palette, Pill
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -39,10 +40,11 @@ import { zhCN } from "date-fns/locale";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 
-type TabKey = "record" | "stats" | "history" | "report" | "settings";
+type TabKey = "record" | "medication" | "stats" | "history" | "report" | "settings";
 
 const TABS: { key: TabKey; label: string; icon: typeof PenLine }[] = [
   { key: "record", label: "记录", icon: PenLine },
+  { key: "medication", label: "用药", icon: Pill },
   { key: "stats", label: "统计", icon: BarChart3 },
   { key: "history", label: "历史", icon: Clock },
   { key: "report", label: "报告", icon: FileText },
@@ -399,7 +401,7 @@ export default function Home() {
       {/* Content */}
       <main className="flex-1 container max-w-lg mx-auto px-4 py-5 pb-24">
         {/* Daily reminder - show on all tabs except record and settings when not recorded today */}
-        {!dataLoading && activeTab !== "record" && activeTab !== "settings" && (
+        {!dataLoading && activeTab !== "record" && activeTab !== "settings" && activeTab !== "medication" && (
           <DailyReminder
             hasRecordedToday={hasRecordedToday}
             totalEntries={entries.length}
@@ -430,25 +432,9 @@ export default function Home() {
             >
               {activeTab === "record" && (
                 <>
-                  {/* Missed Medication Alert */}
-                  {selectedDate === todayStr && !dataLoading && (
-                    <MissedMedicationAlert />
-                  )}
                   {/* Today Widget - overview card */}
                   {selectedDate === todayStr && !dataLoading && (
                     <TodayWidget entries={entries} />
-                  )}
-                  {/* Drug Interaction Checker */}
-                  {selectedDate === todayStr && !dataLoading && isAuthenticated && (
-                    <div className="mb-4 bg-card rounded-2xl p-4 shadow-sm border border-border/40">
-                      <DrugInteractionChecker />
-                    </div>
-                  )}
-                  {/* Medication Check-in Calendar */}
-                  {selectedDate === todayStr && !dataLoading && (
-                    <div className="mb-4">
-                      <MedicationCheckInCalendar />
-                    </div>
                   )}
                   {/* Shared Date Picker - above mode toggle */}
                   <DatePicker
@@ -501,6 +487,7 @@ export default function Home() {
                   )}
                 </>
               )}
+              {activeTab === "medication" && <MedicationView />}
               {activeTab === "stats" && <StatsView entries={entries} />}
               {activeTab === "history" && (
                 <HistoryView
