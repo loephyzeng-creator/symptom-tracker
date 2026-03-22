@@ -86,23 +86,27 @@ describe("Real-Time Stock Calculation System", () => {
       expect(fnBody).toContain("medicationRestocks.restockDate");
     });
 
-    it("computeRealTimeStock should sum ALL restock quantities and subtract total usage", () => {
+    it("computeRealTimeStock should sum ALL restock quantities plus initial stock and subtract total usage", () => {
       const fnIdx = dbContent.indexOf("export async function computeRealTimeStock");
       const fnEnd = dbContent.indexOf("\nexport ", fnIdx + 10);
-      const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 1000);
+      const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 1500);
       // Should sum all restocks, not just use the latest one
       expect(fnBody).toContain("totalRestocked");
       expect(fnBody).toContain(".reduce(");
-      expect(fnBody).toContain("totalRestocked - totalUsage");
+      // Should include initial stock: initialStock + totalRestocked - totalUsage
+      expect(fnBody).toContain("initialStock + totalRestocked - totalUsage");
       expect(fnBody).toContain("Math.max(0,");
+      // initialStock should come from legacy stockQuantity
+      expect(fnBody).toContain("const initialStock = reminder.stockQuantity ?? 0");
     });
 
-    it("computeRealTimeStock should count usage since earliest restock date", () => {
+    it("computeRealTimeStock should count usage since reminder creation date (baseDate)", () => {
       const fnIdx = dbContent.indexOf("export async function computeRealTimeStock");
       const fnEnd = dbContent.indexOf("\nexport ", fnIdx + 10);
-      const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 1000);
-      expect(fnBody).toContain("earliestDate");
-      expect(fnBody).toContain("allRestocks[0].restockDate");
+      const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 1500);
+      // Should use baseDate (from reminder.createdAt) for both legacy and restock modes
+      expect(fnBody).toContain("baseDate");
+      expect(fnBody).toContain("countMedicationUsageSince");
     });
 
     it("computeRealTimeStock should deduct usage from legacy stockQuantity when no restock record", () => {

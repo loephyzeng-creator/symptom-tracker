@@ -620,3 +620,9 @@
 - [x] 排查撤销补货按钮不可见的问题（原因：hover-only 在手机端不可见）
 - [x] 撤销按钮改为始终可见，提取为独立组件 StockChangeLogPanel
 - [x] 在用药提醒列表中添加可点击库存标签，展开库存日志和撤销按钮
+
+## Bug修复：补货后初始库存丢失
+- [x] 排查：初始库存100，补货30后变成30而非130，初始库存被丢弃
+- [x] 修复：computeRealTimeStock 现在计算 initialStock + totalRestocked - totalUsage
+- [x] 修复：getStockChangeLog 的 runningTotal 也从 initialStock 开始计算
+- [x] 测试验证

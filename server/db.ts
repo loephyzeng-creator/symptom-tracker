@@ -1793,30 +1793,38 @@ export async function computeRealTimeStock(
   const db = await getDb();
   if (!db) return reminder.stockQuantity;
 
+  // Determine the base date for counting usage (reminder creation date or fallback)
+  const baseDate = reminder.createdAt
+    ? new Date(reminder.createdAt.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    : "2020-01-01";
+
   const allRestocks = await getAllRestocks(db, reminder.id);
   if (allRestocks.length === 0) {
     // No restock record — use legacy stockQuantity with real-time deduction
     if (reminder.stockQuantity === null) return null;
-    // Count all usage since the reminder was created (or all time)
-    const sinceDate = reminder.createdAt
-      ? new Date(reminder.createdAt.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
-      : "2020-01-01";
     const totalUsage = await countMedicationUsageSince(
-      db, userId, reminder.id, reminder.medicationName, sinceDate
+      db, userId, reminder.id, reminder.medicationName, baseDate
     );
     return Math.max(0, reminder.stockQuantity - totalUsage);
   }
 
+  // Has restock records:
+  // Stock = initialStock + SUM(all restocks) - totalUsage(since creation)
+  // initialStock is the legacy stockQuantity (what was set before restock system existed)
+  // If stockQuantity is null, it means the medication was created after the restock system,
+  // so initial stock is 0.
+  const initialStock = reminder.stockQuantity ?? 0;
+
   // Sum all restock quantities
   const totalRestocked = allRestocks.reduce((sum, r) => sum + r.restockQuantity, 0);
 
-  // Count usage since the earliest restock date
-  const earliestDate = allRestocks[0].restockDate;
-  const totalUsage = await countTotalMedicationUsage(
-    db, userId, reminder.id, reminder.medicationName, earliestDate
+  // Count ALL usage since the reminder was created (not just since earliest restock)
+  // This ensures we account for usage both before and after restocking
+  const totalUsage = await countMedicationUsageSince(
+    db, userId, reminder.id, reminder.medicationName, baseDate
   );
 
-  return Math.max(0, totalRestocked - totalUsage);
+  return Math.max(0, initialStock + totalRestocked - totalUsage);
 }
 
 /**
@@ -2147,8 +2155,9 @@ export async function getStockChangeLog(
   events.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
   // Calculate running totals
-  // If no restock records, start from legacy stockQuantity
-  let runningTotal = restocks.length === 0 ? (reminder.stockQuantity ?? 0) : 0;
+  // Always start from initial stockQuantity (the value set when the reminder was created)
+  // Restock records ADD to this base, usage records SUBTRACT from it
+  let runningTotal = reminder.stockQuantity ?? 0;
   const eventsWithTotal = events.map((e) => {
     if (e.type === 'restock') {
       runningTotal += e.quantity;
