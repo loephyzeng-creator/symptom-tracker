@@ -1,0 +1,50 @@
+{
+  "query": "SELECT id, date, dizziness, headache, sleepQuality, anxiety FROM symptom_entries ORDER BY date DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT id, date, dizziness, headache, sleepQuality, anxiety FROM symptom_entries ORDER BY date DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "60004",
+      "date": "2099-12-31",
+      "dizziness": "0",
+      "headache": "0",
+      "sleepQuality": "5",
+      "anxiety": "0"
+    },
+    {
+      "id": "60005",
+      "date": "2099-12-30",
+      "dizziness": "0",
+      "headache": "0",
+      "sleepQuality": "5",
+      "anxiety": "0"
+    },
+    {
+      "id": "90001",
+      "date": "2026-03-22",
+      "dizziness": "3",
+      "headache": "1",
+      "sleepQuality": "5",
+      "anxiety": "3"
+    },
+    {
+      "id": "30001",
+      "date": "2026-03-21",
+      "dizziness": "3",
+      "headache": "2",
+      "sleepQuality": "5",
+      "anxiety": "3"
+    },
+    {
+      "id": "1",
+      "date": "2026-03-20",
+      "dizziness": "5",
+      "headache": "3",
+      "sleepQuality": "5",
+      "anxiety": "4"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tdate\tdizziness\theadache\tsleepQuality\tanxiety\n60004\t2099-12-31\t0\t0\t5\t0\n60005\t2099-12-30\t0\t0\t5\t0\n90001\t2026-03-22\t3\t1\t5\t3\n30001\t2026-03-21\t3\t2\t5\t3\n1\t2026-03-20\t5\t3\t5\t4\n",
+  "stderr": "",
+  "execution_time_ms": 426
+}

@@ -6,7 +6,7 @@
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend,
 } from "recharts";
 import type { SymptomEntry } from "@/hooks/useSymptomData";
 import TriggerAnalysis from "@/components/TriggerAnalysis";
@@ -47,7 +47,9 @@ const SYMPTOM_CONFIGS = [
 ];
 
 function CustomTooltip({ active, payload, label }: any) {
-  if (!active || !payload) return null;
+  if (!active || !payload || payload.length === 0) return null;
+  // Use raw values from the data point for accurate display
+  const rawData = payload[0]?.payload?._raw;
   return (
     <div className="bg-card border border-border rounded-lg p-3 shadow-lg">
       <p className="font-serif text-sm font-semibold mb-2">{label}</p>
@@ -55,7 +57,7 @@ function CustomTooltip({ active, payload, label }: any) {
         <div key={p.dataKey} className="flex items-center gap-2 text-xs">
           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
           <span className="text-muted-foreground">{p.name}:</span>
-          <span className="font-medium">{p.value}</span>
+          <span className="font-medium">{rawData ? rawData[p.dataKey] : p.value}</span>
         </div>
       ))}
     </div>
@@ -79,20 +81,48 @@ export default function StatsView({ entries }: StatsViewProps) {
   }, [entries, range]);
 
   const chartData = useMemo(() => {
-    return filteredEntries.map((e) => ({
-      date: e.date.slice(5), // MM-DD
-      fullDate: e.date,
-      dizziness: e.dizziness,
-      headache: e.headache,
-      sleepQuality: e.sleepQuality,
-      anxiety: e.anxiety,
-      fatigue: e.fatigue,
-      photosensitivity: e.photosensitivity,
-      motionSickness: e.motionSickness,
-      palpitations: e.palpitations,
-      mood: e.mood,
-    }));
-  }, [filteredEntries]);
+    return filteredEntries.map((e) => {
+      // Collect active symptom values to detect overlaps
+      const rawValues: Record<string, number> = {
+        dizziness: e.dizziness,
+        headache: e.headache,
+        sleepQuality: e.sleepQuality,
+        anxiety: e.anxiety,
+        fatigue: e.fatigue,
+        photosensitivity: e.photosensitivity,
+        motionSickness: e.motionSickness,
+        palpitations: e.palpitations,
+        mood: e.mood,
+      };
+
+      // Apply micro-offsets to overlapping values so lines don't hide each other
+      const activeKeys = activeSymptoms.filter((k) => k in rawValues);
+      const valueGroups: Record<number, string[]> = {};
+      activeKeys.forEach((k) => {
+        const v = rawValues[k];
+        if (!valueGroups[v]) valueGroups[v] = [];
+        valueGroups[v].push(k);
+      });
+      const adjusted = { ...rawValues };
+      Object.values(valueGroups).forEach((keys) => {
+        if (keys.length > 1) {
+          // Spread overlapping lines by tiny offsets (±0.08 per line)
+          const mid = (keys.length - 1) / 2;
+          keys.forEach((k, i) => {
+            adjusted[k] = rawValues[k] + (i - mid) * 0.08;
+          });
+        }
+      });
+
+      return {
+        date: e.date.slice(5), // MM-DD
+        fullDate: e.date,
+        // Store raw values for tooltip display
+        _raw: rawValues,
+        ...adjusted,
+      };
+    });
+  }, [filteredEntries, activeSymptoms]);
 
   const averages = useMemo(() => {
     if (filteredEntries.length === 0) return null;
@@ -319,6 +349,13 @@ export default function StatsView({ entries }: StatsViewProps) {
                     axisLine={{ stroke: "var(--border)" }}
                   />
                   <Tooltip content={<CustomTooltip />} />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    iconType="circle"
+                    iconSize={8}
+                    wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                  />
                   {SYMPTOM_CONFIGS.filter((s) => activeSymptoms.includes(s.key)).map((s) => (
                     <Line
                       key={s.key}
