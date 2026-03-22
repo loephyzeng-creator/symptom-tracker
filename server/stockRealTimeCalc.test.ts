@@ -74,12 +74,35 @@ describe("Real-Time Stock Calculation System", () => {
       expect(dbContent).toContain("export async function computeRealTimeStock");
     });
 
-    it("computeRealTimeStock should calculate stock as restockQuantity - usageCount", () => {
+    it("should have getAllRestocks helper function", () => {
+      expect(dbContent).toContain("async function getAllRestocks");
+    });
+
+    it("getAllRestocks should return all restock records ordered by restockDate", () => {
+      const fnIdx = dbContent.indexOf("async function getAllRestocks");
+      const fnEnd = dbContent.indexOf("\n/**", fnIdx + 10);
+      const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 500);
+      expect(fnBody).toContain("medicationRestocks");
+      expect(fnBody).toContain("medicationRestocks.restockDate");
+    });
+
+    it("computeRealTimeStock should sum ALL restock quantities and subtract total usage", () => {
       const fnIdx = dbContent.indexOf("export async function computeRealTimeStock");
       const fnEnd = dbContent.indexOf("\nexport ", fnIdx + 10);
       const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 1000);
-      expect(fnBody).toContain("latestRestock.restockQuantity - usageCount");
+      // Should sum all restocks, not just use the latest one
+      expect(fnBody).toContain("totalRestocked");
+      expect(fnBody).toContain(".reduce(");
+      expect(fnBody).toContain("totalRestocked - totalUsage");
       expect(fnBody).toContain("Math.max(0,");
+    });
+
+    it("computeRealTimeStock should count usage since earliest restock date", () => {
+      const fnIdx = dbContent.indexOf("export async function computeRealTimeStock");
+      const fnEnd = dbContent.indexOf("\nexport ", fnIdx + 10);
+      const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 1000);
+      expect(fnBody).toContain("earliestDate");
+      expect(fnBody).toContain("allRestocks[0].restockDate");
     });
 
     it("computeRealTimeStock should fall back to legacy stockQuantity when no restock record", () => {

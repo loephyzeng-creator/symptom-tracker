@@ -1742,8 +1742,37 @@ async function getLatestRestock(
 }
 
 /**
+ * Get all restock records for a reminder, ordered by restockDate ascending.
+ */
+async function getAllRestocks(
+  db: ReturnType<typeof drizzle>,
+  reminderId: number
+) {
+  return db
+    .select()
+    .from(medicationRestocks)
+    .where(eq(medicationRestocks.reminderId, reminderId))
+    .orderBy(medicationRestocks.restockDate);
+}
+
+/**
+ * Count total medication usage since the earliest restock date.
+ * This counts all medication entries from the first restock date onward.
+ */
+async function countTotalMedicationUsage(
+  db: ReturnType<typeof drizzle>,
+  userId: number,
+  reminderId: number,
+  medicationName: string,
+  sinceDate: string
+): Promise<number> {
+  return countMedicationUsageSince(db, userId, reminderId, medicationName, sinceDate);
+}
+
+/**
  * Compute real-time stock for a single reminder.
- * Stock = latestRestock.restockQuantity - usage count since restockDate.
+ * Stock = SUM(all restock quantities) - total usage count since first restock date.
+ * This ensures previous remaining stock carries over when restocking.
  * If no restock record exists, falls back to the legacy stockQuantity field.
  */
 export async function computeRealTimeStock(
@@ -1753,17 +1782,22 @@ export async function computeRealTimeStock(
   const db = await getDb();
   if (!db) return reminder.stockQuantity;
 
-  const latestRestock = await getLatestRestock(db, reminder.id);
-  if (!latestRestock) {
+  const allRestocks = await getAllRestocks(db, reminder.id);
+  if (allRestocks.length === 0) {
     // No restock record — fall back to legacy stockQuantity
     return reminder.stockQuantity;
   }
 
-  const usageCount = await countMedicationUsageSince(
-    db, userId, reminder.id, reminder.medicationName, latestRestock.restockDate
+  // Sum all restock quantities
+  const totalRestocked = allRestocks.reduce((sum, r) => sum + r.restockQuantity, 0);
+
+  // Count usage since the earliest restock date
+  const earliestDate = allRestocks[0].restockDate;
+  const totalUsage = await countTotalMedicationUsage(
+    db, userId, reminder.id, reminder.medicationName, earliestDate
   );
 
-  return Math.max(0, latestRestock.restockQuantity - usageCount);
+  return Math.max(0, totalRestocked - totalUsage);
 }
 
 /**
