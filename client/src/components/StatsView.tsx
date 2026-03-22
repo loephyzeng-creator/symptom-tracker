@@ -3,10 +3,10 @@
  * Recharts-based trend visualization with warm color palette
  * Includes trigger frequency + correlation analysis
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend, ReferenceLine,
 } from "recharts";
 import type { SymptomEntry } from "@/hooks/useSymptomData";
 import TriggerAnalysis from "@/components/TriggerAnalysis";
@@ -41,9 +41,9 @@ const SYMPTOM_CONFIGS = [
   { key: "anxiety", label: "焦虑", color: "#9b6b8a", invert: true },
   { key: "fatigue", label: "疲劳", color: "#7a9e7e", invert: true },
   { key: "photosensitivity", label: "畏光", color: "#c49a3c", invert: true },
-  { key: "motionSickness", label: "运动敏感", color: "#b87a4b", invert: true },
-  { key: "palpitations", label: "心慌", color: "#c45c5c", invert: true },
-  { key: "mood", label: "心情", color: "#7a9e7e", invert: false },
+  { key: "motionSickness", label: "运动敏感", color: "#5b8fa8", invert: true },
+  { key: "palpitations", label: "心慌", color: "#d4845a", invert: true },
+  { key: "mood", label: "心情", color: "#8b6bbf", invert: false },
 ];
 
 function CustomTooltip({ active, payload, label }: any) {
@@ -70,6 +70,12 @@ export default function StatsView({ entries }: StatsViewProps) {
   const [activeSymptoms, setActiveSymptoms] = useState<string[]>([
     "dizziness", "headache", "sleepQuality", "anxiety",
   ]);
+  const [showBaseline, setShowBaseline] = useState(true);
+
+  // Pinch-to-zoom state
+  const [zoomDomain, setZoomDomain] = useState<{ start: number; end: number } | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const touchStartRef = useRef<{ dist: number; start: number; end: number } | null>(null);
 
   const filteredEntries = useMemo(() => {
     const r = RANGES.find((r) => r.key === range);
@@ -123,6 +129,44 @@ export default function StatsView({ entries }: StatsViewProps) {
       };
     });
   }, [filteredEntries, activeSymptoms]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      touchStartRef.current = {
+        dist,
+        start: zoomDomain?.start ?? 0,
+        end: zoomDomain?.end ?? (chartData.length - 1),
+      };
+    }
+  }, [zoomDomain, chartData.length]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchStartRef.current) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const scale = dist / touchStartRef.current.dist;
+      const { start: origStart, end: origEnd } = touchStartRef.current;
+      const origRange = origEnd - origStart;
+      const newRange = Math.max(2, Math.round(origRange / scale));
+      const center = Math.round((origStart + origEnd) / 2);
+      const newStart = Math.max(0, center - Math.floor(newRange / 2));
+      const newEnd = Math.min(chartData.length - 1, newStart + newRange);
+      setZoomDomain({ start: newStart, end: newEnd });
+    }
+  }, [chartData.length]);
+
+  const handleTouchEnd = useCallback(() => {
+    touchStartRef.current = null;
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    setZoomDomain(null);
+  }, []);
 
   const averages = useMemo(() => {
     if (filteredEntries.length === 0) return null;
@@ -332,9 +376,36 @@ export default function StatsView({ entries }: StatsViewProps) {
               <h3 className="font-serif font-semibold text-sm">趋势变化</h3>
               <span className="text-xs text-muted-foreground">（共 {filteredEntries.length} 条记录）</span>
             </div>
-            <div className="h-[280px]">
+            {/* Baseline toggle + zoom reset */}
+            <div className="flex items-center gap-3 mb-2">
+              <button
+                onClick={() => setShowBaseline(!showBaseline)}
+                className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                  showBaseline
+                    ? "bg-primary/10 border-primary/30 text-primary"
+                    : "bg-muted/50 border-border text-muted-foreground"
+                }`}
+              >
+                {showBaseline ? "◉" : "○"} 均值参考线
+              </button>
+              {zoomDomain && (
+                <button
+                  onClick={resetZoom}
+                  className="text-xs px-2 py-0.5 rounded-full border border-border bg-muted/50 text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  重置缩放
+                </button>
+              )}
+            </div>
+            <div
+              className="h-[280px] touch-none"
+              ref={chartContainerRef}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
+                <LineChart data={zoomDomain ? chartData.slice(zoomDomain.start, zoomDomain.end + 1) : chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis
                     dataKey="date"
@@ -356,6 +427,23 @@ export default function StatsView({ entries }: StatsViewProps) {
                     iconSize={8}
                     wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
                   />
+                  {/* Baseline reference lines for active symptoms */}
+                  {showBaseline && averages && SYMPTOM_CONFIGS.filter((s) => activeSymptoms.includes(s.key)).map((s) => (
+                    <ReferenceLine
+                      key={`avg-${s.key}`}
+                      y={averages[s.key]}
+                      stroke={s.color}
+                      strokeDasharray="4 4"
+                      strokeOpacity={0.5}
+                      label={{
+                        value: `· ${s.label}均值 ${averages[s.key]}`,
+                        position: "right",
+                        fontSize: 9,
+                        fill: s.color,
+                        opacity: 0.7,
+                      }}
+                    />
+                  ))}
                   {SYMPTOM_CONFIGS.filter((s) => activeSymptoms.includes(s.key)).map((s) => (
                     <Line
                       key={s.key}
