@@ -1,14 +1,14 @@
 /**
  * Medication Stock Management Component
  * Shows stock levels, estimated run-out dates, and low-stock warnings.
- * Allows users to update stock quantities.
+ * Allows users to restock with date tracking. Stock is computed in real-time.
  */
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Package,
   AlertTriangle,
@@ -16,11 +16,13 @@ import {
   Pill,
   Calendar,
   TrendingDown,
-  Plus,
-  Minus,
   CalendarPlus,
+  PackagePlus,
+  History,
+  Loader2,
 } from "lucide-react";
 import { exportSingleStockReminder, exportAllStockReminders } from "@/lib/icsExport";
+import AnimatedNumber from "@/components/AnimatedNumber";
 
 function getRemainingColor(days: number, alertDays: number): string {
   if (days <= 0) return "#c45c5c"; // red - empty
@@ -34,38 +36,52 @@ function getRemainingLabel(days: number): string {
   return `${days} 天`;
 }
 
+function getTodayStr(): string {
+  const now = new Date();
+  const offset = 8 * 60 * 60 * 1000;
+  return new Date(now.getTime() + offset).toISOString().slice(0, 10);
+}
+
 export default function MedicationStock() {
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editQuantity, setEditQuantity] = useState<string>("");
+  const [restockingId, setRestockingId] = useState<number | null>(null);
+  const [restockQuantity, setRestockQuantity] = useState<string>("30");
+  const [restockDate, setRestockDate] = useState(getTodayStr);
+  const [historyId, setHistoryId] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
   const { data: stockItems = [], isLoading } =
     trpc.medReminders.stockStatus.useQuery(undefined, {
-      staleTime: 60_000,
+      staleTime: 30_000,
     });
 
-  const updateMutation = trpc.medReminders.update.useMutation({
+  const restockMutation = trpc.medReminders.restock.useMutation({
     onSuccess: () => {
       utils.medReminders.stockStatus.invalidate();
       utils.medReminders.list.invalidate();
-      setEditingId(null);
-      toast.success("库存已更新");
+      setRestockingId(null);
+      setRestockQuantity("30");
+      setRestockDate(getTodayStr());
+      toast.success("补货成功，库存已更新");
     },
     onError: (err) => toast.error(err.message),
   });
 
-  const handleUpdateStock = (reminderId: number) => {
-    const qty = parseInt(editQuantity);
-    if (isNaN(qty) || qty < 0) {
-      toast.error("请输入有效数量");
+  const { data: restockHistory = [] } = trpc.medReminders.restockHistory.useQuery(
+    { reminderId: historyId! },
+    { enabled: historyId !== null }
+  );
+
+  const handleRestock = (reminderId: number) => {
+    const qty = parseInt(restockQuantity);
+    if (isNaN(qty) || qty < 1) {
+      toast.error("请输入有效的补货数量");
       return;
     }
-    updateMutation.mutate({ id: reminderId, stockQuantity: qty });
-  };
-
-  const handleQuickAdjust = (reminderId: number, currentQty: number, delta: number) => {
-    const newQty = Math.max(0, currentQty + delta);
-    updateMutation.mutate({ id: reminderId, stockQuantity: newQty });
+    if (!restockDate || !/^\d{4}-\d{2}-\d{2}$/.test(restockDate)) {
+      toast.error("请选择有效的补货日期");
+      return;
+    }
+    restockMutation.mutate({ reminderId, restockQuantity: qty, restockDate });
   };
 
   // Separate into low stock and normal stock
@@ -96,7 +112,8 @@ export default function MedicationStock() {
   }
 
   const StockItem = ({ item }: { item: any }) => {
-    const isEditing = editingId === item.reminderId;
+    const isRestocking = restockingId === item.reminderId;
+    const showingHistory = historyId === item.reminderId;
     const color = getRemainingColor(item.daysRemaining, item.alertDays);
     const percentage = item.daysRemaining > 0
       ? Math.min(100, (item.daysRemaining / Math.max(item.alertDays * 2, 30)) * 100)
@@ -133,7 +150,7 @@ export default function MedicationStock() {
           </div>
           <div className="text-right shrink-0">
             <p className="text-lg font-serif font-bold" style={{ color }}>
-              {item.stockQuantity}
+              <AnimatedNumber value={item.stockQuantity} duration={400} />
             </p>
             <p className="text-[10px] text-muted-foreground">剩余</p>
           </div>
@@ -164,91 +181,152 @@ export default function MedicationStock() {
           </span>
         </div>
 
-        {/* Edit / Quick adjust */}
+        {/* Restock date info */}
+        {item.restockDate && (
+          <div className="mt-1 text-[10px] text-muted-foreground/70">
+            最近补货：{item.restockDate}
+          </div>
+        )}
+
+        {/* Action buttons */}
         <div className="mt-3 flex items-center gap-2">
-          {isEditing ? (
-            <div className="flex items-center gap-2 w-full">
+          <button
+            onClick={() => {
+              if (isRestocking) {
+                setRestockingId(null);
+              } else {
+                setRestockingId(item.reminderId);
+                setHistoryId(null);
+                setRestockQuantity("30");
+                setRestockDate(getTodayStr());
+              }
+            }}
+            className={`text-xs transition-colors flex items-center gap-1 ${
+              isRestocking
+                ? "text-terracotta font-medium"
+                : "text-muted-foreground hover:text-terracotta"
+            }`}
+          >
+            <PackagePlus className="w-3 h-3" />
+            补货
+          </button>
+          <button
+            onClick={() => {
+              if (showingHistory) {
+                setHistoryId(null);
+              } else {
+                setHistoryId(item.reminderId);
+                setRestockingId(null);
+              }
+            }}
+            className={`text-xs transition-colors flex items-center gap-1 ${
+              showingHistory
+                ? "text-terracotta font-medium"
+                : "text-muted-foreground hover:text-terracotta"
+            }`}
+          >
+            <History className="w-3 h-3" />
+            记录
+          </button>
+          <button
+            onClick={() => {
+              exportSingleStockReminder(item);
+              toast.success("已生成备药提醒日历文件");
+            }}
+            className="text-xs text-muted-foreground hover:text-terracotta transition-colors flex items-center gap-1"
+            title="导出备药提醒到系统日历"
+          >
+            <CalendarPlus className="w-3 h-3" />
+            日历
+          </button>
+        </div>
+
+        {/* Restock form */}
+        {isRestocking && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="mt-3 p-3 bg-muted/40 rounded-lg space-y-2"
+          >
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-foreground shrink-0 w-16">补货日期</label>
+              <Input
+                type="date"
+                value={restockDate}
+                onChange={(e) => setRestockDate(e.target.value)}
+                className="h-8 text-sm flex-1"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-foreground shrink-0 w-16">补货数量</label>
               <Input
                 type="number"
-                value={editQuantity}
-                onChange={(e) => setEditQuantity(e.target.value)}
+                value={restockQuantity}
+                onChange={(e) => setRestockQuantity(e.target.value)}
                 className="h-8 text-sm w-24"
-                min={0}
+                min={1}
                 placeholder="数量"
-                autoFocus
               />
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              库存将从补货日期起，根据用药记录自动扣减
+            </p>
+            <div className="flex gap-2">
               <Button
                 size="sm"
-                className="h-8 bg-terracotta hover:bg-terracotta/90 text-white"
-                onClick={() => handleUpdateStock(item.reminderId)}
-                disabled={updateMutation.isPending}
+                className="h-7 bg-terracotta hover:bg-terracotta/90 text-white gap-1"
+                onClick={() => handleRestock(item.reminderId)}
+                disabled={restockMutation.isPending}
               >
-                <Check className="w-3.5 h-3.5" />
+                {restockMutation.isPending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Check className="w-3.5 h-3.5" />
+                )}
+                确认补货
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-8"
-                onClick={() => setEditingId(null)}
+                className="h-7"
+                onClick={() => setRestockingId(null)}
               >
                 取消
               </Button>
             </div>
-          ) : (
-            <div className="flex items-center gap-2 w-full">
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() =>
-                    handleQuickAdjust(
-                      item.reminderId,
-                      item.stockQuantity,
-                      -item.dailyDosageCount
-                    )
-                  }
-                  className="w-7 h-7 rounded-lg bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-                  title={`减少 ${item.dailyDosageCount} 剂`}
-                >
-                  <Minus className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() =>
-                    handleQuickAdjust(
-                      item.reminderId,
-                      item.stockQuantity,
-                      item.dailyDosageCount
-                    )
-                  }
-                  className="w-7 h-7 rounded-lg bg-muted/60 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-                  title={`增加 ${item.dailyDosageCount} 剂`}
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
+          </motion.div>
+        )}
+
+        {/* Restock history */}
+        {showingHistory && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="mt-3 p-3 bg-muted/40 rounded-lg"
+          >
+            <p className="text-xs font-medium text-foreground mb-2">补货记录</p>
+            {restockHistory.length === 0 ? (
+              <p className="text-xs text-muted-foreground">暂无补货记录</p>
+            ) : (
+              <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                {restockHistory.map((record: any) => (
+                  <div
+                    key={record.id}
+                    className="flex items-center justify-between text-xs text-muted-foreground"
+                  >
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {record.restockDate}
+                    </span>
+                    <span className="font-medium text-foreground">
+                      +{record.restockQuantity}
+                    </span>
+                  </div>
+                ))}
               </div>
-              <button
-                onClick={() => {
-                  exportSingleStockReminder(item);
-                  toast.success("已生成备药提醒日历文件");
-                }}
-                className="text-xs text-muted-foreground hover:text-terracotta transition-colors"
-                title="导出备药提醒到系统日历"
-              >
-                <span className="flex items-center gap-1">
-                  <CalendarPlus className="w-3 h-3" />
-                  导入日历
-                </span>
-              </button>
-              <button
-                onClick={() => {
-                  setEditingId(item.reminderId);
-                  setEditQuantity(String(item.stockQuantity));
-                }}
-                className="text-xs text-muted-foreground hover:text-terracotta transition-colors ml-auto"
-              >
-                修改库存
-              </button>
-            </div>
-          )}
-        </div>
+            )}
+          </motion.div>
+        )}
       </motion.div>
     );
   };

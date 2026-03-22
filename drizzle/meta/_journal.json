@@ -176,6 +176,13 @@
       "when": 1774156482552,
       "tag": "0024_slippery_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1774180257775,
+      "tag": "0025_small_tomas",
+      "breakpoints": true
     }
   ]
 }

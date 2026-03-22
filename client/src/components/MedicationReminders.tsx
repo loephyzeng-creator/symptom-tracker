@@ -720,6 +720,11 @@ export default function MedicationReminders() {
   // Batch restock
   const [showRestockDialog, setShowRestockDialog] = useState(false);
   const [restockQuantity, setRestockQuantity] = useState(30);
+  const [restockDate, setRestockDate] = useState(() => {
+    const now = new Date();
+    const offset = 8 * 60 * 60 * 1000;
+    return new Date(now.getTime() + offset).toISOString().slice(0, 10);
+  });
 
   const utils = trpc.useUtils();
   const { data: reminders = [], isLoading } =
@@ -1233,8 +1238,17 @@ export default function MedicationReminders() {
             <h4 className="font-medium text-sm text-red-700 dark:text-red-400">一键补货</h4>
           </div>
           <p className="text-xs text-red-600/80 dark:text-red-400/80">
-            将所有库存不足的药品（{lowStockCount} 种）重置为指定数量。
+            将所有库存不足的药品（{lowStockCount} 种）重置为指定数量，库存从补货日期开始计算。
           </p>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-foreground shrink-0">补货日期：</label>
+            <Input
+              type="date"
+              value={restockDate}
+              onChange={(e) => setRestockDate(e.target.value)}
+              className="w-36 h-8 text-sm"
+            />
+          </div>
           <div className="flex items-center gap-2">
             <label className="text-xs text-foreground shrink-0">补货数量：</label>
             <Input
@@ -1249,7 +1263,7 @@ export default function MedicationReminders() {
           <div className="flex gap-2">
             <Button
               size="sm"
-              onClick={() => batchRestockMutation.mutate({ restockQuantity })}
+              onClick={() => batchRestockMutation.mutate({ restockQuantity, restockDate })}
               disabled={batchRestockMutation.isPending}
               className="bg-red-600 hover:bg-red-700 text-white gap-1"
             >

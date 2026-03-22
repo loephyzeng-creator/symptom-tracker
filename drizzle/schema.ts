@@ -246,3 +246,19 @@ export const drugInteractions = mysqlTable("drug_interactions", {
 
 export type DrugInteraction = typeof drugInteractions.$inferSelect;
 export type InsertDrugInteraction = typeof drugInteractions.$inferInsert;
+
+/**
+ * Medication restock records — tracks each restock event with date and quantity.
+ * Stock is computed in real-time: restockQuantity - usage count since restockDate.
+ */
+export const medicationRestocks = mysqlTable("medication_restocks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  reminderId: int("reminderId").notNull(), // FK to medication_reminders.id
+  restockQuantity: int("restockQuantity").notNull(), // quantity added in this restock
+  restockDate: varchar("restockDate", { length: 10 }).notNull(), // YYYY-MM-DD, the date from which stock counting starts
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type MedicationRestock = typeof medicationRestocks.$inferSelect;
+export type InsertMedicationRestock = typeof medicationRestocks.$inferInsert;

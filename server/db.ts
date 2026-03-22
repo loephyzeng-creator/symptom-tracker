@@ -14,6 +14,7 @@ import {
   medicationReminders,
   medicationGroups,
   drugInteractions,
+  medicationRestocks,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { buildEntryMedMap, wasMedTaken } from "./medMatchHelper";
@@ -1691,8 +1692,83 @@ export async function getMedicationAdherence(
 // ─── Medication Stock Management ──────────────────────────────────────
 
 /**
- * Get stock status for all medication reminders of a user.
- * Returns reminders with stock tracking enabled, plus estimated days remaining.
+ * Count how many times a medication was taken since a given date,
+ * by scanning symptom_entries.medications JSON.
+ */
+async function countMedicationUsageSince(
+  db: ReturnType<typeof drizzle>,
+  userId: number,
+  reminderId: number,
+  medicationName: string,
+  sinceDate: string // YYYY-MM-DD inclusive
+): Promise<number> {
+  const entries = await db
+    .select({ medications: symptomEntries.medications, date: symptomEntries.date })
+    .from(symptomEntries)
+    .where(
+      and(
+        eq(symptomEntries.userId, userId),
+        gte(symptomEntries.date, sinceDate)
+      )
+    );
+
+  let count = 0;
+  for (const entry of entries) {
+    const meds: { name: string; dosage: string; reminderId?: number; timeIndex?: number }[] =
+      Array.isArray(entry.medications) ? entry.medications : [];
+    for (const m of meds) {
+      if (m.reminderId === reminderId || m.name.toLowerCase() === medicationName.toLowerCase()) {
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+/**
+ * Get the latest restock record for a reminder.
+ */
+async function getLatestRestock(
+  db: ReturnType<typeof drizzle>,
+  reminderId: number
+) {
+  const rows = await db
+    .select()
+    .from(medicationRestocks)
+    .where(eq(medicationRestocks.reminderId, reminderId))
+    .orderBy(desc(medicationRestocks.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Compute real-time stock for a single reminder.
+ * Stock = latestRestock.restockQuantity - usage count since restockDate.
+ * If no restock record exists, falls back to the legacy stockQuantity field.
+ */
+export async function computeRealTimeStock(
+  userId: number,
+  reminder: { id: number; medicationName: string; stockQuantity: number | null; dailyDosageCount: number | null }
+): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return reminder.stockQuantity;
+
+  const latestRestock = await getLatestRestock(db, reminder.id);
+  if (!latestRestock) {
+    // No restock record — fall back to legacy stockQuantity
+    return reminder.stockQuantity;
+  }
+
+  const usageCount = await countMedicationUsageSince(
+    db, userId, reminder.id, reminder.medicationName, latestRestock.restockDate
+  );
+
+  return Math.max(0, latestRestock.restockQuantity - usageCount);
+}
+
+/**
+ * Get medication stock status for a user.
+ * Stock is computed in real-time from restock records and usage history.
  */
 export async function getMedicationStockStatus(userId: number) {
   const db = await getDb();
@@ -1703,71 +1779,61 @@ export async function getMedicationStockStatus(userId: number) {
     .from(medicationReminders)
     .where(eq(medicationReminders.userId, userId));
 
-  return reminders
-    .filter((r) => r.stockQuantity !== null)
-    .map((r) => {
-      const dailyCount = r.dailyDosageCount ?? 1;
-      const daysRemaining = dailyCount > 0 ? Math.floor((r.stockQuantity ?? 0) / dailyCount) : 999;
-      const alertDays = r.stockAlertDays ?? 7;
-      const isLow = daysRemaining <= alertDays;
-      const estimatedRunOutDate = new Date();
-      estimatedRunOutDate.setDate(estimatedRunOutDate.getDate() + daysRemaining);
+  // Only include reminders that have stock tracking (either restock records or legacy stockQuantity)
+  const results = [];
+  for (const r of reminders) {
+    const latestRestock = await getLatestRestock(db, r.id);
+    const hasStockTracking = latestRestock !== null || r.stockQuantity !== null;
+    if (!hasStockTracking) continue;
 
-      return {
-        reminderId: r.id,
-        medicationName: r.medicationName,
-        dosage: r.dosage,
-        stockQuantity: r.stockQuantity ?? 0,
-        dailyDosageCount: dailyCount,
-        daysRemaining,
-        estimatedRunOutDate: estimatedRunOutDate.toISOString().slice(0, 10),
-        alertDays,
-        isLow,
-        enabled: r.enabled,
-      };
+    const realStock = await computeRealTimeStock(userId, r);
+    if (realStock === null) continue;
+
+    const dailyCount = r.dailyDosageCount ?? 1;
+    const daysRemaining = dailyCount > 0 ? Math.floor(realStock / dailyCount) : 999;
+    const alertDays = r.stockAlertDays ?? 7;
+    const isLow = daysRemaining <= alertDays;
+    const estimatedRunOutDate = new Date();
+    estimatedRunOutDate.setDate(estimatedRunOutDate.getDate() + daysRemaining);
+
+    results.push({
+      reminderId: r.id,
+      medicationName: r.medicationName,
+      dosage: r.dosage,
+      stockQuantity: realStock,
+      dailyDosageCount: dailyCount,
+      daysRemaining,
+      estimatedRunOutDate: estimatedRunOutDate.toISOString().slice(0, 10),
+      alertDays,
+      isLow,
+      enabled: r.enabled,
+      restockDate: latestRestock?.restockDate ?? null,
     });
+  }
+  return results;
 }
 
 /**
- * Deduct stock for a medication (called when user records taking medication).
- * Decrements stockQuantity by the dailyDosageCount.
+ * Deduct stock for a medication — now a no-op since stock is computed in real-time
+ * from restock records and usage history. Kept for backward compatibility.
  */
 export async function deductMedicationStock(userId: number, medicationName: string) {
-  const db = await getDb();
-  if (!db) return;
-
-  // Find matching reminders with stock tracking
-  const reminders = await db
-    .select()
-    .from(medicationReminders)
-    .where(
-      and(
-        eq(medicationReminders.userId, userId),
-        sql`LOWER(${medicationReminders.medicationName}) = LOWER(${medicationName})`
-      )
-    );
-
-  for (const r of reminders) {
-    if (r.stockQuantity === null) continue; // Not tracking stock
-    const deductAmount = r.dailyDosageCount ?? 1;
-    const newQuantity = Math.max(0, (r.stockQuantity ?? 0) - deductAmount);
-    await db
-      .update(medicationReminders)
-      .set({ stockQuantity: newQuantity })
-      .where(eq(medicationReminders.id, r.id));
-  }
+  // No-op: stock is now computed in real-time from restock records and symptom_entries
+  // The actual "deduction" happens automatically when a medication is recorded in symptom_entries
 }
 
 /**
  * Get low-stock medication alerts for push notifications.
- * Returns medications where stock will run out within alertDays.
+ * Uses real-time stock computation.
  */
 export async function getLowStockAlerts(userId: number) {
   const db = await getDb();
   if (!db) return [];
 
   const todayStr = new Date().toISOString().slice(0, 10);
+  const stockStatuses = await getMedicationStockStatus(userId);
 
+  // Get reminders for lastStockAlertDate check
   const reminders = await db
     .select()
     .from(medicationReminders)
@@ -1777,23 +1843,21 @@ export async function getLowStockAlerts(userId: number) {
         eq(medicationReminders.enabled, 1)
       )
     );
+  const reminderMap = new Map(reminders.map(r => [r.id, r]));
 
-  return reminders
-    .filter((r) => {
-      if (r.stockQuantity === null) return false;
-      if (r.lastStockAlertDate === todayStr) return false; // Already alerted today
-      const dailyCount = r.dailyDosageCount ?? 1;
-      const daysRemaining = dailyCount > 0 ? Math.floor(r.stockQuantity / dailyCount) : 999;
-      return daysRemaining <= (r.stockAlertDays ?? 7);
+  return stockStatuses
+    .filter((s) => {
+      const reminder = reminderMap.get(s.reminderId);
+      if (!reminder) return false;
+      if (reminder.lastStockAlertDate === todayStr) return false;
+      return s.isLow;
     })
-    .map((r) => ({
-      reminderId: r.id,
-      medicationName: r.medicationName,
-      stockQuantity: r.stockQuantity ?? 0,
-      dailyDosageCount: r.dailyDosageCount ?? 1,
-      daysRemaining: (r.dailyDosageCount ?? 1) > 0
-        ? Math.floor((r.stockQuantity ?? 0) / (r.dailyDosageCount ?? 1))
-        : 999,
+    .map((s) => ({
+      reminderId: s.reminderId,
+      medicationName: s.medicationName,
+      stockQuantity: s.stockQuantity,
+      dailyDosageCount: s.dailyDosageCount,
+      daysRemaining: s.daysRemaining,
     }));
 }
 
@@ -1811,44 +1875,87 @@ export async function markStockAlertSent(id: number) {
 }
 
 /**
- * Batch restock all low-stock medications to a specified quantity.
- * Returns the count of medications restocked.
+ * Add a restock record for a medication reminder.
  */
-export async function batchRestockMedications(
+export async function addMedicationRestock(
   userId: number,
-  restockQuantity: number
-): Promise<{ restocked: number; names: string[] }> {
+  reminderId: number,
+  restockQuantity: number,
+  restockDate: string // YYYY-MM-DD
+): Promise<{ success: boolean }> {
   const db = await getDb();
-  if (!db) return { restocked: 0, names: [] };
+  if (!db) return { success: false };
 
-  const reminders = await db
+  // Verify the reminder belongs to the user
+  const reminder = await db
     .select()
     .from(medicationReminders)
     .where(
       and(
-        eq(medicationReminders.userId, userId),
-        eq(medicationReminders.enabled, 1)
+        eq(medicationReminders.id, reminderId),
+        eq(medicationReminders.userId, userId)
       )
-    );
+    )
+    .limit(1);
+  if (reminder.length === 0) throw new Error("Reminder not found");
 
-  const lowStockReminders = reminders.filter((r) => {
-    if (r.stockQuantity === null) return false;
-    const dailyCount = r.dailyDosageCount ?? 1;
-    const daysRemaining = dailyCount > 0 ? Math.floor(r.stockQuantity / dailyCount) : 999;
-    const alertDays = r.stockAlertDays ?? 7;
-    return daysRemaining <= alertDays;
+  await db.insert(medicationRestocks).values({
+    userId,
+    reminderId,
+    restockQuantity,
+    restockDate,
   });
 
+  // Also update the legacy stockQuantity field for backward compatibility
+  await db
+    .update(medicationReminders)
+    .set({ stockQuantity: restockQuantity })
+    .where(eq(medicationReminders.id, reminderId));
+
+  return { success: true };
+}
+
+/**
+ * Get restock history for a reminder.
+ */
+export async function getRestockHistory(
+  userId: number,
+  reminderId: number
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(medicationRestocks)
+    .where(
+      and(
+        eq(medicationRestocks.userId, userId),
+        eq(medicationRestocks.reminderId, reminderId)
+      )
+    )
+    .orderBy(desc(medicationRestocks.createdAt));
+}
+
+/**
+ * Batch restock all low-stock medications.
+ * Creates restock records for each low-stock medication.
+ */
+export async function batchRestockMedications(
+  userId: number,
+  restockQuantity: number,
+  restockDate: string // YYYY-MM-DD
+): Promise<{ restocked: number; names: string[] }> {
+  const stockStatuses = await getMedicationStockStatus(userId);
+  const lowStockItems = stockStatuses.filter(s => s.isLow);
+
   const names: string[] = [];
-  for (const r of lowStockReminders) {
-    await db
-      .update(medicationReminders)
-      .set({ stockQuantity: restockQuantity })
-      .where(eq(medicationReminders.id, r.id));
-    names.push(r.medicationName);
+  for (const item of lowStockItems) {
+    await addMedicationRestock(userId, item.reminderId, restockQuantity, restockDate);
+    names.push(item.medicationName);
   }
 
-  return { restocked: lowStockReminders.length, names };
+  return { restocked: lowStockItems.length, names };
 }
 
 /**
@@ -2143,13 +2250,8 @@ export async function unconfirmMedicationTaken(
       .set({ medications: updatedMeds })
       .where(eq(symptomEntries.id, existing.id));
 
-    // Restore stock (one dose per unconfirmation)
-    if (med.stockQuantity !== null) {
-      await db
-        .update(medicationReminders)
-        .set({ stockQuantity: (med.stockQuantity ?? 0) + 1 })
-        .where(eq(medicationReminders.id, med.id));
-    }
+    // Stock is now computed in real-time from restock records and usage history.
+    // Removing the medication from symptom_entries automatically restores the stock count.
   }
 
   return {

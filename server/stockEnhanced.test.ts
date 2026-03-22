@@ -82,14 +82,15 @@ describe("Stock Management Enhancements", () => {
         const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 2000);
         expect(fnBody).toContain("restocked");
         expect(fnBody).toContain("names");
-        expect(fnBody).toContain("lowStockReminders");
+        expect(fnBody).toContain("lowStockItems");
       });
 
       it("batchRestockMedications should only restock low-stock medications", () => {
         const fnIdx = dbContent.indexOf("export async function batchRestockMedications");
         const fnEnd = dbContent.indexOf("\nexport ", fnIdx + 10);
         const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 2000);
-        expect(fnBody).toContain("daysRemaining <= alertDays");
+        expect(fnBody).toContain("isLow");
+        expect(fnBody).toContain("addMedicationRestock");
       });
 
       it("should have batchRestock endpoint in routers.ts", () => {

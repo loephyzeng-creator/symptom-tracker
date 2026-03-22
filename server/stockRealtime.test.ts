@@ -54,24 +54,23 @@ describe("Stock Quantity Real-time Update", () => {
     const dbPath = path.resolve(__dirname, "./db.ts");
     const dbContent = fs.readFileSync(dbPath, "utf-8");
 
-    it("should have deductMedicationStock function that decrements stock", () => {
+    it("deductMedicationStock should be a no-op since stock is now real-time", () => {
       expect(dbContent).toContain("export async function deductMedicationStock");
-      // The function should contain logic to reduce stockQuantity
       const fnIdx = dbContent.indexOf("export async function deductMedicationStock");
       const fnEnd = dbContent.indexOf("\nexport ", fnIdx + 10);
-      const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 2000);
-      expect(fnBody).toContain("stockQuantity");
-      expect(fnBody).toContain("newQuantity");
+      const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 500);
+      expect(fnBody).toContain("No-op");
+      expect(fnBody).toContain("real-time");
     });
 
-    it("unconfirmMedicationTaken should restore stock on undo", () => {
+    it("unconfirmMedicationTaken should rely on real-time stock calculation", () => {
       const fnIdx = dbContent.indexOf("export async function unconfirmMedicationTaken");
       expect(fnIdx).toBeGreaterThan(-1);
       const fnEnd = dbContent.indexOf("\nexport ", fnIdx + 10);
       const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 3000);
-      // Should restore stock by adding back
-      expect(fnBody).toContain("stockQuantity");
-      expect(fnBody).toContain("+ 1");
+      // Should NOT directly modify stockQuantity
+      expect(fnBody).toContain("real-time");
+      expect(fnBody).not.toContain("stockQuantity: (med.stockQuantity ?? 0) + 1");
     });
 
     it("confirmMedicationTaken should trigger stock deduction", () => {

@@ -45,6 +45,8 @@ import {
   deductMedicationStock,
   getLowStockAlerts,
   batchRestockMedications,
+  addMedicationRestock,
+  getRestockHistory,
   getTodayMedications,
   confirmMedicationTaken,
   unconfirmMedicationTaken,
@@ -861,15 +863,36 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    /** Add a restock record for a single medication */
+    restock: protectedProcedure
+      .input(
+        z.object({
+          reminderId: z.number(),
+          restockQuantity: z.number().min(1).max(99999),
+          restockDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        return addMedicationRestock(ctx.user.id, input.reminderId, input.restockQuantity, input.restockDate);
+      }),
+
+    /** Get restock history for a medication */
+    restockHistory: protectedProcedure
+      .input(z.object({ reminderId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return getRestockHistory(ctx.user.id, input.reminderId);
+      }),
+
     /** Batch restock all low-stock medications */
     batchRestock: protectedProcedure
       .input(
         z.object({
           restockQuantity: z.number().min(1).max(9999),
+          restockDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         })
       )
       .mutation(async ({ ctx, input }) => {
-        return batchRestockMedications(ctx.user.id, input.restockQuantity);
+        return batchRestockMedications(ctx.user.id, input.restockQuantity, input.restockDate);
       }),
   }),
 
