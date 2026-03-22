@@ -626,3 +626,7 @@
 - [x] 修复：computeRealTimeStock 现在计算 initialStock + totalRestocked - totalUsage
 - [x] 修复：getStockChangeLog 的 runningTotal 也从 initialStock 开始计算
 - [x] 测试验证
+
+## 撤销按钮UI优化
+- [x] 撤销按钮改为小型垃圾桶图标，放在行末尾，更简洁美观
+- [x] 点击撤销后弹出 AlertDialog 确认对话框，显示补货日期和数量，需确认才执行

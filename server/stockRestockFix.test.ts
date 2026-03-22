@@ -125,9 +125,10 @@ describe("Restock Fix & Undo Feature", () => {
       expect(stockLogPanelContent).toContain("撤销此次补货");
     });
 
-    it("StockChangeLogPanel should have confirmation flow before deleting", () => {
-      expect(stockLogPanelContent).toContain("confirmDeleteId");
-      expect(stockLogPanelContent).toContain("确认");
+    it("StockChangeLogPanel should have AlertDialog confirmation flow before deleting", () => {
+      expect(stockLogPanelContent).toContain("undoTarget");
+      expect(stockLogPanelContent).toContain("AlertDialog");
+      expect(stockLogPanelContent).toContain("确认撤销");
       expect(stockLogPanelContent).toContain("取消");
     });
 
