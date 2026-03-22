@@ -203,6 +203,7 @@ export const medicationReminders = mysqlTable("medication_reminders", {
   lastTakenAt: varchar("lastTakenAt", { length: 30 }), // ISO datetime of last actual dose taken, for interval calculation
   sortOrder: int("sortOrder").default(0).notNull(), // for drag-to-reorder
   startDate: varchar("startDate", { length: 10 }), // YYYY-MM-DD, medication start date (don't count as missed before this date)
+  defaultRestockQuantity: int("defaultRestockQuantity"), // default quantity for quick restock, null = not set
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

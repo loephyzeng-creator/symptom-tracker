@@ -9,6 +9,7 @@ import MedicationCheckInCalendar from "@/components/MedicationCheckInCalendar";
 import DrugInteractionChecker from "@/components/DrugInteractionChecker";
 import PainkillerTrendChart from "@/components/PainkillerTrendChart";
 import PainkillerHeatmapCalendar from "@/components/PainkillerHeatmapCalendar";
+import MedicationConsumptionChart from "@/components/MedicationConsumptionChart";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -554,6 +555,9 @@ export default function MedicationView() {
           </div>
         )}
       </motion.div>
+
+      {/* Monthly Medication Consumption Trend Chart */}
+      <MedicationConsumptionChart />
 
       {/* Painkiller Heatmap Calendar */}
       <PainkillerHeatmapCalendar />

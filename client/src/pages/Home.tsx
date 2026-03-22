@@ -39,7 +39,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { zhCN } from "date-fns/locale";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
-import { getLocalDateStr } from "@shared/timezone";
+import { getLocalDateStr, getBrowserTimezone } from "@shared/timezone";
+import { trpc } from "@/lib/trpc";
 
 type TabKey = "record" | "medication" | "stats" | "history" | "settings";
 
@@ -361,6 +362,18 @@ function SettingsView({
 
 export default function Home() {
   const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
+
+  // Auto-detect and save browser timezone on first login
+  const setTimezoneMutation = trpc.notification.setTimezone.useMutation();
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const browserTz = getBrowserTimezone();
+      if (browserTz && browserTz !== "UTC") {
+        setTimezoneMutation.mutate({ timezone: browserTz });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user?.id]);
 
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     // Support deep linking from notifications via ?tab=medication etc.

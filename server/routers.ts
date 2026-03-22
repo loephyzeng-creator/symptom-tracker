@@ -79,6 +79,7 @@ import {
   updatePainkillerAlertEnabled,
   getNotificationSoundForUser,
   getDb,
+  getMonthlyMedicationConsumption,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -371,6 +372,24 @@ export const appRouter = router({
         return { success: true, sound: input.sound };
       }),
 
+    /** Auto-detect and save browser timezone (called on first login / app load) */
+    setTimezone: protectedProcedure
+      .input(z.object({ timezone: z.string().min(1).max(50) }))
+      .mutation(async ({ ctx, input }) => {
+        const settings = await getNotificationSettings(ctx.user.id);
+        // Only auto-set if user has no settings yet or timezone is still the default
+        if (!settings || !settings.timezone || settings.timezone === DEFAULT_TIMEZONE) {
+          await upsertNotificationSettings(ctx.user.id, {
+            enabled: settings?.enabled ?? 1,
+            reminderHour: settings?.reminderHour ?? 21,
+            reminderMinute: settings?.reminderMinute ?? 0,
+            timezone: input.timezone,
+          });
+          return { updated: true, timezone: input.timezone };
+        }
+        return { updated: false, timezone: settings.timezone };
+      }),
+
     /** Update notification settings */
     updateSettings: protectedProcedure
       .input(
@@ -651,6 +670,13 @@ export const appRouter = router({
       return getMedicationReminders(ctx.user.id);
     }),
 
+    /** Get monthly medication consumption trend (last N months) */
+    monthlyConsumption: protectedProcedure
+      .input(z.object({ months: z.number().min(1).max(12).optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        return getMonthlyMedicationConsumption(ctx.user.id, input?.months ?? 6);
+      }),
+
     /** Add a new medication reminder */
     add: protectedProcedure
       .input(
@@ -671,6 +697,7 @@ export const appRouter = router({
           groupId: z.number().nullable().optional(),
           intervalHours: z.number().min(1).max(72).nullable().optional(),
           startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+          defaultRestockQuantity: z.number().min(1).max(9999).nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -699,6 +726,7 @@ export const appRouter = router({
           groupId: z.number().nullable().optional(),
           intervalHours: z.number().min(1).max(72).nullable().optional(),
           startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+          defaultRestockQuantity: z.number().min(1).max(9999).nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {

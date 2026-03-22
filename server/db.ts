@@ -1873,6 +1873,7 @@ export async function getMedicationStockStatus(userId: number) {
       enabled: r.enabled,
       restockDate: latestRestock?.restockDate ?? null,
       hasRestockRecords: latestRestock !== null,
+      defaultRestockQuantity: r.defaultRestockQuantity ?? null,
     });
   }
   return results;

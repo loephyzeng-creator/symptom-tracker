@@ -52,12 +52,20 @@ export default function MedicationStock() {
   const [restockQuantity, setRestockQuantity] = useState<string>("30");
   const [restockDate, setRestockDate] = useState(getTodayStr);
   const [historyId, setHistoryId] = useState<number | null>(null);
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
 
   const utils = trpc.useUtils();
   const { data: stockItems = [], isLoading } =
     trpc.medReminders.stockStatus.useQuery(undefined, {
       staleTime: 30_000,
     });
+
+  const updateMutation = trpc.medReminders.update.useMutation({
+    onSuccess: () => {
+      utils.medReminders.stockStatus.invalidate();
+      utils.medReminders.list.invalidate();
+    },
+  });
 
   const restockMutation = trpc.medReminders.restock.useMutation({
     onSuccess: () => {
@@ -66,6 +74,7 @@ export default function MedicationStock() {
       setRestockingId(null);
       setRestockQuantity("30");
       setRestockDate(getTodayStr());
+      setSaveAsDefault(false);
       toast.success("补货成功，库存已更新");
     },
     onError: (err) => toast.error(err.message),
@@ -85,6 +94,10 @@ export default function MedicationStock() {
     if (!restockDate || !/^\d{4}-\d{2}-\d{2}$/.test(restockDate)) {
       toast.error("请选择有效的补货日期");
       return;
+    }
+    // Save default restock quantity if checkbox is checked
+    if (saveAsDefault) {
+      updateMutation.mutate({ id: reminderId, defaultRestockQuantity: qty });
     }
     restockMutation.mutate({ reminderId, restockQuantity: qty, restockDate });
   };
@@ -203,7 +216,7 @@ export default function MedicationStock() {
               } else {
                 setRestockingId(item.reminderId);
                 setHistoryId(null);
-                setRestockQuantity("30");
+                setRestockQuantity(String(item.defaultRestockQuantity ?? 30));
                 setRestockDate(getTodayStr());
               }
             }}
@@ -273,7 +286,21 @@ export default function MedicationStock() {
                 min={1}
                 placeholder="数量"
               />
+              {item.defaultRestockQuantity && (
+                <span className="text-[10px] text-muted-foreground">
+                  默认 {item.defaultRestockQuantity}
+                </span>
+              )}
             </div>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={saveAsDefault}
+                onChange={(e) => setSaveAsDefault(e.target.checked)}
+                className="rounded border-border w-3.5 h-3.5 accent-terracotta"
+              />
+              <span className="text-[11px] text-muted-foreground">记住此数量为默认补货量</span>
+            </label>
             <p className="text-[10px] text-muted-foreground">
               库存将从补货日期起，根据用药记录自动扣减
             </p>
