@@ -903,14 +903,14 @@ export default function MedicationReminders() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Pill className="w-5 h-5 text-terracotta" />
           <h3 className="font-serif font-semibold text-foreground">
             用药提醒
           </h3>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {reminders.length >= 2 && (
             <Button
               variant={batchMode ? "default" : "outline"}
@@ -919,9 +919,9 @@ export default function MedicationReminders() {
                 setBatchMode(!batchMode);
                 setSelectedIds(new Set());
               }}
-              className="gap-1"
+              className="gap-1 h-8 text-xs"
             >
-              <CheckSquare className="w-4 h-4" />
+              <CheckSquare className="w-3.5 h-3.5" />
               {batchMode ? "取消" : "批量"}
             </Button>
           )}
@@ -938,10 +938,10 @@ export default function MedicationReminders() {
                 exportAllReminders(enabledReminders);
                 toast.success("已生成日历文件，请在弹出的对话框中添加到日历");
               }}
-              className="gap-1"
+              className="gap-1 h-8 text-xs"
               title="导出全部提醒到系统日历"
             >
-              <CalendarPlus className="w-4 h-4" />
+              <CalendarPlus className="w-3.5 h-3.5" />
               导入日历
             </Button>
           )}
@@ -950,9 +950,9 @@ export default function MedicationReminders() {
               variant="outline"
               size="sm"
               onClick={() => setShowAdd(!showAdd)}
-              className="gap-1"
+              className="gap-1 h-8 text-xs"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               添加
             </Button>
           )}
