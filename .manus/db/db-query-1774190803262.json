@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, userId, endpoint, createdAt FROM push_subscriptions ORDER BY createdAt DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT id, userId, endpoint, createdAt FROM push_subscriptions ORDER BY createdAt DESC;",
+  "rows": [
+    {
+      "id": "30001",
+      "userId": "4",
+      "endpoint": "https://web.push.apple.com/QCUqREJV1bYmipwDcwXAe4_LujKp_vOXnsipdJfZy753z9aBxWFmlCi2zx_ZDuS3Qw31pCBbiVxkqjYWbVFRGJLC4S5OzGM5uHaP1UWvbG7L31cBK7gPf_da6vyDmMRfHb1nH2HT0fs3yLSe8K01zcpOVSwxzuzI6qkgSoZyXgc",
+      "createdAt": "2026-03-21 04:12:39"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tendpoint\tcreatedAt\n30001\t4\thttps://web.push.apple.com/QCUqREJV1bYmipwDcwXAe4_LujKp_vOXnsipdJfZy753z9aBxWFmlCi2zx_ZDuS3Qw31pCBbiVxkqjYWbVFRGJLC4S5OzGM5uHaP1UWvbG7L31cBK7gPf_da6vyDmMRfHb1nH2HT0fs3yLSe8K01zcpOVSwxzuzI6qkgSoZyXgc\t2026-03-21 04:12:39\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

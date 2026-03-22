@@ -22,9 +22,9 @@ import { ENV } from "./_core/env";
 import { getDateStrInTimezone, getTimeInTimezone, getDateTimeStrInTimezone, DEFAULT_TIMEZONE } from "../shared/timezone";
 
 /**
- * Check interval in milliseconds (every 15 minutes)
+ * Check interval in milliseconds (every 5 minutes)
  */
-const CHECK_INTERVAL = 15 * 60 * 1000;
+const CHECK_INTERVAL = 5 * 60 * 1000;
 
 /**
  * Configure web-push with VAPID keys
@@ -78,8 +78,8 @@ function isReminderTime(
 ): boolean {
   const scheduledTotal = scheduledHour * 60 + scheduledMinute;
   const currentTotal = currentHour * 60 + currentMinute;
-  // Within 15 minutes after scheduled time
-  return currentTotal >= scheduledTotal && currentTotal < scheduledTotal + 15;
+  // Within 60 minutes after scheduled time (expanded window to handle server hibernation)
+  return currentTotal >= scheduledTotal && currentTotal < scheduledTotal + 60;
 }
 
 /**
@@ -179,25 +179,39 @@ async function sendWebPush(
  */
 async function checkAndSendMedicationReminders() {
   try {
-    const todayStr = getTodayStr();
-    const { hour, minute, dayOfWeek } = getChinaTime();
-    const nowStr = getChinaTimeStr();
-
-    const reminders = await getMedicationRemindersToSend(todayStr);
-    console.log(`[MedReminder] Found ${reminders.length} pending medication reminder(s) for ${todayStr}`);
+    // Use default timezone for the initial query — per-user timezone is checked per reminder
+    const defaultTodayStr = getTodayStr();
+    const reminders = await getMedicationRemindersToSend(defaultTodayStr);
+    console.log(`[MedReminder] Checking ${reminders.length} active medication reminder(s)`);
 
     for (const reminder of reminders) {
+      // Use per-user timezone for all time calculations
+      const userTz = reminder.timezone || DEFAULT_TIMEZONE;
+      const todayStr = getTodayStr(userTz);
+      const { hour, minute, dayOfWeek } = getChinaTime(userTz);
+      const nowStr = getChinaTimeStr(userTz);
+
+      // --- Skip if it's a new day: reset tracking from previous day ---
+      if (reminder.lastNotifiedDate && reminder.lastNotifiedDate !== todayStr) {
+        // Previous day's tracking — treat as fresh
+      }
+
+      // --- For single-time meds: skip if already notified today ---
+      const isMultiTime = reminder.reminderTimes && Array.isArray(reminder.reminderTimes) && reminder.reminderTimes.length > 0;
+      if (!isMultiTime && reminder.lastNotifiedDate === todayStr) {
+        continue; // Single-time med already notified today
+      }
+
       // --- Snooze check: if snoozed, check if snooze time has arrived ---
       if (reminder.snoozedUntil) {
         if (nowStr >= reminder.snoozedUntil) {
-          // Snooze time reached — send notification
           console.log(
             `[MedReminder] Snooze expired for ${reminder.medicationName}, sending now`
           );
           try {
             const sent = await sendWebPush(
               reminder.userId,
-              `💊 用药提醒（稍后提醒）：${reminder.medicationName}`,
+              `\uD83D\uDC8A 用药提醒（稍后提醒）：${reminder.medicationName}`,
               `请服用 ${reminder.medicationName} ${reminder.dosage}`,
               `med-reminder-${reminder.id}`,
               [
@@ -216,26 +230,30 @@ async function checkAndSendMedicationReminders() {
             console.error(`[MedReminder] Error sending snoozed reminder:`, error);
           }
         }
-        // Whether or not snooze time arrived, skip normal flow for snoozed reminders
         continue;
       }
 
       // --- Day of week check ---
       if (!isDayActive(reminder.repeatDays, dayOfWeek)) {
-        console.log(`[MedReminder] Skipping ${reminder.medicationName}: not active on day ${dayOfWeek}`);
         continue;
       }
 
+      // --- Determine already-notified time slots for today ---
+      const notifiedSlots: number[] =
+        (reminder.lastNotifiedDate === todayStr && reminder.lastNotifiedTimeSlots)
+          ? (reminder.lastNotifiedTimeSlots as number[])
+          : [];
+
       // --- Time check with offset (supports multi-time reminders) ---
       const timesToCheck: { hour: number; minute: number; timeIndex?: number }[] = [];
-      if (reminder.reminderTimes && Array.isArray(reminder.reminderTimes) && reminder.reminderTimes.length > 0) {
-        // Multi-time mode: check each time slot
-        for (let ti = 0; ti < reminder.reminderTimes.length; ti++) {
-          const t = reminder.reminderTimes[ti] as { hour: number; minute: number };
+      if (isMultiTime) {
+        for (let ti = 0; ti < reminder.reminderTimes!.length; ti++) {
+          // Skip already-notified time slots
+          if (notifiedSlots.includes(ti)) continue;
+          const t = reminder.reminderTimes![ti] as { hour: number; minute: number };
           timesToCheck.push({ ...applyOffset(t.hour, t.minute, reminder.offsetMinutes ?? 0), timeIndex: ti });
         }
       } else {
-        // Single time mode
         timesToCheck.push(applyOffset(reminder.reminderHour, reminder.reminderMinute, reminder.offsetMinutes ?? 0));
       }
 
@@ -251,13 +269,13 @@ async function checkAndSendMedicationReminders() {
           : "";
 
         console.log(
-          `[MedReminder] Sending medication reminder: ${reminder.medicationName} ${reminder.dosage} ${timeLabel} to user ${reminder.userId}`
+          `[MedReminder] Sending medication reminder: ${reminder.medicationName} ${reminder.dosage} ${timeLabel} to user ${reminder.userId} (tz: ${userTz})`
         );
 
         try {
           const sent = await sendWebPush(
             reminder.userId,
-            `💊 用药提醒：${reminder.medicationName}${timeLabel ? ` (${timeLabel})` : ""}`,
+            `\uD83D\uDC8A 用药提醒：${reminder.medicationName}${timeLabel ? ` (${timeLabel})` : ""}`,
             `请服用 ${reminder.medicationName} ${reminder.dosage}`,
             `med-reminder-${reminder.id}-t${effective.timeIndex ?? 0}`,
             [
@@ -269,6 +287,8 @@ async function checkAndSendMedicationReminders() {
           );
 
           if (sent) {
+            // Mark this specific time slot as notified
+            await markMedicationReminderNotified(reminder.id, todayStr, effective.timeIndex);
             console.log(`[MedReminder] Successfully notified for medication ${reminder.medicationName} ${timeLabel} (id: ${reminder.id})`);
           }
         } catch (error) {
@@ -279,11 +299,9 @@ async function checkAndSendMedicationReminders() {
         }
       }
 
-      if (anyTimeMatched) {
-        await markMedicationReminderNotified(reminder.id, todayStr);
-      } else {
+      if (!anyTimeMatched && timesToCheck.length > 0) {
         const timeStrs = timesToCheck.map(t => `${t.hour}:${String(t.minute).padStart(2, "0")}`).join(", ");
-        console.log(`[MedReminder] Skipping ${reminder.medicationName}: no time match (times: ${timeStrs}, current ${hour}:${String(minute).padStart(2, "0")})`);
+        console.log(`[MedReminder] Skipping ${reminder.medicationName}: no time match (pending: ${timeStrs}, current ${hour}:${String(minute).padStart(2, "0")}, tz: ${userTz})`);
       }
     }
   } catch (error) {
@@ -300,7 +318,7 @@ async function checkAndSendReminders() {
   const { hour, minute } = getChinaTime();
 
   console.log(
-    `[Reminder] Checking reminders at ${hour}:${String(minute).padStart(2, "0")} (UTC+8), date: ${todayStr}`
+    `[Reminder] Checking reminders at ${hour}:${String(minute).padStart(2, "0")} (${DEFAULT_TIMEZONE}), date: ${todayStr}`
   );
 
   // 1. Daily symptom recording reminders (isolated try-catch)
@@ -347,27 +365,27 @@ async function checkAndSendReminders() {
     console.error("[Reminder] Error in medication reminders (non-fatal):", error);
   }
 
-  // 3. Missed medication alerts (check once daily at 10:00 AM)
+  // 3. Missed medication alerts (check once daily at 10:00 AM, expanded window)
   try {
-    if (hour === 10 && minute < 15) {
+    if (hour === 10 && minute < 60) {
       await checkAndSendMissedMedicationAlerts();
     }
   } catch (error) {
     console.error("[Reminder] Error in missed medication alerts (non-fatal):", error);
   }
 
-  // 4. Low stock alerts (check once daily at 9:00 AM)
+  // 4. Low stock alerts (check once daily at 9:00 AM, expanded window)
   try {
-    if (hour === 9 && minute < 15) {
+    if (hour === 9 && minute < 60) {
       await checkAndSendLowStockAlerts();
     }
   } catch (error) {
     console.error("[Reminder] Error in low stock alerts (non-fatal):", error);
   }
 
-  // 5. Medication expiration alerts (check once daily at 9:30 AM)
+  // 5. Medication expiration alerts (check once daily at 9:00-10:00 AM)
   try {
-    if (hour === 9 && minute >= 15 && minute < 30) {
+    if ((hour === 9 && minute >= 15) || (hour === 10 && minute < 15)) {
       const { checkExpiringMedications } = await import("./db");
       await checkExpiringMedications();
       console.log("[Expiry] Medication expiration check completed");
@@ -640,18 +658,18 @@ async function sendWeeklyPainkillerReports(todayStr: string, currentHour: number
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
 /**
- * Start the reminder scheduler. Checks every 15 minutes.
+ * Start the reminder scheduler. Checks every 5 minutes.
  */
 export function startReminderScheduler() {
   const configured = configureWebPush();
-  console.log(`[Reminder] Starting reminder scheduler (every 15 min), Web Push: ${configured ? "enabled" : "disabled"}`);
+  console.log(`[Reminder] Starting reminder scheduler (every 5 min), Web Push: ${configured ? "enabled" : "disabled"}`);
 
   // Run first check after a short delay to let the server fully start
   setTimeout(() => {
     checkAndSendReminders();
   }, 10_000);
 
-  // Then check every 15 minutes
+  // Then check every 5 minutes
   intervalId = setInterval(checkAndSendReminders, CHECK_INTERVAL);
 }
 

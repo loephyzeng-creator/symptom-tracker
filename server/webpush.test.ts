@@ -2,22 +2,25 @@ import { describe, expect, it, vi } from "vitest";
 import { isReminderTime, getTodayStr, getChinaTime } from "./reminderScheduler";
 
 describe("Web Push reminder scheduler", () => {
-  it("isReminderTime returns true within 15-minute window", () => {
+  it("isReminderTime returns true within 60-minute window", () => {
     expect(isReminderTime(21, 0, 21, 0)).toBe(true);
     expect(isReminderTime(21, 0, 21, 5)).toBe(true);
     expect(isReminderTime(21, 0, 21, 14)).toBe(true);
+    expect(isReminderTime(21, 0, 21, 30)).toBe(true);
+    expect(isReminderTime(21, 0, 21, 59)).toBe(true);
   });
 
-  it("isReminderTime returns false outside 15-minute window", () => {
-    expect(isReminderTime(21, 0, 21, 15)).toBe(false);
-    expect(isReminderTime(21, 0, 20, 59)).toBe(false);
+  it("isReminderTime returns false outside 60-minute window", () => {
     expect(isReminderTime(21, 0, 22, 0)).toBe(false);
+    expect(isReminderTime(21, 0, 20, 59)).toBe(false);
+    expect(isReminderTime(21, 0, 22, 30)).toBe(false);
   });
 
   it("isReminderTime handles minute offsets correctly", () => {
     expect(isReminderTime(9, 30, 9, 30)).toBe(true);
     expect(isReminderTime(9, 30, 9, 44)).toBe(true);
-    expect(isReminderTime(9, 30, 9, 45)).toBe(false);
+    expect(isReminderTime(9, 30, 10, 29)).toBe(true);
+    expect(isReminderTime(9, 30, 10, 30)).toBe(false);
     expect(isReminderTime(9, 30, 9, 29)).toBe(false);
   });
 

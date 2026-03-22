@@ -96,17 +96,20 @@ describe("Medication Reminders - Scheduler Integration", () => {
 
     // Exact time match
     expect(isReminderTime(8, 0, 8, 0)).toBe(true);
-    // Within 15-minute window
+    // Within 60-minute window
     expect(isReminderTime(8, 0, 8, 14)).toBe(true);
+    expect(isReminderTime(8, 0, 8, 30)).toBe(true);
+    expect(isReminderTime(8, 0, 8, 59)).toBe(true);
     // Outside window
-    expect(isReminderTime(8, 0, 8, 15)).toBe(false);
+    expect(isReminderTime(8, 0, 9, 0)).toBe(false);
     // Before scheduled time
     expect(isReminderTime(8, 0, 7, 59)).toBe(false);
 
     // Different medication times
     expect(isReminderTime(12, 30, 12, 30)).toBe(true);
     expect(isReminderTime(12, 30, 12, 44)).toBe(true);
-    expect(isReminderTime(12, 30, 12, 45)).toBe(false);
+    expect(isReminderTime(12, 30, 13, 29)).toBe(true);
+    expect(isReminderTime(12, 30, 13, 30)).toBe(false);
 
     // Evening medication
     expect(isReminderTime(21, 0, 21, 5)).toBe(true);

@@ -1434,16 +1434,15 @@ export async function getMedicationRemindersToSend(todayStr: string) {
       offsetMinutes: medicationReminders.offsetMinutes,
       snoozedUntil: medicationReminders.snoozedUntil,
       lastNotifiedDate: medicationReminders.lastNotifiedDate,
+      lastNotifiedTimeSlots: medicationReminders.lastNotifiedTimeSlots,
       startDate: medicationReminders.startDate,
       notificationSound: notificationSettings.notificationSound,
+      timezone: notificationSettings.timezone,
     })
     .from(medicationReminders)
     .leftJoin(notificationSettings, eq(medicationReminders.userId, notificationSettings.userId))
     .where(
-      and(
-        eq(medicationReminders.enabled, 1),
-        sql`(${medicationReminders.lastNotifiedDate} IS NULL OR ${medicationReminders.lastNotifiedDate} != ${todayStr})`
-      )
+      eq(medicationReminders.enabled, 1)
     );
 }
 
@@ -1475,13 +1474,37 @@ export async function clearMedicationSnooze(id: number) {
 /**
  * Mark a medication reminder as notified for today.
  */
-export async function markMedicationReminderNotified(id: number, todayStr: string) {
+export async function markMedicationReminderNotified(id: number, todayStr: string, timeSlotIndex?: number) {
   const db = await getDb();
   if (!db) return;
-  await db
-    .update(medicationReminders)
-    .set({ lastNotifiedDate: todayStr })
-    .where(eq(medicationReminders.id, id));
+  
+  if (timeSlotIndex !== undefined) {
+    // Per-time-slot tracking: add this slot index to the notified list
+    const existing = await db
+      .select({ lastNotifiedDate: medicationReminders.lastNotifiedDate, lastNotifiedTimeSlots: medicationReminders.lastNotifiedTimeSlots })
+      .from(medicationReminders)
+      .where(eq(medicationReminders.id, id))
+      .limit(1);
+    
+    let slots: number[] = [];
+    if (existing.length > 0 && existing[0].lastNotifiedDate === todayStr && existing[0].lastNotifiedTimeSlots) {
+      slots = existing[0].lastNotifiedTimeSlots as number[];
+    }
+    if (!slots.includes(timeSlotIndex)) {
+      slots.push(timeSlotIndex);
+    }
+    
+    await db
+      .update(medicationReminders)
+      .set({ lastNotifiedDate: todayStr, lastNotifiedTimeSlots: slots })
+      .where(eq(medicationReminders.id, id));
+  } else {
+    // Single-time mode: just set the date
+    await db
+      .update(medicationReminders)
+      .set({ lastNotifiedDate: todayStr, lastNotifiedTimeSlots: null })
+      .where(eq(medicationReminders.id, id));
+  }
 }
 
 // ─── Missed Medication Alerts ──────────────────────────────────────────

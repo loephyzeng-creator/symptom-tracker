@@ -198,6 +198,7 @@ export const medicationReminders = mysqlTable("medication_reminders", {
   expirationAlertDays: int("expirationAlertDays").default(30), // alert N days before expiration
   lastExpirationAlertDate: varchar("lastExpirationAlertDate", { length: 10 }), // prevent duplicate expiration alerts
   lastNotifiedDate: varchar("lastNotifiedDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate
+  lastNotifiedTimeSlots: json("lastNotifiedTimeSlots").$type<number[]>(), // array of time slot indices already notified today
   groupId: int("groupId"), // FK to medication_groups.id, null = ungrouped
   intervalHours: int("intervalHours"), // null = fixed-time mode, number = interval mode (e.g. 8 = every 8 hours)
   lastTakenAt: varchar("lastTakenAt", { length: 30 }), // ISO datetime of last actual dose taken, for interval calculation

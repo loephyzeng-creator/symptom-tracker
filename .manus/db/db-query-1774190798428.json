@@ -1,0 +1,75 @@
+{
+  "query": "SELECT mr.id, mr.medicationName, mr.reminderHour, mr.reminderMinute, mr.reminderTimes, mr.enabled, mr.lastNotifiedDate, mr.snoozedUntil, mr.repeatDays, mr.offsetMinutes, ns.timezone FROM medication_reminders mr LEFT JOIN notification_settings ns ON mr.userId = ns.userId ORDER BY mr.id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT mr.id, mr.medicationName, mr.reminderHour, mr.reminderMinute, mr.reminderTimes, mr.enabled, mr.lastNotifiedDate, mr.snoozedUntil, mr.repeatDays, mr.offsetMinutes, ns.timezone FROM medication_reminders mr LEFT JOIN notification_settings ns ON mr.userId = ns.userId ORDER BY mr.id;",
+  "rows": [
+    {
+      "id": "30001",
+      "medicationName": "草酸艾司西酞普兰片",
+      "reminderHour": "10",
+      "reminderMinute": "0",
+      "reminderTimes": "NULL",
+      "enabled": "1",
+      "lastNotifiedDate": "NULL",
+      "snoozedUntil": "NULL",
+      "repeatDays": "[0, 1, 2, 3, 4, 5, 6]",
+      "offsetMinutes": "0",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "id": "30002",
+      "medicationName": "盐酸乙哌立松",
+      "reminderHour": "9",
+      "reminderMinute": "0",
+      "reminderTimes": "[{\"hour\": 9, \"minute\": 0}, {\"hour\": 12, \"minute\": 50}, {\"hour\": 19, \"minute\": 0}]",
+      "enabled": "1",
+      "lastNotifiedDate": "2026-03-22",
+      "snoozedUntil": "NULL",
+      "repeatDays": "[0, 1, 2, 3, 4, 5, 6]",
+      "offsetMinutes": "0",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "id": "30003",
+      "medicationName": "甲磺酸二氢麦角碱",
+      "reminderHour": "9",
+      "reminderMinute": "0",
+      "reminderTimes": "[{\"hour\": 9, \"minute\": 0}, {\"hour\": 17, \"minute\": 0}]",
+      "enabled": "1",
+      "lastNotifiedDate": "NULL",
+      "snoozedUntil": "NULL",
+      "repeatDays": "[0, 1, 2, 3, 4, 5, 6]",
+      "offsetMinutes": "0",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "id": "30004",
+      "medicationName": "度洛西汀肠溶胶囊",
+      "reminderHour": "10",
+      "reminderMinute": "0",
+      "reminderTimes": "NULL",
+      "enabled": "1",
+      "lastNotifiedDate": "NULL",
+      "snoozedUntil": "NULL",
+      "repeatDays": "[0, 1, 2, 3, 4, 5, 6]",
+      "offsetMinutes": "0",
+      "timezone": "Asia/Shanghai"
+    },
+    {
+      "id": "30005",
+      "medicationName": "氟哌噻吨美利曲辛片",
+      "reminderHour": "10",
+      "reminderMinute": "0",
+      "reminderTimes": "NULL",
+      "enabled": "1",
+      "lastNotifiedDate": "NULL",
+      "snoozedUntil": "NULL",
+      "repeatDays": "[0, 1, 2, 3, 4, 5, 6]",
+      "offsetMinutes": "0",
+      "timezone": "Asia/Shanghai"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tmedicationName\treminderHour\treminderMinute\treminderTimes\tenabled\tlastNotifiedDate\tsnoozedUntil\trepeatDays\toffsetMinutes\ttimezone\n30001\t草酸艾司西酞普兰片\t10\t0\tNULL\t1\tNULL\tNULL\t[0, 1, 2, 3, 4, 5, 6]\t0\tAsia/Shanghai\n30002\t盐酸乙哌立松\t9\t0\t[{\"hour\": 9, \"minute\": 0}, {\"hour\": 12, \"minute\": 50}, {\"hour\": 19, \"minute\": 0}]\t1\t2026-03-22\tNULL\t[0, 1, 2, 3, 4, 5, 6]\t0\tAsia/Shanghai\n30003\t甲磺酸二氢麦角碱\t9\t0\t[{\"hour\": 9, \"minute\": 0}, {\"hour\": 17, \"minute\": 0}]\t1\tNULL\tNULL\t[0, 1, 2, 3, 4, 5, 6]\t0\tAsia/Shanghai\n30004\t度洛西汀肠溶胶囊\t10\t0\tNULL\t1\tNULL\tNULL\t[0, 1, 2, 3, 4, 5, 6]\t0\tAsia/Shanghai\n30005\t氟哌噻吨美利曲辛片\t10\t0\tNULL\t1\tNULL\tNULL\t[0, 1, 2, 3, 4, 5, 6]\t0\tAsia/Shanghai\n",
+  "stderr": "",
+  "execution_time_ms": 251
+}
