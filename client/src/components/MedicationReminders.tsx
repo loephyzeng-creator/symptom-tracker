@@ -519,14 +519,14 @@ function ReminderFormFields({
           <CalendarPlus className="w-4 h-4 text-muted-foreground" />
           <span className="text-sm font-medium text-foreground">用药日期</span>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-2">
           <div>
             <label className="text-xs text-muted-foreground">起始日期</label>
             <Input
               type="date"
               value={formData.startDate}
               onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-              className="h-8 text-sm mt-1"
+              className="h-9 text-sm mt-1 w-full"
             />
           </div>
           <div>
@@ -535,7 +535,7 @@ function ReminderFormFields({
               type="date"
               value={formData.endDate}
               onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-              className="h-8 text-sm mt-1"
+              className="h-9 text-sm mt-1 w-full"
               min={formData.startDate || undefined}
             />
           </div>
