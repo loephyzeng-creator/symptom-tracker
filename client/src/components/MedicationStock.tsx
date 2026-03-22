@@ -194,32 +194,6 @@ export default function MedicationStock() {
           </div>
         )}
 
-        {/* Legacy stock initialization prompt */}
-        {!item.hasRestockRecords && (
-          <div className="mt-2 p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-amber-700 dark:text-amber-400">旧数据模式</p>
-                <p className="text-[10px] text-amber-600/80 dark:text-amber-400/70 mt-0.5">
-                  当前库存基于初始设置值推算。建议通过"补货"建立正式记录，以获得更准确的库存追踪。
-                </p>
-                <button
-                  onClick={() => {
-                    setRestockingId(item.reminderId);
-                    setHistoryId(null);
-                    setRestockQuantity(String(item.stockQuantity || 30));
-                    setRestockDate(getTodayStr());
-                  }}
-                  className="mt-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 flex items-center gap-1 transition-colors"
-                >
-                  <PackagePlus className="w-3 h-3" />
-                  初始化库存记录
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Action buttons */}
         <div className="mt-3 flex items-center gap-2">
