@@ -105,12 +105,31 @@ describe("Real-Time Stock Calculation System", () => {
       expect(fnBody).toContain("allRestocks[0].restockDate");
     });
 
-    it("computeRealTimeStock should fall back to legacy stockQuantity when no restock record", () => {
+    it("computeRealTimeStock should deduct usage from legacy stockQuantity when no restock record", () => {
       const fnIdx = dbContent.indexOf("export async function computeRealTimeStock");
       const fnEnd = dbContent.indexOf("\nexport ", fnIdx + 10);
-      const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 1000);
+      const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 1500);
+      // Should still reference legacy stockQuantity
       expect(fnBody).toContain("reminder.stockQuantity");
-      expect(fnBody).toContain("No restock record");
+      // But now it deducts usage in real-time even in legacy mode
+      expect(fnBody).toContain("countMedicationUsageSince");
+      expect(fnBody).toContain("reminder.stockQuantity - totalUsage");
+    });
+
+    it("getMedicationReminders should compute real-time stock for each reminder", () => {
+      const fnIdx = dbContent.indexOf("export async function getMedicationReminders");
+      const fnEnd = dbContent.indexOf("\nexport ", fnIdx + 10);
+      const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 1000);
+      expect(fnBody).toContain("computeRealTimeStock");
+      expect(fnBody).toContain("stockQuantity: realStock");
+    });
+
+    it("getMedicationRemindersGrouped should compute real-time stock for each reminder", () => {
+      const fnIdx = dbContent.indexOf("export async function getMedicationRemindersGrouped");
+      const fnEnd = dbContent.indexOf("\nexport ", fnIdx + 10);
+      const fnBody = dbContent.slice(fnIdx, fnEnd > -1 ? fnEnd : fnIdx + 2000);
+      expect(fnBody).toContain("computeRealTimeStock");
+      expect(fnBody).toContain("remindersWithStock");
     });
 
     it("getMedicationStockStatus should use computeRealTimeStock", () => {

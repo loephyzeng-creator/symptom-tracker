@@ -1259,11 +1259,22 @@ export async function getSyncStatus(userId: number) {
 export async function getMedicationReminders(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db
+  const reminders = await db
     .select()
     .from(medicationReminders)
     .where(eq(medicationReminders.userId, userId))
     .orderBy(medicationReminders.sortOrder, medicationReminders.reminderHour, medicationReminders.reminderMinute);
+
+  // Compute real-time stock for each reminder
+  const results = [];
+  for (const r of reminders) {
+    const realStock = await computeRealTimeStock(userId, r);
+    results.push({
+      ...r,
+      stockQuantity: realStock,
+    });
+  }
+  return results;
 }
 
 /**
@@ -1773,19 +1784,27 @@ async function countTotalMedicationUsage(
  * Compute real-time stock for a single reminder.
  * Stock = SUM(all restock quantities) - total usage count since first restock date.
  * This ensures previous remaining stock carries over when restocking.
- * If no restock record exists, falls back to the legacy stockQuantity field.
+ * If no restock record exists, uses legacy stockQuantity minus total usage as real-time deduction.
  */
 export async function computeRealTimeStock(
   userId: number,
-  reminder: { id: number; medicationName: string; stockQuantity: number | null; dailyDosageCount: number | null }
+  reminder: { id: number; medicationName: string; stockQuantity: number | null; dailyDosageCount: number | null; createdAt?: Date | null }
 ): Promise<number | null> {
   const db = await getDb();
   if (!db) return reminder.stockQuantity;
 
   const allRestocks = await getAllRestocks(db, reminder.id);
   if (allRestocks.length === 0) {
-    // No restock record — fall back to legacy stockQuantity
-    return reminder.stockQuantity;
+    // No restock record — use legacy stockQuantity with real-time deduction
+    if (reminder.stockQuantity === null) return null;
+    // Count all usage since the reminder was created (or all time)
+    const sinceDate = reminder.createdAt
+      ? new Date(reminder.createdAt.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      : "2020-01-01";
+    const totalUsage = await countMedicationUsageSince(
+      db, userId, reminder.id, reminder.medicationName, sinceDate
+    );
+    return Math.max(0, reminder.stockQuantity - totalUsage);
   }
 
   // Sum all restock quantities
@@ -2936,12 +2955,19 @@ export async function getMedicationRemindersGrouped(userId: number) {
       .orderBy(medicationReminders.reminderHour, medicationReminders.reminderMinute),
   ]);
 
+  // Compute real-time stock for each reminder
+  const remindersWithStock: (typeof reminders[number] & { stockQuantity: number | null })[] = [];
+  for (const r of reminders) {
+    const realStock = await computeRealTimeStock(userId, r);
+    remindersWithStock.push({ ...r, stockQuantity: realStock });
+  }
+
   const grouped = groups.map((g) => ({
     ...g,
-    medications: reminders.filter((r) => r.groupId === g.id),
+    medications: remindersWithStock.filter((r) => r.groupId === g.id),
   }));
 
-  const ungrouped = reminders.filter((r) => !r.groupId);
+  const ungrouped = remindersWithStock.filter((r) => !r.groupId);
 
   return { groups: grouped, ungrouped };
 }

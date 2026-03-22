@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, medicationName, stockQuantity, stockAlertDays, dailyDosageCount FROM medication_reminders WHERE userId = 4;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT id, medicationName, stockQuantity, stockAlertDays, dailyDosageCount FROM medication_reminders WHERE userId = 4;",
+  "rows": [
+    {
+      "id": "30001",
+      "medicationName": "草酸艾司西酞普兰片",
+      "stockQuantity": "NULL",
+      "stockAlertDays": "7",
+      "dailyDosageCount": "1"
+    },
+    {
+      "id": "30002",
+      "medicationName": "盐酸乙哌立松",
+      "stockQuantity": "100",
+      "stockAlertDays": "7",
+      "dailyDosageCount": "3"
+    },
+    {
+      "id": "30003",
+      "medicationName": "甲磺酸二氢麦角碱",
+      "stockQuantity": "75",
+      "stockAlertDays": "7",
+      "dailyDosageCount": "2"
+    },
+    {
+      "id": "30004",
+      "medicationName": "度洛西汀肠溶胶囊",
+      "stockQuantity": "30",
+      "stockAlertDays": "7",
+      "dailyDosageCount": "1"
+    },
+    {
+      "id": "30005",
+      "medicationName": "氟哌噻吨美利曲辛片",
+      "stockQuantity": "28",
+      "stockAlertDays": "7",
+      "dailyDosageCount": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tmedicationName\tstockQuantity\tstockAlertDays\tdailyDosageCount\n30001\t草酸艾司西酞普兰片\tNULL\t7\t1\n30002\t盐酸乙哌立松\t100\t7\t3\n30003\t甲磺酸二氢麦角碱\t75\t7\t2\n30004\t度洛西汀肠溶胶囊\t30\t7\t1\n30005\t氟哌噻吨美利曲辛片\t28\t7\t1\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}

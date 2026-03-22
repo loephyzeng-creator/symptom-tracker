@@ -591,3 +591,9 @@
 - [x] 修改库存计算逻辑：累加所有补货记录总量 - 所有用药记录总次数（而非仅看最近一次补货）
 - [x] 补货后库存 = 之前剩余 + 本次补货量
 - [x] 更新测试
+
+## Bug修复：库存未实时扣减
+- [x] 排查并修复服药打卡后库存数量未实时扣减的问题
+- [x] getMedicationReminders 返回实时计算的 stockQuantity（而非数据库静态值）
+- [x] getMedicationRemindersGrouped 同样返回实时计算的 stockQuantity
+- [x] 无补货记录时，用旧的 stockQuantity - 用药次数 实时扣减

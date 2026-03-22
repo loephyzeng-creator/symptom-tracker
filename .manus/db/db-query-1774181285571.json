@@ -1,0 +1,25 @@
+{
+  "query": "SELECT id, date, medications FROM symptom_entries WHERE userId = 4 ORDER BY date DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT id, date, medications FROM symptom_entries WHERE userId = 4 ORDER BY date DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "90001",
+      "date": "2026-03-22",
+      "medications": "[{\"dosage\": \"1片\", \"name\": \"乙哌立松\", \"reminderId\": 30002, \"timeIndex\": 0}, {\"dosage\": \"1片\", \"name\": \"甲磺酸二氢麦角碱\", \"reminderId\": 30003, \"timeIndex\": 0}, {\"dosage\": \"5mg\", \"name\": \"草酸艾司西酞普兰片\", \"reminderId\": 30001}, {\"dosage\": \"1\", \"name\": \"度洛西汀肠溶胶囊\", \"reminderId\": 30004}, {\"dosage\": \"1\", \"name\": \"氟哌噻吨美利曲辛片\", \"reminderId\": 30005}, {\"dosage\": \"1片\", \"name\": \"乙哌立松\", \"reminderId\": 30002, \"timeIndex\": 1}, {\"dosage\": \"1片\", \"name\": \"甲磺酸二氢麦角碱\", \"reminderId\": 30003, \"timeIndex\": 1}]"
+    },
+    {
+      "id": "30001",
+      "date": "2026-03-21",
+      "medications": "[{\"dosage\": \"1片\", \"name\": \"乙哌立松\", \"reminderId\": 30002, \"timeIndex\": 0}, {\"dosage\": \"1片\", \"name\": \"甲磺酸二氢麦角碱\", \"reminderId\": 30003, \"timeIndex\": 0}, {\"dosage\": \"5mg\", \"name\": \"草酸艾司西酞普兰片\", \"reminderId\": 30001}, {\"dosage\": \"1\", \"name\": \"度洛西汀肠溶胶囊\", \"reminderId\": 30004}, {\"dosage\": \"1\", \"name\": \"氟哌噻吨美利曲辛片\", \"reminderId\": 30005}, {\"dosage\": \"1片\", \"name\": \"乙哌立松\", \"reminderId\": 30002, \"timeIndex\": 1}, {\"dosage\": \"1片\", \"name\": \"甲磺酸二氢麦角碱\", \"reminderId\": 30003, \"timeIndex\": 1}, {\"dosage\": \"1片\", \"name\": \"乙哌立松\", \"reminderId\": 30002, \"timeIndex\": 2}]"
+    },
+    {
+      "id": "1",
+      "date": "2026-03-20",
+      "medications": "[]"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tdate\tmedications\n90001\t2026-03-22\t[{\"dosage\": \"1片\", \"name\": \"乙哌立松\", \"reminderId\": 30002, \"timeIndex\": 0}, {\"dosage\": \"1片\", \"name\": \"甲磺酸二氢麦角碱\", \"reminderId\": 30003, \"timeIndex\": 0}, {\"dosage\": \"5mg\", \"name\": \"草酸艾司西酞普兰片\", \"reminderId\": 30001}, {\"dosage\": \"1\", \"name\": \"度洛西汀肠溶胶囊\", \"reminderId\": 30004}, {\"dosage\": \"1\", \"name\": \"氟哌噻吨美利曲辛片\", \"reminderId\": 30005}, {\"dosage\": \"1片\", \"name\": \"乙哌立松\", \"reminderId\": 30002, \"timeIndex\": 1}, {\"dosage\": \"1片\", \"name\": \"甲磺酸二氢麦角碱\", \"reminderId\": 30003, \"timeIndex\": 1}]\n30001\t2026-03-21\t[{\"dosage\": \"1片\", \"name\": \"乙哌立松\", \"reminderId\": 30002, \"timeIndex\": 0}, {\"dosage\": \"1片\", \"name\": \"甲磺酸二氢麦角碱\", \"reminderId\": 30003, \"timeIndex\": 0}, {\"dosage\": \"5mg\", \"name\": \"草酸艾司西酞普兰片\", \"reminderId\": 30001}, {\"dosage\": \"1\", \"name\": \"度洛西汀肠溶胶囊\", \"reminderId\": 30004}, {\"dosage\": \"1\", \"name\": \"氟哌噻吨美利曲辛片\", \"reminderId\": 30005}, {\"dosage\": \"1片\", \"name\": \"乙哌立松\", \"reminderId\": 30002, \"timeIndex\": 1}, {\"dosage\": \"1片\", \"name\": \"甲磺酸二氢麦角碱\", \"reminderId\": 30003, \"timeIndex\": 1}, {\"dosage\": \"1片\", \"name\": \"乙哌立松\", \"reminderId\": 30002, \"timeIndex\": 2}]\n1\t2026-03-20\t[]\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}
