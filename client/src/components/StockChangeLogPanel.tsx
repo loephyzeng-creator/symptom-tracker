@@ -84,26 +84,28 @@ export default function StockChangeLogPanel({ reminderId }: { reminderId: number
                     <ArrowDown className="w-3 h-3 text-terracotta" />
                   )}
                 </div>
-                {/* Date */}
-                <span className="text-[10px] text-muted-foreground shrink-0">
+                {/* Date — fixed width for alignment */}
+                <span className="text-[10px] text-muted-foreground shrink-0 w-10">
                   {event.date.slice(5)}
                 </span>
-                {/* Delete icon for restock events — right after date */}
-                {event.type === 'restock' && event.restockId && (
-                  <button
-                    onClick={() => setUndoTarget({
-                      id: event.restockId,
-                      quantity: event.quantity,
-                      date: event.date,
-                    })}
-                    className="p-0.5 rounded text-muted-foreground/40 hover:text-red-500 hover:bg-red-500/10 transition-all shrink-0 -ml-1"
-                    title="撤销此次补货"
-                  >
-                    <Trash2 className="w-2.5 h-2.5" />
-                  </button>
-                )}
-                {/* Change */}
-                <span className={`text-xs font-medium ${
+                {/* Delete icon placeholder — fixed width so quantity column stays aligned */}
+                <span className="shrink-0 w-4 flex items-center justify-center">
+                  {event.type === 'restock' && event.restockId ? (
+                    <button
+                      onClick={() => setUndoTarget({
+                        id: event.restockId,
+                        quantity: event.quantity,
+                        date: event.date,
+                      })}
+                      className="p-0.5 rounded text-muted-foreground/40 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                      title="撤销此次补货"
+                    >
+                      <Trash2 className="w-2.5 h-2.5" />
+                    </button>
+                  ) : null}
+                </span>
+                {/* Change — fixed width for alignment */}
+                <span className={`text-xs font-medium w-10 text-right shrink-0 ${
                   event.type === 'restock'
                     ? 'text-sage'
                     : 'text-terracotta'
