@@ -22,6 +22,7 @@ import {
   Loader2,
   ArrowDown,
   ArrowUp,
+  Undo2,
 } from "lucide-react";
 import { exportSingleStockReminder, exportAllStockReminders } from "@/lib/icsExport";
 import AnimatedNumber from "@/components/AnimatedNumber";
@@ -45,10 +46,24 @@ function getTodayStr(): string {
 }
 
 function StockChangeLogPanel({ reminderId }: { reminderId: number }) {
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const utils = trpc.useUtils();
   const { data: changeLog = [], isLoading } = trpc.medReminders.stockChangeLog.useQuery(
     { reminderId },
     { staleTime: 30_000 }
   );
+
+  const deleteRestockMutation = trpc.medReminders.deleteRestock.useMutation({
+    onSuccess: () => {
+      utils.medReminders.stockStatus.invalidate();
+      utils.medReminders.stockChangeLog.invalidate();
+      utils.medReminders.list.invalidate();
+      utils.medReminders.restockHistory.invalidate();
+      setConfirmDeleteId(null);
+      toast.success("已撤销补货记录");
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   return (
     <motion.div
@@ -72,7 +87,7 @@ function StockChangeLogPanel({ reminderId }: { reminderId: number }) {
           {changeLog.map((event: any, idx: number) => (
             <div
               key={`${event.date}-${event.type}-${idx}`}
-              className="flex items-center gap-2 py-1.5 border-b border-border/20 last:border-0"
+              className="flex items-center gap-2 py-1.5 border-b border-border/20 last:border-0 group"
             >
               {/* Timeline dot */}
               <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
@@ -102,6 +117,38 @@ function StockChangeLogPanel({ reminderId }: { reminderId: number }) {
               <span className="text-[10px] text-muted-foreground shrink-0">
                 余 {event.runningTotal}
               </span>
+              {/* Delete button for restock events */}
+              {event.type === 'restock' && event.restockId && (
+                confirmDeleteId === event.restockId ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => deleteRestockMutation.mutate({ restockId: event.restockId })}
+                      disabled={deleteRestockMutation.isPending}
+                      className="text-[10px] text-red-500 hover:text-red-600 font-medium"
+                    >
+                      {deleteRestockMutation.isPending ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        "确认"
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="text-[10px] text-muted-foreground hover:text-foreground"
+                    >
+                      取消
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteId(event.restockId)}
+                    className="text-[10px] text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    title="撤销此次补货"
+                  >
+                    <Undo2 className="w-3 h-3" />
+                  </button>
+                )
+              )}
             </div>
           ))}
         </div>

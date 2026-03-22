@@ -46,6 +46,7 @@ import {
   getLowStockAlerts,
   batchRestockMedications,
   addMedicationRestock,
+  deleteMedicationRestock,
   getRestockHistory,
   getStockChangeLog,
   getTodayMedications,
@@ -889,6 +890,13 @@ export const appRouter = router({
       .input(z.object({ reminderId: z.number() }))
       .query(async ({ ctx, input }) => {
         return getStockChangeLog(ctx.user.id, input.reminderId);
+      }),
+
+    /** Delete a specific restock record */
+    deleteRestock: protectedProcedure
+      .input(z.object({ restockId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return deleteMedicationRestock(ctx.user.id, input.restockId);
       }),
 
     /** Batch restock all low-stock medications */

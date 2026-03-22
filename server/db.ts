@@ -1960,11 +1960,10 @@ export async function addMedicationRestock(
     restockDate,
   });
 
-  // Also update the legacy stockQuantity field for backward compatibility
-  await db
-    .update(medicationReminders)
-    .set({ stockQuantity: restockQuantity })
-    .where(eq(medicationReminders.id, reminderId));
+  // NOTE: Do NOT overwrite stockQuantity here.
+  // stockQuantity is only used as a legacy fallback when no restock records exist.
+  // Once restock records exist, computeRealTimeStock sums ALL restock records
+  // and subtracts usage, so overwriting stockQuantity would lose the initial value.
 
   return { success: true };
 }
@@ -1989,6 +1988,42 @@ export async function getRestockHistory(
       )
     )
     .orderBy(desc(medicationRestocks.createdAt));
+}
+
+/**
+ * Delete a specific restock record.
+ * Verifies the record belongs to the user before deleting.
+ */
+export async function deleteMedicationRestock(
+  userId: number,
+  restockId: number
+): Promise<{ success: boolean }> {
+  const db = await getDb();
+  if (!db) return { success: false };
+
+  // Verify the restock record belongs to the user
+  const record = await db
+    .select()
+    .from(medicationRestocks)
+    .where(
+      and(
+        eq(medicationRestocks.id, restockId),
+        eq(medicationRestocks.userId, userId)
+      )
+    )
+    .limit(1);
+  if (record.length === 0) throw new Error("Restock record not found");
+
+  await db
+    .delete(medicationRestocks)
+    .where(
+      and(
+        eq(medicationRestocks.id, restockId),
+        eq(medicationRestocks.userId, userId)
+      )
+    );
+
+  return { success: true };
 }
 
 /**
@@ -2026,6 +2061,7 @@ export async function getStockChangeLog(
   quantity: number;
   runningTotal?: number;
   note?: string;
+  restockId?: number;
 }>> {
   const db = await getDb();
   if (!db) return [];
@@ -2071,6 +2107,7 @@ export async function getStockChangeLog(
     date: string;
     quantity: number;
     note?: string;
+    restockId?: number;
     sortKey: string; // for sorting: date + type priority
   }> = [];
 
@@ -2081,6 +2118,7 @@ export async function getStockChangeLog(
       date: r.restockDate,
       quantity: r.restockQuantity,
       note: `补货 +${r.restockQuantity}`,
+      restockId: r.id,
       sortKey: `${r.restockDate}-0`, // restocks sort before usage on same date
     });
   }
@@ -2123,6 +2161,7 @@ export async function getStockChangeLog(
       quantity: e.quantity,
       runningTotal,
       note: e.note,
+      restockId: e.restockId,
     };
   });
 
