@@ -411,6 +411,82 @@ export async function updatePainkillerDayLimit(
 }
 
 /**
+ * Get painkiller alert enabled status for a user.
+ */
+export async function getPainkillerAlertEnabled(userId: number): Promise<boolean> {
+  const settings = await getNotificationSettings(userId);
+  return (settings?.painkillerAlertEnabled ?? 1) === 1;
+}
+
+/**
+ * Update painkiller alert enabled status for a user.
+ */
+export async function updatePainkillerAlertEnabled(
+  userId: number,
+  enabled: boolean
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await getNotificationSettings(userId);
+  if (existing) {
+    await db
+      .update(notificationSettings)
+      .set({ painkillerAlertEnabled: enabled ? 1 : 0 })
+      .where(eq(notificationSettings.userId, userId));
+  } else {
+    await db.insert(notificationSettings).values({
+      userId,
+      enabled: 1,
+      reminderHour: 21,
+      reminderMinute: 0,
+      painkillerAlertEnabled: enabled ? 1 : 0,
+    });
+  }
+}
+
+/**
+ * Update the last date a painkiller threshold alert was sent for a user.
+ */
+export async function updatePainkillerAlertLastDate(
+  userId: number,
+  date: string
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  await db
+    .update(notificationSettings)
+    .set({ painkillerAlertLastDate: date })
+    .where(eq(notificationSettings.userId, userId));
+}
+
+/**
+ * Get all users with painkiller alert enabled for threshold checking.
+ * Returns userId, painkillerDayLimit, painkillerAlertLastDate.
+ */
+export async function getUsersForPainkillerAlert(todayStr: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const settings = await db
+    .select({
+      userId: notificationSettings.userId,
+      painkillerDayLimit: notificationSettings.painkillerDayLimit,
+      painkillerAlertLastDate: notificationSettings.painkillerAlertLastDate,
+    })
+    .from(notificationSettings)
+    .where(
+      and(
+        eq(notificationSettings.painkillerAlertEnabled, 1)
+      )
+    );
+
+  // Filter out users already alerted today
+  return settings.filter((s) => s.painkillerAlertLastDate !== todayStr);
+}
+
+/**
  * Get all users who have notifications enabled and haven't been notified today.
  * Also checks if they have an entry for today.
  */

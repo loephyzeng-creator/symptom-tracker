@@ -10,6 +10,9 @@ import {
   getMedicationReminders,
   getLowStockAlerts,
   markStockAlertSent,
+  getUsersForPainkillerAlert,
+  getPainkillerUsageLast30Days,
+  updatePainkillerAlertLastDate,
 } from "./db";
 import webpush from "web-push";
 import { ENV } from "./_core/env";
@@ -376,6 +379,15 @@ async function checkAndSendReminders() {
   } catch (error) {
     console.error("[Reminder] Error in expiration alerts (non-fatal):", error);
   }
+
+  // 6. Painkiller threshold alerts (check once daily at 20:00)
+  try {
+    if (hour === 20 && minute < 15) {
+      await checkAndSendPainkillerThresholdAlerts(todayStr);
+    }
+  } catch (error) {
+    console.error("[Reminder] Error in painkiller threshold alerts (non-fatal):", error);
+  }
 }
 
 /**
@@ -468,6 +480,58 @@ async function checkAndSendLowStockAlerts() {
   }
 }
 
+/**
+ * Check painkiller usage against threshold and send alerts.
+ * Runs once daily at 20:00. Sends alerts at 70% (approaching) and 100% (exceeded).
+ */
+async function checkAndSendPainkillerThresholdAlerts(todayStr: string) {
+  try {
+    const usersToCheck = await getUsersForPainkillerAlert(todayStr);
+    console.log(`[PainkillerAlert] Checking ${usersToCheck.length} user(s) for painkiller threshold`);
+
+    for (const user of usersToCheck) {
+      const usageDays = await getPainkillerUsageLast30Days(user.userId, todayStr);
+      const limit = user.painkillerDayLimit;
+      const warningThreshold = Math.ceil(limit * 0.7); // 70% of limit
+
+      if (usageDays >= limit) {
+        // Exceeded threshold
+        const sent = await sendWebPush(
+          user.userId,
+          "⚠️ 止疼药使用超限提醒",
+          `近30天内您已使用止疼药 ${usageDays} 天，已达到设定上限（${limit} 天）。请注意控制用量，必要时咨询医生。`,
+          "painkiller-threshold-exceeded",
+          [],
+          { type: "painkiller-alert", level: "exceeded" }
+        );
+        if (sent) {
+          await updatePainkillerAlertLastDate(user.userId, todayStr);
+          console.log(`[PainkillerAlert] Exceeded alert sent to user ${user.userId}: ${usageDays}/${limit} days`);
+        }
+      } else if (usageDays >= warningThreshold) {
+        // Approaching threshold
+        const remaining = limit - usageDays;
+        const sent = await sendWebPush(
+          user.userId,
+          "💊 止疼药使用接近上限",
+          `近30天内您已使用止疼药 ${usageDays} 天，距离上限（${limit} 天）还剩 ${remaining} 天。请注意控制用量。`,
+          "painkiller-threshold-warning",
+          [],
+          { type: "painkiller-alert", level: "warning" }
+        );
+        if (sent) {
+          await updatePainkillerAlertLastDate(user.userId, todayStr);
+          console.log(`[PainkillerAlert] Warning alert sent to user ${user.userId}: ${usageDays}/${limit} days`);
+        }
+      } else {
+        console.log(`[PainkillerAlert] User ${user.userId} within safe range: ${usageDays}/${limit} days`);
+      }
+    }
+  } catch (error) {
+    console.error("[PainkillerAlert] Error checking painkiller threshold:", error);
+  }
+}
+
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
 /**
@@ -501,6 +565,7 @@ export function stopReminderScheduler() {
 export {
   checkAndSendReminders,
   checkAndSendMedicationReminders,
+  checkAndSendPainkillerThresholdAlerts,
   isReminderTime,
   isDayActive,
   applyOffset,

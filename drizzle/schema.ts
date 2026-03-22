@@ -73,6 +73,8 @@ export const notificationSettings = mysqlTable("notification_settings", {
   reminderMinute: int("reminderMinute").default(0).notNull(), // 0-59
   lastNotifiedDate: varchar("lastNotifiedDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate notifications
   painkillerDayLimit: int("painkillerDayLimit").default(10).notNull(), // max painkiller days in 30-day window
+  painkillerAlertEnabled: int("painkillerAlertEnabled").default(1).notNull(), // 1 = on, 0 = off
+  painkillerAlertLastDate: varchar("painkillerAlertLastDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate daily alerts
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

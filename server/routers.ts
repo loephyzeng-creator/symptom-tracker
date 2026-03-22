@@ -69,6 +69,8 @@ import {
   getPainkillerDayLimit,
   updatePainkillerDayLimit,
   togglePainkillerForDate,
+  getPainkillerAlertEnabled,
+  updatePainkillerAlertEnabled,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -222,6 +224,7 @@ export const appRouter = router({
           reminderHour: 21,
           reminderMinute: 0,
           painkillerDayLimit: 10,
+          painkillerAlertEnabled: 1,
         }),
         hasPushSubscription: subs.length > 0,
       };
@@ -233,6 +236,20 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await updatePainkillerDayLimit(ctx.user.id, input.limit);
         return { success: true, limit: input.limit };
+      }),
+
+    /** Get painkiller alert enabled status */
+    getPainkillerAlertEnabled: protectedProcedure.query(async ({ ctx }) => {
+      const enabled = await getPainkillerAlertEnabled(ctx.user.id);
+      return { enabled };
+    }),
+
+    /** Toggle painkiller threshold alert on/off */
+    updatePainkillerAlertEnabled: protectedProcedure
+      .input(z.object({ enabled: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        await updatePainkillerAlertEnabled(ctx.user.id, input.enabled);
+        return { success: true, enabled: input.enabled };
       }),
 
     /** Update notification settings */
