@@ -147,11 +147,29 @@ function formatDateCN(dateStr: string): string {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
+interface AdherenceData {
+  overallRate: number;
+  perMedication: Array<{ name: string; expected: number; taken: number; rate: number }>;
+  dailyData: Array<{ date: string; expected: number; taken: number; rate: number }>;
+}
+
+interface MedicationReminderInfo {
+  medicationName: string;
+  dosage: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  reminderTimes?: Array<{ hour: number; minute: number }> | null;
+  repeatDays?: number[] | null;
+  enabled: number;
+}
+
 export function generateReportHTML(
   entries: EntryRow[],
   startDate: string,
   endDate: string,
-  userName: string
+  userName: string,
+  adherenceData?: AdherenceData | null,
+  medicationReminders?: MedicationReminderInfo[] | null
 ): string {
   const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
   const triggerFreq = computeTriggerFrequency(sorted);
@@ -497,6 +515,107 @@ ${medList.length > 0 ? `
   </div>
 </div>
 ` : ""}
+
+${(() => {
+  if (!adherenceData || adherenceData.perMedication.length === 0) return "";
+  const rateColor = (r: number) => r >= 80 ? "#7a9a6e" : r >= 50 ? "#e67e22" : "#dc3545";
+  return `
+<div class="section">
+  <h2>用药依从性分析</h2>
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;padding:10px 14px;background:#faf8f5;border-radius:8px">
+    <div style="text-align:center">
+      <div style="font-size:28px;font-weight:700;color:${rateColor(adherenceData.overallRate)}">${adherenceData.overallRate}%</div>
+      <div style="font-size:10px;color:#8a8580">总体依从率</div>
+    </div>
+    <div style="flex:1;font-size:10px;color:#6b6560;line-height:1.6">
+      <p>报告周期内共 ${adherenceData.dailyData.length} 天有用药安排</p>
+      <p>涉及 ${adherenceData.perMedication.length} 种药品</p>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="text-align:left">药品名称</th>
+        <th>应服天数</th>
+        <th>实际服用</th>
+        <th>依从率</th>
+        <th>依从度</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${adherenceData.perMedication.map(m => {
+        const barWidth = Math.max(m.rate, 2);
+        return `
+      <tr>
+        <td style="text-align:left;font-weight:500">${escapeHtml(m.name)}</td>
+        <td>${m.expected}</td>
+        <td>${m.taken}</td>
+        <td style="color:${rateColor(m.rate)};font-weight:600">${m.rate}%</td>
+        <td style="padding:4px 8px">
+          <div style="width:100%;height:14px;background:#f0ebe5;border-radius:7px;overflow:hidden">
+            <div style="width:${barWidth}%;height:100%;background:${rateColor(m.rate)};border-radius:7px"></div>
+          </div>
+        </td>
+      </tr>`;
+      }).join("")}
+    </tbody>
+  </table>
+</div>`;
+})()}
+
+${(() => {
+  if (!medicationReminders || medicationReminders.length === 0) return "";
+  const DAY_NAMES = ["日", "一", "二", "三", "四", "五", "六"];
+  const active = medicationReminders.filter(r => r.enabled === 1 && (!r.endDate || r.endDate >= endDate));
+  const archived = medicationReminders.filter(r => r.endDate && r.endDate < endDate);
+  let html = `
+<div class="section">
+  <h2>用药方案概览</h2>`;
+  if (active.length > 0) {
+    html += `
+  <p style="font-size:11px;color:#5a5550;margin-bottom:8px"><strong>当前用药（${active.length}种）</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th style="text-align:left">药品</th>
+        <th style="text-align:left">剂量</th>
+        <th>每日次数</th>
+        <th>服药时间</th>
+        <th>重复</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${active.map(r => {
+        const times = r.reminderTimes && r.reminderTimes.length > 0
+          ? r.reminderTimes.map(t => `${String(t.hour).padStart(2,"0")}:${String(t.minute).padStart(2,"0")}`).join("、")
+          : "—";
+        const days = !r.repeatDays || r.repeatDays.length === 0 || r.repeatDays.length === 7
+          ? "每天"
+          : r.repeatDays.map(d => "周" + DAY_NAMES[d]).join("、");
+        const timesCount = r.reminderTimes ? r.reminderTimes.length : 1;
+        return `
+      <tr>
+        <td style="text-align:left;font-weight:500">${escapeHtml(r.medicationName)}</td>
+        <td style="text-align:left">${escapeHtml(r.dosage)}</td>
+        <td>${timesCount}次</td>
+        <td style="font-size:9px">${times}</td>
+        <td style="font-size:9px">${days}</td>
+      </tr>`;
+      }).join("")}
+    </tbody>
+  </table>`;
+  }
+  if (archived.length > 0) {
+    html += `
+  <p style="font-size:11px;color:#8a8580;margin-top:12px;margin-bottom:6px"><strong>已结束用药（${archived.length}种）</strong></p>
+  <div style="font-size:10px;color:#8a8580">
+    ${archived.map(r => `<span style="display:inline-block;padding:2px 8px;margin:2px;background:#f0ebe5;border-radius:10px">${escapeHtml(r.medicationName)} ${escapeHtml(r.dosage)}${r.startDate ? " (" + r.startDate + " ~ " + (r.endDate || "") + ")" : ""}</span>`).join("")}
+  </div>`;
+  }
+  html += `
+</div>`;
+  return html;
+})()}
 
 ${sorted.filter(e => e.notes).length > 0 ? `
 <div class="section">

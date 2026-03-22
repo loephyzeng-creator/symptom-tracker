@@ -779,6 +779,31 @@ export const appRouter = router({
         return getMedicationAdherence(ctx.user.id, input.startDate, input.endDate);
       }),
 
+    /** Get historical stats for a specific archived medication */
+    archivedStats: protectedProcedure
+      .input(z.object({ reminderId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        // Get the reminder to find its date range
+        const reminders = await getMedicationReminders(ctx.user.id);
+        const reminder = reminders.find((r: any) => r.id === input.reminderId);
+        if (!reminder) return { totalDays: 0, takenDays: 0, adherenceRate: 0, dateRange: '' };
+        
+        const startDate = reminder.startDate || reminder.createdAt?.toISOString().slice(0, 10) || '2024-01-01';
+        const endDate = reminder.endDate || getDateStrInTimezone(DEFAULT_TIMEZONE);
+        
+        const adherence = await getMedicationAdherence(ctx.user.id, startDate, endDate);
+        const medStats = adherence.perMedication.find(
+          (m: any) => m.name.toLowerCase() === reminder.medicationName.toLowerCase()
+        );
+        
+        return {
+          totalDays: medStats?.expected ?? 0,
+          takenDays: medStats?.taken ?? 0,
+          adherenceRate: medStats?.rate ?? 0,
+          dateRange: `${startDate} ~ ${endDate}`,
+        };
+      }),
+
     /** Get medication stock status */
     stockStatus: protectedProcedure
       .query(async ({ ctx }) => {
@@ -1143,11 +1168,35 @@ export const appRouter = router({
           input.startDate,
           input.endDate
         );
+
+        // Fetch medication adherence data for the report period
+        let adherenceData = null;
+        try {
+          adherenceData = await getMedicationAdherence(ctx.user.id, input.startDate, input.endDate);
+        } catch { /* ignore if no adherence data */ }
+
+        // Fetch medication reminders for the medication overview section
+        let medRemindersList = null;
+        try {
+          const reminders = await getMedicationReminders(ctx.user.id);
+          medRemindersList = reminders.map((r: any) => ({
+            medicationName: r.medicationName,
+            dosage: r.dosage,
+            startDate: r.startDate,
+            endDate: r.endDate,
+            reminderTimes: r.reminderTimes,
+            repeatDays: r.repeatDays,
+            enabled: r.enabled,
+          }));
+        } catch { /* ignore */ }
+
         const html = generateReportHTML(
           entries,
           input.startDate,
           input.endDate,
-          ctx.user.name ?? "用户"
+          ctx.user.name ?? "用户",
+          adherenceData,
+          medRemindersList
         );
         return { html, entryCount: entries.length };
       }),

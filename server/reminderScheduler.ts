@@ -417,6 +417,15 @@ async function checkAndSendReminders() {
   } catch (error) {
     console.error("[Reminder] Error in weekly painkiller report (non-fatal):", error);
   }
+
+  // 8. Course-ending reminders (check once daily at 9:30 AM, notify 3 days before endDate)
+  try {
+    if ((hour === 9 && minute >= 30) || (hour === 10 && minute < 30)) {
+      await checkAndSendCourseEndingReminders(todayStr);
+    }
+  } catch (error) {
+    console.error("[Reminder] Error in course-ending reminders (non-fatal):", error);
+  }
 }
 
 /**
@@ -660,6 +669,84 @@ async function sendWeeklyPainkillerReports(todayStr: string, currentHour: number
     }
   } catch (error) {
     console.error("[WeeklyReport] Error sending weekly reports:", error);
+  }
+}
+
+/**
+ * Check for medications approaching their endDate and send push notifications.
+ * Notifies users 3 days, 1 day, and on the last day before a medication course ends.
+ */
+async function checkAndSendCourseEndingReminders(todayStr: string) {
+  try {
+    const allReminders = await getMedicationRemindersToSend(todayStr);
+    
+    // Group by userId to send consolidated notifications
+    const userReminders = new Map<number, Array<{ name: string; endDate: string; daysLeft: number }>>();
+    
+    const today = new Date(todayStr + "T00:00:00Z");
+    
+    for (const reminder of allReminders) {
+      if (!reminder.endDate) continue;
+      
+      const endDate = new Date(reminder.endDate + "T00:00:00Z");
+      const diffMs = endDate.getTime() - today.getTime();
+      const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      
+      // Notify at 3 days, 1 day, and 0 days (last day)
+      if (daysLeft === 3 || daysLeft === 1 || daysLeft === 0) {
+        if (!userReminders.has(reminder.userId)) {
+          userReminders.set(reminder.userId, []);
+        }
+        userReminders.get(reminder.userId)!.push({
+          name: reminder.medicationName,
+          endDate: reminder.endDate,
+          daysLeft,
+        });
+      }
+    }
+    
+    for (const [userId, meds] of Array.from(userReminders.entries())) {
+      const sound = meds.length > 0 ? (allReminders.find(r => r.userId === userId)?.notificationSound ?? "default") : "default";
+      
+      for (const med of meds) {
+        let title: string;
+        let body: string;
+        
+        if (med.daysLeft === 0) {
+          title = `\u{1F4CB} ${med.name} 疗程今日结束`;
+          body = `${med.name} 的用药疗程今天是最后一天\u{ff0c}请确认是否需要续方或停药\u{3002}`;
+        } else if (med.daysLeft === 1) {
+          title = `\u{23f3} ${med.name} 疗程明天结束`;
+          body = `${med.name} 的用药疗程将于明天(${med.endDate})结束\u{ff0c}请提前准备\u{3002}`;
+        } else {
+          title = `\u{1f514} ${med.name} 疗程即将结束`;
+          body = `${med.name} 的用药疗程将于 ${med.daysLeft} 天后(${med.endDate})结束\u{ff0c}请确认是否需要续方\u{3002}`;
+        }
+        
+        try {
+          const sent = await sendWebPush(
+            userId,
+            title,
+            body,
+            `course-ending-${med.name}-${med.daysLeft}`,
+            undefined,
+            undefined,
+            sound
+          );
+          if (sent) {
+            console.log(`[CourseEnd] Notified user ${userId}: ${med.name} ends in ${med.daysLeft} days`);
+          }
+        } catch (err) {
+          console.error(`[CourseEnd] Error notifying user ${userId} about ${med.name}:`, err);
+        }
+      }
+    }
+    
+    if (userReminders.size > 0) {
+      console.log(`[CourseEnd] Sent course-ending reminders to ${userReminders.size} user(s)`);
+    }
+  } catch (error) {
+    console.error("[CourseEnd] Error checking course-ending reminders:", error);
   }
 }
 

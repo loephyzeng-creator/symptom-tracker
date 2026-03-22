@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import ArchivedMedStats from "@/components/ArchivedMedStats";
 import {
   Pill,
   Plus,
@@ -549,14 +550,14 @@ function ReminderFormFields({
           <span className="text-sm font-medium text-foreground">有效期</span>
           <span className="text-xs text-muted-foreground">(可选)</span>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-2">
           <div>
             <label className="text-xs text-muted-foreground">过期日期</label>
             <Input
               type="date"
               value={formData.expirationDate}
               onChange={(e) => setFormData({ ...formData, expirationDate: e.target.value })}
-              className="h-8 text-sm mt-1"
+              className="h-9 text-sm mt-1 w-full"
             />
           </div>
           <div>
@@ -567,7 +568,7 @@ function ReminderFormFields({
               onChange={(e) => setFormData({ ...formData, expirationAlertDays: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1) })}
               onFocus={(e) => e.target.select()}
               onBlur={() => { if (formData.expirationAlertDays === '') setFormData({ ...formData, expirationAlertDays: 30 }); }}
-              className="h-8 text-sm mt-1"
+              className="h-9 text-sm mt-1 w-full"
               min={1}
               max={365}
             />
@@ -1704,6 +1705,7 @@ export default function MedicationReminders() {
                       {formatRepeatDays(reminder.repeatDays)}
                     </span>
                   </div>
+                  <ArchivedMedStats reminderId={reminder.id} />
                 </div>
               ))}
             </div>

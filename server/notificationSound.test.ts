@@ -133,7 +133,7 @@ describe("Notification Sound Preference Feature", () => {
     it("weekly painkiller report passes notificationSound from user settings", () => {
       const schedulerPath = path.resolve(__dirname, "reminderScheduler.ts");
       const content = fs.readFileSync(schedulerPath, "utf-8");
-      const weeklyFnStart = content.indexOf("sendWeeklyPainkillerReports");
+      const weeklyFnStart = content.indexOf("async function sendWeeklyPainkillerReports");
       const weeklyFnSlice = content.slice(weeklyFnStart, weeklyFnStart + 5000);
       expect(weeklyFnSlice).toContain('user.notificationSound ?? "default"');
     });
