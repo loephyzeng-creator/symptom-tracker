@@ -566,3 +566,9 @@
 
 ## Bug: \u00b7 显示为字面文本
 - [x] 修复 HeadachePainkillerChart 中 \u00b7 等 unicode 转义序列未正确渲染的问题（包装在 JSX 字符串表达式中）
+
+## 全局排查 unicode 转义序列问题
+- [x] 扫描所有客户端组件和服务端文件，确认无其他裸露 unicode 转义序列问题（icsExport.ts 中的正则表达式为正确用法）
+
+## 药品剩余数量实时更新
+- [x] 服药打卡后自动 invalidate medReminders.list，药品剩余数量立即更新显示（MedicationView 确认/取消服药）

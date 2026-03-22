@@ -83,6 +83,7 @@ export default function MedicationView() {
       utils.medReminders.todayMeds.invalidate({ date: selectedDate });
       utils.medReminders.checkInCalendar.invalidate();
       utils.medReminders.dayDetail.invalidate();
+      utils.medReminders.list.invalidate(); // Refresh stock quantity display
     },
   });
 
@@ -91,6 +92,7 @@ export default function MedicationView() {
       utils.medReminders.todayMeds.invalidate({ date: selectedDate });
       utils.medReminders.checkInCalendar.invalidate();
       utils.medReminders.dayDetail.invalidate();
+      utils.medReminders.list.invalidate(); // Refresh stock quantity display
     },
   });
 
