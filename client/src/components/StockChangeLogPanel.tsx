@@ -85,9 +85,23 @@ export default function StockChangeLogPanel({ reminderId }: { reminderId: number
                   )}
                 </div>
                 {/* Date */}
-                <span className="text-[10px] text-muted-foreground w-12 shrink-0">
+                <span className="text-[10px] text-muted-foreground shrink-0">
                   {event.date.slice(5)}
                 </span>
+                {/* Delete icon for restock events — right after date */}
+                {event.type === 'restock' && event.restockId && (
+                  <button
+                    onClick={() => setUndoTarget({
+                      id: event.restockId,
+                      quantity: event.quantity,
+                      date: event.date,
+                    })}
+                    className="p-0.5 rounded text-muted-foreground/40 hover:text-red-500 hover:bg-red-500/10 transition-all shrink-0 -ml-1"
+                    title="撤销此次补货"
+                  >
+                    <Trash2 className="w-2.5 h-2.5" />
+                  </button>
+                )}
                 {/* Change */}
                 <span className={`text-xs font-medium ${
                   event.type === 'restock'
@@ -102,20 +116,6 @@ export default function StockChangeLogPanel({ reminderId }: { reminderId: number
                 <span className="text-[10px] text-muted-foreground shrink-0">
                   余 {event.runningTotal}
                 </span>
-                {/* Delete icon for restock events — small trash icon */}
-                {event.type === 'restock' && event.restockId && (
-                  <button
-                    onClick={() => setUndoTarget({
-                      id: event.restockId,
-                      quantity: event.quantity,
-                      date: event.date,
-                    })}
-                    className="ml-1 p-1 rounded-md text-muted-foreground/50 hover:text-red-500 hover:bg-red-500/10 transition-all shrink-0"
-                    title="撤销此次补货"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                )}
               </div>
             ))}
           </div>

@@ -71,23 +71,9 @@ describe("Stock UX Enhancements", () => {
       expect(fnBody).toContain("latestRestock !== null");
     });
 
-    it("MedicationStock should show legacy data banner when hasRestockRecords is false", () => {
-      expect(stockContent).toContain("hasRestockRecords");
-      expect(stockContent).toContain("旧数据模式");
-    });
-
-    it("MedicationStock should show initialization button for legacy items", () => {
-      expect(stockContent).toContain("初始化库存记录");
-      expect(stockContent).toContain("PackagePlus");
-    });
-
-    it("MedicationStock initialization should pre-fill current stock quantity", () => {
-      expect(stockContent).toContain("item.stockQuantity || 30");
-    });
-
-    it("MedicationStock should explain the legacy mode to users", () => {
-      expect(stockContent).toContain("当前库存基于初始设置值推算");
-      expect(stockContent).toContain("建议通过");
+    it("MedicationStock should display stock information", () => {
+      // Legacy data mode UI was removed; verify stock component still uses stock status API
+      expect(stockContent).toContain("stockStatus");
     });
   });
 
