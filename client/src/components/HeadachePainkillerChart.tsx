@@ -224,7 +224,7 @@ export default function HeadachePainkillerChart({ entries, rangeDays = 30 }: Hea
         {/* Export header (only visible in export) */}
         <div className="hidden export-header text-center pb-2">
           <h2 className="font-serif text-lg font-bold">{"\u75c7\u72b6\u65e5\u8bb0 \u2014 \u5934\u75db\u4e0e\u6b62\u75bc\u836f\u62a5\u544a"}</h2>
-          <p className="text-xs text-muted-foreground">{rangeLabel} \u00b7 {"\u5bfc\u51fa\u65f6\u95f4"}: {new Date().toLocaleDateString("zh-CN")}</p>
+          <p className="text-xs text-muted-foreground">{rangeLabel} {"\u00b7"} {"\u5bfc\u51fa\u65f6\u95f4"}: {new Date().toLocaleDateString("zh-CN")}</p>
         </div>
 
         {/* Summary Cards */}
@@ -239,7 +239,7 @@ export default function HeadachePainkillerChart({ entries, rangeDays = 30 }: Hea
               <span className="text-xs text-muted-foreground mb-1">{"\u5929"}</span>
             </div>
             <div className="text-[10px] text-muted-foreground mt-1">
-              {rangeLabel} \u00b7 {"\u4e25\u91cd"} {summary.severeDays} {"\u5929"} \u00b7 {"\u5747\u503c"} {summary.avgLevel}
+              {rangeLabel} {"\u00b7"} {"\u4e25\u91cd"} {summary.severeDays} {"\u5929"} {"\u00b7"} {"\u5747\u503c"} {summary.avgLevel}
             </div>
           </div>
           <div className="bg-card rounded-xl p-3 border border-border/50 shadow-sm">
@@ -261,7 +261,7 @@ export default function HeadachePainkillerChart({ entries, rangeDays = 30 }: Hea
             )}
             {summary.painkillerDays < limit && (
               <div className="text-[10px] text-muted-foreground mt-1">
-                {rangeLabel} \u00b7 {"\u5269\u4f59"} {limit - summary.painkillerDays} {"\u5929\u989d\u5ea6"}
+                {rangeLabel} {"\u00b7"} {"\u5269\u4f59"} {limit - summary.painkillerDays} {"\u5929\u989d\u5ea6"}
               </div>
             )}
           </div>
@@ -374,7 +374,7 @@ export default function HeadachePainkillerChart({ entries, rangeDays = 30 }: Hea
 
           {/* Monthly limit indicator */}
           <div className="text-center text-[10px] text-muted-foreground mt-2">
-            {"\u6708\u5ea6\u4e0a\u9650"} {limit} {"\u5929"} \u00b7 {"\u5df2\u4f7f\u7528"} {summary.painkillerDays} {"\u5929"}
+            {"\u6708\u5ea6\u4e0a\u9650"} {limit} {"\u5929"} {"\u00b7"} {"\u5df2\u4f7f\u7528"} {summary.painkillerDays} {"\u5929"}
           </div>
         </div>
       </div>
