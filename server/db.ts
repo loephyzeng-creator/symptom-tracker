@@ -1811,6 +1811,47 @@ export async function markStockAlertSent(id: number) {
 }
 
 /**
+ * Batch restock all low-stock medications to a specified quantity.
+ * Returns the count of medications restocked.
+ */
+export async function batchRestockMedications(
+  userId: number,
+  restockQuantity: number
+): Promise<{ restocked: number; names: string[] }> {
+  const db = await getDb();
+  if (!db) return { restocked: 0, names: [] };
+
+  const reminders = await db
+    .select()
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.userId, userId),
+        eq(medicationReminders.enabled, 1)
+      )
+    );
+
+  const lowStockReminders = reminders.filter((r) => {
+    if (r.stockQuantity === null) return false;
+    const dailyCount = r.dailyDosageCount ?? 1;
+    const daysRemaining = dailyCount > 0 ? Math.floor(r.stockQuantity / dailyCount) : 999;
+    const alertDays = r.stockAlertDays ?? 7;
+    return daysRemaining <= alertDays;
+  });
+
+  const names: string[] = [];
+  for (const r of lowStockReminders) {
+    await db
+      .update(medicationReminders)
+      .set({ stockQuantity: restockQuantity })
+      .where(eq(medicationReminders.id, r.id));
+    names.push(r.medicationName);
+  }
+
+  return { restocked: lowStockReminders.length, names };
+}
+
+/**
  * Get today's medications from reminders — returns the list of medications
  * the user should take today based on their active reminders and repeat days.
  * This allows the symptom form to auto-fill medications from reminders.

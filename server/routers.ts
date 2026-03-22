@@ -44,6 +44,7 @@ import {
   getMedicationStockStatus,
   deductMedicationStock,
   getLowStockAlerts,
+  batchRestockMedications,
   getTodayMedications,
   confirmMedicationTaken,
   unconfirmMedicationTaken,
@@ -858,6 +859,17 @@ export const appRouter = router({
         const { ids, ...data } = input;
         await batchUpdateMedicationReminders(ctx.user.id, ids, data);
         return { success: true };
+      }),
+
+    /** Batch restock all low-stock medications */
+    batchRestock: protectedProcedure
+      .input(
+        z.object({
+          restockQuantity: z.number().min(1).max(9999),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        return batchRestockMedications(ctx.user.id, input.restockQuantity);
       }),
   }),
 

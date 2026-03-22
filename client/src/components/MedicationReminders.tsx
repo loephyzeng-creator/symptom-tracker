@@ -32,6 +32,7 @@ import {
   GripVertical,
   ArrowUp,
   ArrowDown,
+  Loader2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -40,6 +41,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import TimePicker from "@/components/TimePicker";
+import AnimatedNumber from "@/components/AnimatedNumber";
 import { exportSingleReminder, exportAllReminders } from "@/lib/icsExport";
 
 const DAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
@@ -715,6 +717,9 @@ export default function MedicationReminders() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [batchTimeHour, setBatchTimeHour] = useState(8);
   const [batchTimeMinute, setBatchTimeMinute] = useState(0);
+  // Batch restock
+  const [showRestockDialog, setShowRestockDialog] = useState(false);
+  const [restockQuantity, setRestockQuantity] = useState(30);
 
   const utils = trpc.useUtils();
   const { data: reminders = [], isLoading } =
@@ -813,6 +818,20 @@ export default function MedicationReminders() {
       setSelectedIds(new Set());
       setBatchMode(false);
       toast.success("批量更新成功");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const batchRestockMutation = trpc.medReminders.batchRestock.useMutation({
+    onSuccess: (result) => {
+      utils.medReminders.list.invalidate();
+      utils.medGroups.grouped.invalidate();
+      setShowRestockDialog(false);
+      if (result.restocked > 0) {
+        toast.success(`已补货 ${result.restocked} 种药品：${result.names.join("、")}`);
+      } else {
+        toast.info("没有需要补货的药品");
+      }
     },
     onError: (err) => toast.error(err.message),
   });
@@ -980,6 +999,26 @@ export default function MedicationReminders() {
     return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
   };
 
+  // Count low-stock reminders for showing restock button
+  const lowStockCount = useMemo(() => {
+    return reminders.filter((r: any) => {
+      if (r.stockQuantity === null || r.stockQuantity === undefined) return false;
+      const daily = r.dailyDosageCount ?? 1;
+      const days = daily > 0 ? Math.floor(r.stockQuantity / daily) : 999;
+      const alertDays = r.stockAlertDays ?? 7;
+      return days <= alertDays;
+    }).length;
+  }, [reminders]);
+
+  // Helper: check if a reminder has low stock
+  const isLowStock = useCallback((reminder: any): boolean => {
+    if (reminder.stockQuantity === null || reminder.stockQuantity === undefined) return false;
+    const daily = reminder.dailyDosageCount ?? 1;
+    const days = daily > 0 ? Math.floor(reminder.stockQuantity / daily) : 999;
+    const alertDays = reminder.stockAlertDays ?? 7;
+    return days <= alertDays;
+  }, []);
+
   // Group reminders by time
   const groupedReminders = useMemo(() => {
     const groups: Record<string, typeof reminders> = {};
@@ -1048,6 +1087,18 @@ export default function MedicationReminders() {
                 取消
               </Button>
             </>
+          )}
+          {!batchMode && !reorderMode && lowStockCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRestockDialog(true)}
+              className="gap-1 h-8 text-xs text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-950/30"
+              title={`${lowStockCount} 种药品库存不足`}
+            >
+              <Package className="w-3.5 h-3.5" />
+              补货 ({lowStockCount})
+            </Button>
           )}
           {!batchMode && !reorderMode && reminders.length > 0 && (
             <Button
@@ -1174,6 +1225,52 @@ export default function MedicationReminders() {
         />
       )}
 
+      {/* Batch restock dialog */}
+      {showRestockDialog && (
+        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Package className="w-5 h-5 text-red-500" />
+            <h4 className="font-medium text-sm text-red-700 dark:text-red-400">一键补货</h4>
+          </div>
+          <p className="text-xs text-red-600/80 dark:text-red-400/80">
+            将所有库存不足的药品（{lowStockCount} 种）重置为指定数量。
+          </p>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-foreground shrink-0">补货数量：</label>
+            <Input
+              type="number"
+              min={1}
+              max={9999}
+              value={restockQuantity}
+              onChange={(e) => setRestockQuantity(Math.max(1, Number(e.target.value) || 30))}
+              className="w-24 h-8 text-sm"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={() => batchRestockMutation.mutate({ restockQuantity })}
+              disabled={batchRestockMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white gap-1"
+            >
+              {batchRestockMutation.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Package className="w-3.5 h-3.5" />
+              )}
+              确认补货
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowRestockDialog(false)}
+            >
+              取消
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Reorder mode list */}
       {reorderMode && reorderList.length > 0 && (
         <div className="space-y-2">
@@ -1239,9 +1336,11 @@ export default function MedicationReminders() {
                 >
                   <div
                     className={`border rounded-xl p-3 transition-all ${
-                      reminder.enabled
-                        ? "border-border/50"
-                        : "border-border/30 opacity-60"
+                      reminder.enabled && isLowStock(reminder)
+                        ? "border-red-400 dark:border-red-500 bg-red-50/50 dark:bg-red-950/20"
+                        : reminder.enabled
+                          ? "border-border/50"
+                          : "border-border/30 opacity-60"
                     } ${batchMode && selectedIds.has(reminder.id) ? "ring-2 ring-terracotta/50 bg-terracotta/5" : ""}`}
                     onClick={batchMode ? () => toggleBatchSelect(reminder.id) : undefined}
                   >
@@ -1274,7 +1373,7 @@ export default function MedicationReminders() {
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3 min-w-0">
-                            <Pill className="w-4 h-4 text-terracotta shrink-0" />
+                            <Pill className={`w-4 h-4 shrink-0 ${isLowStock(reminder) ? "text-red-500" : "text-terracotta"}`} />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
                                 <p className="font-medium text-foreground text-sm truncate">
@@ -1358,18 +1457,16 @@ export default function MedicationReminders() {
                             </span>
                           )}
                           {reminder.stockQuantity !== null && reminder.stockQuantity !== undefined && (
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${
-                              (() => {
-                                const daily = reminder.dailyDosageCount ?? 1;
-                                const days = daily > 0 ? Math.floor(reminder.stockQuantity / daily) : 999;
-                                const alertDays = reminder.stockAlertDays ?? 7;
-                                return days <= alertDays
-                                  ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
-                                  : "bg-muted/60 text-muted-foreground";
-                              })()
-                            }`}>
-                              库存 {reminder.stockQuantity}
-                            </span>
+                            isLowStock(reminder) ? (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" />
+                                库存不足 (<AnimatedNumber value={reminder.stockQuantity} />)
+                              </span>
+                            ) : (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-muted/60 text-muted-foreground">
+                                库存 <AnimatedNumber value={reminder.stockQuantity} />
+                              </span>
+                            )
                           )}
                           {reminder.startDate && (
                             <span className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full flex items-center gap-1">
