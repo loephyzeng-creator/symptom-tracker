@@ -13,6 +13,8 @@ import {
   getUsersForPainkillerAlert,
   getPainkillerUsageLast30Days,
   updatePainkillerAlertLastDate,
+  getWeeklyPainkillerReport,
+  getPainkillerDayLimit,
 } from "./db";
 import webpush from "web-push";
 import { ENV } from "./_core/env";
@@ -388,6 +390,16 @@ async function checkAndSendReminders() {
   } catch (error) {
     console.error("[Reminder] Error in painkiller threshold alerts (non-fatal):", error);
   }
+
+  // 7. Weekly painkiller usage report (every Sunday at 19:00)
+  try {
+    const { dayOfWeek } = getChinaTime();
+    if (dayOfWeek === 0 && hour === 19 && minute < 15) {
+      await sendWeeklyPainkillerReports(todayStr);
+    }
+  } catch (error) {
+    console.error("[Reminder] Error in weekly painkiller report (non-fatal):", error);
+  }
 }
 
 /**
@@ -498,11 +510,11 @@ async function checkAndSendPainkillerThresholdAlerts(todayStr: string) {
         // Exceeded threshold
         const sent = await sendWebPush(
           user.userId,
-          "⚠️ 止疼药使用超限提醒",
-          `近30天内您已使用止疼药 ${usageDays} 天，已达到设定上限（${limit} 天）。请注意控制用量，必要时咨询医生。`,
+          "\u26a0\ufe0f \u6b62\u75bc\u836f\u4f7f\u7528\u8d85\u9650\u63d0\u9192",
+          `\u8fd130\u5929\u5185\u60a8\u5df2\u4f7f\u7528\u6b62\u75bc\u836f ${usageDays} \u5929\uff0c\u5df2\u8fbe\u5230\u8bbe\u5b9a\u4e0a\u9650\uff08${limit} \u5929\uff09\u3002\u8bf7\u6ce8\u610f\u63a7\u5236\u7528\u91cf\uff0c\u5fc5\u8981\u65f6\u54a8\u8be2\u533b\u751f\u3002`,
           "painkiller-threshold-exceeded",
-          [],
-          { type: "painkiller-alert", level: "exceeded" }
+          [{ action: "view-trend", title: "\u67e5\u770b\u8be6\u60c5" }],
+          { type: "painkiller-alert", level: "exceeded", url: "/?tab=medication" }
         );
         if (sent) {
           await updatePainkillerAlertLastDate(user.userId, todayStr);
@@ -513,11 +525,11 @@ async function checkAndSendPainkillerThresholdAlerts(todayStr: string) {
         const remaining = limit - usageDays;
         const sent = await sendWebPush(
           user.userId,
-          "💊 止疼药使用接近上限",
-          `近30天内您已使用止疼药 ${usageDays} 天，距离上限（${limit} 天）还剩 ${remaining} 天。请注意控制用量。`,
+          "\ud83d\udc8a \u6b62\u75bc\u836f\u4f7f\u7528\u63a5\u8fd1\u4e0a\u9650",
+          `\u8fd130\u5929\u5185\u60a8\u5df2\u4f7f\u7528\u6b62\u75bc\u836f ${usageDays} \u5929\uff0c\u8ddd\u79bb\u4e0a\u9650\uff08${limit} \u5929\uff09\u8fd8\u5269 ${remaining} \u5929\u3002\u8bf7\u6ce8\u610f\u63a7\u5236\u7528\u91cf\u3002`,
           "painkiller-threshold-warning",
-          [],
-          { type: "painkiller-alert", level: "warning" }
+          [{ action: "view-trend", title: "\u67e5\u770b\u8be6\u60c5" }],
+          { type: "painkiller-alert", level: "warning", url: "/?tab=medication" }
         );
         if (sent) {
           await updatePainkillerAlertLastDate(user.userId, todayStr);
@@ -529,6 +541,53 @@ async function checkAndSendPainkillerThresholdAlerts(todayStr: string) {
     }
   } catch (error) {
     console.error("[PainkillerAlert] Error checking painkiller threshold:", error);
+  }
+}
+
+/**
+ * Send weekly painkiller usage reports to all users with alert enabled.
+ * Runs every Sunday at 19:00. Includes usage trend and headache correlation.
+ */
+async function sendWeeklyPainkillerReports(todayStr: string) {
+  try {
+    const usersToCheck = await getUsersForPainkillerAlert(todayStr);
+    console.log(`[WeeklyReport] Sending weekly painkiller reports to ${usersToCheck.length} user(s)`);
+
+    for (const user of usersToCheck) {
+      const report = await getWeeklyPainkillerReport(user.userId, todayStr);
+      if (!report) continue;
+
+      const limit = await getPainkillerDayLimit(user.userId);
+      const trendEmoji = report.trend === "up" ? "\u2b06\ufe0f" : report.trend === "down" ? "\u2b07\ufe0f" : "\u27a1\ufe0f";
+      const trendText = report.trend === "up" ? "\u589e\u52a0" : report.trend === "down" ? "\u51cf\u5c11" : "\u6301\u5e73";
+
+      let body = `\u672c\u5468\u6b62\u75bc\u836f\u4f7f\u7528 ${report.thisWeekPainkiller} \u5929`;
+      body += `\uff08\u4e0a\u5468 ${report.prevWeekPainkiller} \u5929\uff0c${trendEmoji}${trendText}\uff09`;
+      body += `\n\u8fd130\u5929\u7d2f\u8ba1: ${report.last30Painkiller}/${limit} \u5929`;
+
+      if (report.thisWeekPainkiller > 0) {
+        body += `\n\u5934\u75db\u5173\u8054: ${report.painkillerWithHeadache}\u5929\u4f34\u5934\u75db\uff0c${report.painkillerWithoutHeadache}\u5929\u65e0\u5934\u75db`;
+      }
+
+      if (report.avgHeadachePainkiller > 0 || report.avgHeadacheNoPainkiller > 0) {
+        body += `\n\u5e73\u5747\u5934\u75db: \u7528\u836f\u65e5${report.avgHeadachePainkiller}\u5206 vs \u672a\u7528\u836f\u65e5${report.avgHeadacheNoPainkiller}\u5206`;
+      }
+
+      const sent = await sendWebPush(
+        user.userId,
+        "\ud83d\udcca \u6b62\u75bc\u836f\u5468\u62a5",
+        body,
+        "painkiller-weekly-report",
+        [{ action: "view-trend", title: "\u67e5\u770b\u8be6\u60c5" }],
+        { type: "painkiller-weekly-report", url: "/?tab=medication" }
+      );
+
+      if (sent) {
+        console.log(`[WeeklyReport] Report sent to user ${user.userId}: ${report.thisWeekPainkiller} days this week`);
+      }
+    }
+  } catch (error) {
+    console.error("[WeeklyReport] Error sending weekly reports:", error);
   }
 }
 
@@ -574,4 +633,5 @@ export {
   getChinaTimeStr,
   sendWebPush,
   configureWebPush,
+  sendWeeklyPainkillerReports,
 };

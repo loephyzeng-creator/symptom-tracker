@@ -117,12 +117,33 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
+  // Handle "查看详情" action from painkiller alerts and weekly reports
+  if (action === 'view-trend') {
+    const trendUrl = notificationData.url || '/?tab=medication';
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin) && 'focus' in client) {
+            client.navigate(trendUrl);
+            return client.focus();
+          }
+        }
+        return self.clients.openWindow(trendUrl);
+      })
+    );
+    return;
+  }
+
   // Default: open or focus the app
   const urlToOpen = notificationData.url || '/';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
+          // Navigate existing window to the target URL (supports hash-based tab switching)
+          if (urlToOpen && urlToOpen !== '/') {
+            client.navigate(urlToOpen);
+          }
           return client.focus();
         }
       }

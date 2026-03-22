@@ -85,7 +85,7 @@ describe("Painkiller Threshold Alert Feature", () => {
       const schedulerPath = path.resolve(__dirname, "reminderScheduler.ts");
       const content = fs.readFileSync(schedulerPath, "utf-8");
       expect(content).toContain("usageDays >= limit");
-      expect(content).toContain("止疼药使用超限提醒");
+      expect(content).toContain("\\u6b62\\u75bc\\u836f\\u4f7f\\u7528\\u8d85\\u9650\\u63d0\\u9192"); // 止疼药使用超限提醒
       expect(content).toContain("painkiller-threshold-exceeded");
     });
 
@@ -93,7 +93,7 @@ describe("Painkiller Threshold Alert Feature", () => {
       const schedulerPath = path.resolve(__dirname, "reminderScheduler.ts");
       const content = fs.readFileSync(schedulerPath, "utf-8");
       expect(content).toContain("usageDays >= warningThreshold");
-      expect(content).toContain("止疼药使用接近上限");
+      expect(content).toContain("\\u6b62\\u75bc\\u836f\\u4f7f\\u7528\\u63a5\\u8fd1\\u4e0a\\u9650"); // 止疼药使用接近上限
       expect(content).toContain("painkiller-threshold-warning");
     });
 

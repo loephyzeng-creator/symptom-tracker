@@ -166,6 +166,87 @@ export async function getPainkillerUsageLast30Days(userId: number, fromDate: str
 }
 
 /**
+ * Get weekly painkiller usage report data for a user.
+ * Returns last 7 days painkiller count, last 30 days count, headache correlation, and trend.
+ */
+export async function getWeeklyPainkillerReport(userId: number, todayStr: string) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Last 7 days
+  const d7 = new Date(todayStr + "T00:00:00");
+  d7.setDate(d7.getDate() - 6);
+  const start7 = d7.toISOString().slice(0, 10);
+
+  // Last 30 days
+  const d30 = new Date(todayStr + "T00:00:00");
+  d30.setDate(d30.getDate() - 29);
+  const start30 = d30.toISOString().slice(0, 10);
+
+  // Previous 7 days (for trend comparison)
+  const d14 = new Date(todayStr + "T00:00:00");
+  d14.setDate(d14.getDate() - 13);
+  const start14 = d14.toISOString().slice(0, 10);
+
+  const entries30 = await db
+    .select({
+      date: symptomEntries.date,
+      painkillerTaken: symptomEntries.painkillerTaken,
+      headache: symptomEntries.headache,
+      severeHeadache: symptomEntries.severeHeadache,
+    })
+    .from(symptomEntries)
+    .where(
+      and(
+        eq(symptomEntries.userId, userId),
+        gte(symptomEntries.date, start30),
+        lte(symptomEntries.date, todayStr)
+      )
+    );
+
+  const last7Entries = entries30.filter((e) => e.date >= start7);
+  const prev7Entries = entries30.filter((e) => e.date >= start14 && e.date < start7);
+
+  const thisWeekPainkiller = last7Entries.filter((e) => e.painkillerTaken === 1).length;
+  const prevWeekPainkiller = prev7Entries.filter((e) => e.painkillerTaken === 1).length;
+  const last30Painkiller = entries30.filter((e) => e.painkillerTaken === 1).length;
+
+  // Headache correlation: days with both painkiller and headache >= 5
+  const painkillerWithHeadache = last7Entries.filter(
+    (e) => e.painkillerTaken === 1 && (e.headache >= 5 || (e.severeHeadache ?? 0) >= 2)
+  ).length;
+  const painkillerWithoutHeadache = thisWeekPainkiller - painkillerWithHeadache;
+
+  // Average headache on painkiller days vs non-painkiller days (last 30 days)
+  const painkillerDays30 = entries30.filter((e) => e.painkillerTaken === 1);
+  const nonPainkillerDays30 = entries30.filter((e) => e.painkillerTaken !== 1);
+  const avgHeadachePainkiller = painkillerDays30.length > 0
+    ? painkillerDays30.reduce((sum, e) => sum + e.headache, 0) / painkillerDays30.length
+    : 0;
+  const avgHeadacheNoPainkiller = nonPainkillerDays30.length > 0
+    ? nonPainkillerDays30.reduce((sum, e) => sum + e.headache, 0) / nonPainkillerDays30.length
+    : 0;
+
+  // Trend: up, down, or stable
+  let trend: "up" | "down" | "stable" = "stable";
+  if (thisWeekPainkiller > prevWeekPainkiller) trend = "up";
+  else if (thisWeekPainkiller < prevWeekPainkiller) trend = "down";
+
+  return {
+    thisWeekPainkiller,
+    prevWeekPainkiller,
+    last30Painkiller,
+    trend,
+    painkillerWithHeadache,
+    painkillerWithoutHeadache,
+    avgHeadachePainkiller: Math.round(avgHeadachePainkiller * 10) / 10,
+    avgHeadacheNoPainkiller: Math.round(avgHeadacheNoPainkiller * 10) / 10,
+    start7,
+    todayStr,
+  };
+}
+
+/**
  * Toggle painkillerTaken for a specific date. Creates entry if it doesn't exist.
  */
 export async function togglePainkillerForDate(userId: number, date: string): Promise<boolean> {

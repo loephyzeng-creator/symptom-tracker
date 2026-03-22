@@ -75,6 +75,7 @@ import {
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
 import { invokeLLM } from "./_core/llm";
+import { sendWebPush } from "./reminderScheduler";
 
 const medicationSchema = z.object({
   name: z.string(),
@@ -102,9 +103,45 @@ const entryInputSchema = z.object({
   painkillerDosage: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
+/**
+ * Instant painkiller threshold check - called immediately when user records painkiller usage.
+ * Sends push notification if usage approaches (70%) or exceeds the configured limit.
+ */
+async function checkPainkillerThresholdInstant(userId: number, dateStr: string) {
+  const alertEnabled = await getPainkillerAlertEnabled(userId);
+  if (!alertEnabled) return;
+
+  const usageDays = await getPainkillerUsageLast30Days(userId, dateStr);
+  const limit = await getPainkillerDayLimit(userId);
+  const warningThreshold = Math.ceil(limit * 0.7);
+
+  if (usageDays >= limit) {
+    await sendWebPush(
+      userId,
+      "\u26a0\ufe0f \u6b62\u75bc\u836f\u4f7f\u7528\u8d85\u9650\u63d0\u9192",
+      `\u8fd130\u5929\u5185\u60a8\u5df2\u4f7f\u7528\u6b62\u75bc\u836f ${usageDays} \u5929\uff0c\u5df2\u8fbe\u5230\u8bbe\u5b9a\u4e0a\u9650\uff08${limit} \u5929\uff09\u3002\u8bf7\u6ce8\u610f\u63a7\u5236\u7528\u91cf\uff0c\u5fc5\u8981\u65f6\u54a8\u8be2\u533b\u751f\u3002`,
+      "painkiller-instant-exceeded",
+      [{ action: "view-trend", title: "\u67e5\u770b\u8be6\u60c5" }],
+      { type: "painkiller-alert", level: "exceeded", url: "/?tab=medication" }
+    );
+    console.log(`[PainkillerAlert] Instant exceeded alert: user ${userId}, ${usageDays}/${limit} days`);
+  } else if (usageDays >= warningThreshold) {
+    const remaining = limit - usageDays;
+    await sendWebPush(
+      userId,
+      "\ud83d\udc8a \u6b62\u75bc\u836f\u4f7f\u7528\u63a5\u8fd1\u4e0a\u9650",
+      `\u8fd130\u5929\u5185\u60a8\u5df2\u4f7f\u7528\u6b62\u75bc\u836f ${usageDays} \u5929\uff0c\u8ddd\u79bb\u4e0a\u9650\uff08${limit} \u5929\uff09\u8fd8\u5269 ${remaining} \u5929\u3002\u8bf7\u6ce8\u610f\u63a7\u5236\u7528\u91cf\u3002`,
+      "painkiller-instant-warning",
+      [{ action: "view-trend", title: "\u67e5\u770b\u8be6\u60c5" }],
+      { type: "painkiller-alert", level: "warning", url: "/?tab=medication" }
+    );
+    console.log(`[PainkillerAlert] Instant warning alert: user ${userId}, ${usageDays}/${limit} days`);
+  }
+}
 
 export const appRouter = router({
   system: systemRouter,
+
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -149,6 +186,13 @@ export const appRouter = router({
           console.error("[Alert] Error checking alert rules:", err)
         );
 
+        // Instant painkiller threshold check when painkillerTaken is recorded
+        if (input.painkillerTaken === 1) {
+          checkPainkillerThresholdInstant(ctx.user.id, input.date).catch((err: unknown) =>
+            console.error("[PainkillerAlert] Instant check error:", err)
+          );
+        }
+
         return result;
       }),
 
@@ -166,6 +210,14 @@ export const appRouter = router({
       .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
       .mutation(async ({ ctx, input }) => {
         const newState = await togglePainkillerForDate(ctx.user.id, input.date);
+
+        // Instant painkiller threshold check when toggled ON
+        if (newState) {
+          checkPainkillerThresholdInstant(ctx.user.id, input.date).catch((err: unknown) =>
+            console.error("[PainkillerAlert] Instant check error:", err)
+          );
+        }
+
         return { painkillerTaken: newState };
       }),
 

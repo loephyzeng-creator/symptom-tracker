@@ -4,7 +4,7 @@
  * Colors: warm cream bg, terracotta accents, sage green, dusty blue
  * Typography: Noto Serif SC (headings), Noto Sans SC (body)
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { useSymptomData } from "@/hooks/useSymptomData";
@@ -361,7 +361,28 @@ function SettingsView({
 export default function Home() {
   const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<TabKey>("record");
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    // Support deep linking from notifications via ?tab=medication etc.
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (tab && ["record", "medication", "stats", "history", "settings"].includes(tab)) {
+      return tab as TabKey;
+    }
+    return "record";
+  });
+
+  // Listen for URL changes (e.g., from notification clicks navigating to /?tab=medication)
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab");
+      if (tab && ["record", "medication", "stats", "history", "settings"].includes(tab)) {
+        setActiveTab(tab as TabKey);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
   const [quickMode, setQuickMode] = useState(() => {
     try { return localStorage.getItem("record-mode") === "quick"; } catch { return false; }
   });
