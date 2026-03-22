@@ -238,9 +238,10 @@ export default function PainkillerTrendChart() {
                 strokeDasharray="4 4"
                 strokeOpacity={0.5}
                 label={{
-                  value: `周限${weeklyLimitRef.toFixed(1)}天`,
-                  position: "right",
+                  value: `阈值 ${weeklyLimitRef.toFixed(1)}天/周`,
+                  position: "insideTopLeft",
                   style: { fontSize: 9, fill: "#ef4444", opacity: 0.7 },
+                  offset: 4,
                 }}
               />
             )}
