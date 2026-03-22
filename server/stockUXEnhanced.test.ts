@@ -15,6 +15,9 @@ describe("Stock UX Enhancements", () => {
   const stockPath = path.resolve(__dirname, "../client/src/components/MedicationStock.tsx");
   const stockContent = fs.readFileSync(stockPath, "utf-8");
 
+  const stockLogPanelPath = path.resolve(__dirname, "../client/src/components/StockChangeLogPanel.tsx");
+  const stockLogPanelContent = fs.readFileSync(stockLogPanelPath, "utf-8");
+
   describe("Feature 1: Stock display on check-in buttons", () => {
     it("getTodayMedications should include stockQuantity in result type", () => {
       const fnIdx = dbContent.indexOf("export async function getTodayMedications");
@@ -154,30 +157,30 @@ describe("Stock UX Enhancements", () => {
 
     it("MedicationStock should have StockChangeLogPanel component", () => {
       expect(stockContent).toContain("StockChangeLogPanel");
-      expect(stockContent).toContain("stockChangeLog");
+      expect(stockContent).toContain("import StockChangeLogPanel");
     });
 
     it("StockChangeLogPanel should show timeline with restock and usage events", () => {
-      expect(stockContent).toContain("库存变化日志");
-      expect(stockContent).toContain("ArrowUp");
-      expect(stockContent).toContain("ArrowDown");
+      expect(stockLogPanelContent).toContain("库存变化日志");
+      expect(stockLogPanelContent).toContain("ArrowUp");
+      expect(stockLogPanelContent).toContain("ArrowDown");
     });
 
     it("StockChangeLogPanel should display running total for each event", () => {
-      expect(stockContent).toContain("event.runningTotal");
-      expect(stockContent).toContain("余");
+      expect(stockLogPanelContent).toContain("event.runningTotal");
+      expect(stockLogPanelContent).toContain("余");
     });
 
     it("StockChangeLogPanel should use different colors for restock vs usage", () => {
-      expect(stockContent).toContain("bg-sage/20");
-      expect(stockContent).toContain("bg-terracotta/15");
-      expect(stockContent).toContain("text-sage");
-      expect(stockContent).toContain("text-terracotta");
+      expect(stockLogPanelContent).toContain("bg-sage/20");
+      expect(stockLogPanelContent).toContain("bg-terracotta/15");
+      expect(stockLogPanelContent).toContain("text-sage");
+      expect(stockLogPanelContent).toContain("text-terracotta");
     });
 
     it("StockChangeLogPanel should handle loading and empty states", () => {
-      expect(stockContent).toContain("加载中");
-      expect(stockContent).toContain("暂无库存变化记录");
+      expect(stockLogPanelContent).toContain("加载中");
+      expect(stockLogPanelContent).toContain("暂无库存变化记录");
     });
 
     it("MedicationStock should replace old restockHistory with StockChangeLogPanel", () => {

@@ -2174,6 +2174,107 @@ export async function getStockChangeLog(
  * the user should take today based on their active reminders and repeat days.
  * This allows the symptom form to auto-fill medications from reminders.
  */
+/**
+ * Get monthly medication consumption data for trend charts.
+ * Returns per-medication usage counts grouped by month for the last N months.
+ */
+export async function getMonthlyMedicationConsumption(
+  userId: number,
+  months: number = 6
+): Promise<Array<{
+  month: string; // YYYY-MM
+  medications: Array<{ name: string; reminderId: number; count: number }>;
+  totalCount: number;
+}>> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Calculate the start date (N months ago)
+  const now = new Date();
+  const offset = 8 * 60 * 60 * 1000;
+  const chinaTime = new Date(now.getTime() + offset);
+  const startDate = new Date(chinaTime);
+  startDate.setMonth(startDate.getMonth() - months + 1);
+  startDate.setDate(1);
+  const startDateStr = startDate.toISOString().slice(0, 10);
+
+  // Get all active medication reminders for this user
+  const reminders = await db
+    .select({ id: medicationReminders.id, name: medicationReminders.medicationName })
+    .from(medicationReminders)
+    .where(eq(medicationReminders.userId, userId));
+
+  if (reminders.length === 0) return [];
+
+  // Get all symptom entries with medications since startDate
+  const entries = await db
+    .select({ date: symptomEntries.date, medications: symptomEntries.medications })
+    .from(symptomEntries)
+    .where(
+      and(
+        eq(symptomEntries.userId, userId),
+        gte(symptomEntries.date, startDateStr)
+      )
+    )
+    .orderBy(symptomEntries.date);
+
+  // Build a map of month -> medication -> count
+  const monthMap = new Map<string, Map<string, { reminderId: number; count: number }>>();
+
+  // Initialize months
+  for (let i = 0; i < months; i++) {
+    const d = new Date(chinaTime);
+    d.setMonth(d.getMonth() - (months - 1 - i));
+    const monthKey = d.toISOString().slice(0, 7); // YYYY-MM
+    monthMap.set(monthKey, new Map());
+  }
+
+  // Count medication usage per month
+  for (const entry of entries) {
+    if (!entry.medications || !Array.isArray(entry.medications)) continue;
+    const monthKey = entry.date.slice(0, 7); // YYYY-MM
+    if (!monthMap.has(monthKey)) continue;
+
+    const medCounts = monthMap.get(monthKey)!;
+    for (const m of entry.medications as { name: string; reminderId?: number }[]) {
+      // Match by reminderId or name
+      const matched = reminders.find(
+        (r) => r.id === m.reminderId || r.name.toLowerCase() === (m.name || "").toLowerCase()
+      );
+      if (!matched) continue;
+
+      const key = matched.name;
+      if (!medCounts.has(key)) {
+        medCounts.set(key, { reminderId: matched.id, count: 0 });
+      }
+      medCounts.get(key)!.count++;
+    }
+  }
+
+  // Convert to result array
+  const result: Array<{
+    month: string;
+    medications: Array<{ name: string; reminderId: number; count: number }>;
+    totalCount: number;
+  }> = [];
+
+  const monthKeys = Array.from(monthMap.keys());
+  for (const month of monthKeys) {
+    const medCounts = monthMap.get(month)!;
+    const medKeys = Array.from(medCounts.keys());
+    const medications: Array<{ name: string; reminderId: number; count: number }> = [];
+    for (const name of medKeys) {
+      const data = medCounts.get(name)!;
+      medications.push({ name, reminderId: data.reminderId, count: data.count });
+    }
+    let totalCount = 0;
+    for (const m of medications) totalCount += m.count;
+    result.push({ month, medications, totalCount });
+  }
+
+  return result;
+}
+
 export async function getTodayMedications(userId: number, dateStr: string) {
   const db = await getDb();
   if (!db) return [];

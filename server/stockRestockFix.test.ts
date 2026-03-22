@@ -12,6 +12,9 @@ describe("Restock Fix & Undo Feature", () => {
   const stockPath = path.resolve(__dirname, "../client/src/components/MedicationStock.tsx");
   const stockContent = fs.readFileSync(stockPath, "utf-8");
 
+  const stockLogPanelPath = path.resolve(__dirname, "../client/src/components/StockChangeLogPanel.tsx");
+  const stockLogPanelContent = fs.readFileSync(stockLogPanelPath, "utf-8");
+
   describe("Bug Fix: addMedicationRestock no longer overwrites stockQuantity", () => {
     it("addMedicationRestock should NOT update stockQuantity field", () => {
       const fnIdx = dbContent.indexOf("export async function addMedicationRestock");
@@ -114,28 +117,28 @@ describe("Restock Fix & Undo Feature", () => {
     });
 
     it("StockChangeLogPanel should have deleteRestock mutation", () => {
-      expect(stockContent).toContain("deleteRestock.useMutation");
+      expect(stockLogPanelContent).toContain("deleteRestock.useMutation");
     });
 
     it("StockChangeLogPanel should show undo button for restock events", () => {
-      expect(stockContent).toContain("event.restockId");
-      expect(stockContent).toContain("撤销此次补货");
+      expect(stockLogPanelContent).toContain("event.restockId");
+      expect(stockLogPanelContent).toContain("撤销此次补货");
     });
 
     it("StockChangeLogPanel should have confirmation flow before deleting", () => {
-      expect(stockContent).toContain("confirmDeleteId");
-      expect(stockContent).toContain("确认");
-      expect(stockContent).toContain("取消");
+      expect(stockLogPanelContent).toContain("confirmDeleteId");
+      expect(stockLogPanelContent).toContain("确认");
+      expect(stockLogPanelContent).toContain("取消");
     });
 
     it("StockChangeLogPanel should show success toast after deletion", () => {
-      expect(stockContent).toContain("已撤销补货记录");
+      expect(stockLogPanelContent).toContain("已撤销补货记录");
     });
 
     it("StockChangeLogPanel should invalidate relevant queries after deletion", () => {
-      expect(stockContent).toContain("stockStatus.invalidate");
-      expect(stockContent).toContain("stockChangeLog.invalidate");
-      expect(stockContent).toContain("list.invalidate");
+      expect(stockLogPanelContent).toContain("stockStatus.invalidate");
+      expect(stockLogPanelContent).toContain("stockChangeLog.invalidate");
+      expect(stockLogPanelContent).toContain("list.invalidate");
     });
   });
 });

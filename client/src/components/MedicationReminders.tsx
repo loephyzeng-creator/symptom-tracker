@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import TimePicker from "@/components/TimePicker";
 import AnimatedNumber from "@/components/AnimatedNumber";
+import StockChangeLogPanel from "@/components/StockChangeLogPanel";
 import { exportSingleReminder, exportAllReminders } from "@/lib/icsExport";
 
 const DAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
@@ -719,6 +720,7 @@ export default function MedicationReminders() {
   const [batchTimeMinute, setBatchTimeMinute] = useState(0);
   // Batch restock
   const [showRestockDialog, setShowRestockDialog] = useState(false);
+  const [stockLogOpenId, setStockLogOpenId] = useState<number | null>(null);
   const [restockQuantity, setRestockQuantity] = useState(30);
   const [restockDate, setRestockDate] = useState(() => {
     const now = new Date();
@@ -1472,14 +1474,22 @@ export default function MedicationReminders() {
                           )}
                           {reminder.stockQuantity !== null && reminder.stockQuantity !== undefined && (
                             isLowStock(reminder) ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium flex items-center gap-1">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setStockLogOpenId(stockLogOpenId === reminder.id ? null : reminder.id); }}
+                                className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium flex items-center gap-1 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors cursor-pointer"
+                                title="点击查看库存日志和撤销补货"
+                              >
                                 <AlertTriangle className="w-3 h-3" />
                                 库存不足 (<AnimatedNumber value={reminder.stockQuantity} />)
-                              </span>
+                              </button>
                             ) : (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-muted/60 text-muted-foreground">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setStockLogOpenId(stockLogOpenId === reminder.id ? null : reminder.id); }}
+                                className="text-xs px-2 py-0.5 rounded-full bg-muted/60 text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+                                title="点击查看库存日志和撤销补货"
+                              >
                                 库存 <AnimatedNumber value={reminder.stockQuantity} />
-                              </span>
+                              </button>
                             )
                           )}
                           {reminder.startDate && (
@@ -1573,6 +1583,10 @@ export default function MedicationReminders() {
                         </div>
                       </div>
                     )}
+                  {/* Stock change log panel - shown when stock label is clicked */}
+                  {stockLogOpenId === reminder.id && (
+                    <StockChangeLogPanel reminderId={reminder.id} />
+                  )}
                   </div>
                 </SwipeToDelete>
               ))}

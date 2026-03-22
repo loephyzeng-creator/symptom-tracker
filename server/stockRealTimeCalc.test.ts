@@ -278,8 +278,9 @@ describe("Real-Time Stock Calculation System", () => {
     });
 
     it("should have stock change log display", () => {
-      expect(stockComponentContent).toContain("库存变化日志");
       expect(stockComponentContent).toContain("StockChangeLogPanel");
+      // StockChangeLogPanel is now imported from a standalone component
+      expect(stockComponentContent).toContain("import StockChangeLogPanel");
     });
 
     it("should use AnimatedNumber for stock display", () => {
