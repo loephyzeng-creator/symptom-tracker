@@ -28,6 +28,8 @@ import {
   MessageSquare,
   Send,
   RotateCcw,
+  Package,
+  AlertTriangle,
 } from "lucide-react";
 import MedicationAutocomplete from "@/components/MedicationAutocomplete";
 
@@ -417,15 +419,28 @@ export default function MedicationView() {
                                 )}
                               </div>
                             </div>
-                            {med.taken ? (
-                              <span className="text-[10px] text-sage font-medium bg-sage/15 px-1.5 py-0.5 rounded shrink-0">
-                                ✓ 已服
-                              </span>
-                            ) : (
-                              <MessageSquare className={`w-4 h-4 shrink-0 transition-colors ${
-                                expandedNote === medKey ? "text-terracotta" : "text-muted-foreground/30"
-                              }`} />
-                            )}
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              {med.taken ? (
+                                <span className="text-[10px] text-sage font-medium bg-sage/15 px-1.5 py-0.5 rounded">
+                                  ✓ 已服
+                                </span>
+                              ) : (
+                                <MessageSquare className={`w-4 h-4 transition-colors ${
+                                  expandedNote === medKey ? "text-terracotta" : "text-muted-foreground/30"
+                                }`} />
+                              )}
+                              {med.stockQuantity !== null && med.stockQuantity !== undefined && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 font-medium ${
+                                  med.stockQuantity <= 7
+                                    ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+                                    : "bg-muted/60 text-muted-foreground"
+                                }`}>
+                                  {med.stockQuantity <= 7 && <AlertTriangle className="w-2.5 h-2.5" />}
+                                  <Package className="w-2.5 h-2.5" />
+                                  余{med.stockQuantity}
+                                </span>
+                              )}
+                            </div>
                           </motion.button>
                           {/* Note input panel */}
                           {expandedNote === medKey && !med.taken && (

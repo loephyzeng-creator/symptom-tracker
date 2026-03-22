@@ -597,3 +597,8 @@
 - [x] getMedicationReminders 返回实时计算的 stockQuantity（而非数据库静态值）
 - [x] getMedicationRemindersGrouped 同样返回实时计算的 stockQuantity
 - [x] 无补货记录时，用旧的 stockQuantity - 用药次数 实时扣减
+
+## 库存UX增强
+- [x] 用药tab打卡按钮旁显示当前库存数
+- [x] 为旧数据提供"初始化库存"入口，引导用户建立正式补货记录
+- [x] 库存变化日志页面：展示每次扣减和补货的时间线

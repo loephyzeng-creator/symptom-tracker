@@ -20,6 +20,8 @@ import {
   PackagePlus,
   History,
   Loader2,
+  ArrowDown,
+  ArrowUp,
 } from "lucide-react";
 import { exportSingleStockReminder, exportAllStockReminders } from "@/lib/icsExport";
 import AnimatedNumber from "@/components/AnimatedNumber";
@@ -40,6 +42,72 @@ function getTodayStr(): string {
   const now = new Date();
   const offset = 8 * 60 * 60 * 1000;
   return new Date(now.getTime() + offset).toISOString().slice(0, 10);
+}
+
+function StockChangeLogPanel({ reminderId }: { reminderId: number }) {
+  const { data: changeLog = [], isLoading } = trpc.medReminders.stockChangeLog.useQuery(
+    { reminderId },
+    { staleTime: 30_000 }
+  );
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      className="mt-3 p-3 bg-muted/40 rounded-lg"
+    >
+      <p className="text-xs font-medium text-foreground mb-2 flex items-center gap-1">
+        <History className="w-3 h-3" />
+        库存变化日志
+      </p>
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          加载中...
+        </div>
+      ) : changeLog.length === 0 ? (
+        <p className="text-xs text-muted-foreground">暂无库存变化记录</p>
+      ) : (
+        <div className="space-y-0 max-h-48 overflow-y-auto">
+          {changeLog.map((event: any, idx: number) => (
+            <div
+              key={`${event.date}-${event.type}-${idx}`}
+              className="flex items-center gap-2 py-1.5 border-b border-border/20 last:border-0"
+            >
+              {/* Timeline dot */}
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                event.type === 'restock'
+                  ? 'bg-sage/20'
+                  : 'bg-terracotta/15'
+              }`}>
+                {event.type === 'restock' ? (
+                  <ArrowUp className="w-3 h-3 text-sage" />
+                ) : (
+                  <ArrowDown className="w-3 h-3 text-terracotta" />
+                )}
+              </div>
+              {/* Date */}
+              <span className="text-[10px] text-muted-foreground w-20 shrink-0">
+                {event.date.slice(5)}
+              </span>
+              {/* Change */}
+              <span className={`text-xs font-medium flex-1 ${
+                event.type === 'restock'
+                  ? 'text-sage'
+                  : 'text-terracotta'
+              }`}>
+                {event.type === 'restock' ? `+${event.quantity}` : `-${event.quantity}`}
+              </span>
+              {/* Running total */}
+              <span className="text-[10px] text-muted-foreground shrink-0">
+                余 {event.runningTotal}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
 }
 
 export default function MedicationStock() {
@@ -188,6 +256,33 @@ export default function MedicationStock() {
           </div>
         )}
 
+        {/* Legacy stock initialization prompt */}
+        {!item.hasRestockRecords && (
+          <div className="mt-2 p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-400">旧数据模式</p>
+                <p className="text-[10px] text-amber-600/80 dark:text-amber-400/70 mt-0.5">
+                  当前库存基于初始设置值推算。建议通过"补货"建立正式记录，以获得更准确的库存追踪。
+                </p>
+                <button
+                  onClick={() => {
+                    setRestockingId(item.reminderId);
+                    setHistoryId(null);
+                    setRestockQuantity(String(item.stockQuantity || 30));
+                    setRestockDate(getTodayStr());
+                  }}
+                  className="mt-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 flex items-center gap-1 transition-colors"
+                >
+                  <PackagePlus className="w-3 h-3" />
+                  初始化库存记录
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Action buttons */}
         <div className="mt-3 flex items-center gap-2">
           <button
@@ -297,35 +392,9 @@ export default function MedicationStock() {
           </motion.div>
         )}
 
-        {/* Restock history */}
+        {/* Stock change log timeline */}
         {showingHistory && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            className="mt-3 p-3 bg-muted/40 rounded-lg"
-          >
-            <p className="text-xs font-medium text-foreground mb-2">补货记录</p>
-            {restockHistory.length === 0 ? (
-              <p className="text-xs text-muted-foreground">暂无补货记录</p>
-            ) : (
-              <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                {restockHistory.map((record: any) => (
-                  <div
-                    key={record.id}
-                    className="flex items-center justify-between text-xs text-muted-foreground"
-                  >
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {record.restockDate}
-                    </span>
-                    <span className="font-medium text-foreground">
-                      +{record.restockQuantity}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </motion.div>
+          <StockChangeLogPanel reminderId={item.reminderId} />
         )}
       </motion.div>
     );

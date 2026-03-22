@@ -277,9 +277,9 @@ describe("Real-Time Stock Calculation System", () => {
       expect(stockComponentContent).toContain("item.restockDate");
     });
 
-    it("should have restock history display", () => {
-      expect(stockComponentContent).toContain("补货记录");
-      expect(stockComponentContent).toContain("restockHistory");
+    it("should have stock change log display", () => {
+      expect(stockComponentContent).toContain("库存变化日志");
+      expect(stockComponentContent).toContain("StockChangeLogPanel");
     });
 
     it("should use AnimatedNumber for stock display", () => {

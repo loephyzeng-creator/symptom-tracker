@@ -1861,6 +1861,7 @@ export async function getMedicationStockStatus(userId: number) {
       isLow,
       enabled: r.enabled,
       restockDate: latestRestock?.restockDate ?? null,
+      hasRestockRecords: latestRestock !== null,
     });
   }
   return results;
@@ -2012,6 +2013,124 @@ export async function batchRestockMedications(
 }
 
 /**
+ * Get stock change log for a specific medication.
+ * Combines restock events and usage (deduction) events into a unified timeline.
+ * Returns events sorted by date descending (newest first).
+ */
+export async function getStockChangeLog(
+  userId: number,
+  reminderId: number
+): Promise<Array<{
+  type: 'restock' | 'usage';
+  date: string;
+  quantity: number;
+  runningTotal?: number;
+  note?: string;
+}>> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Get the medication reminder info
+  const [reminder] = await db
+    .select()
+    .from(medicationReminders)
+    .where(
+      and(
+        eq(medicationReminders.id, reminderId),
+        eq(medicationReminders.userId, userId)
+      )
+    )
+    .limit(1);
+  if (!reminder) return [];
+
+  // Get all restock records
+  const restocks = await db
+    .select()
+    .from(medicationRestocks)
+    .where(
+      and(
+        eq(medicationRestocks.userId, userId),
+        eq(medicationRestocks.reminderId, reminderId)
+      )
+    )
+    .orderBy(medicationRestocks.restockDate);
+
+  // Get all symptom entries for this user that contain this medication
+  const entries = await db
+    .select({
+      date: symptomEntries.date,
+      medications: symptomEntries.medications,
+    })
+    .from(symptomEntries)
+    .where(eq(symptomEntries.userId, userId))
+    .orderBy(symptomEntries.date);
+
+  // Build timeline events
+  const events: Array<{
+    type: 'restock' | 'usage';
+    date: string;
+    quantity: number;
+    note?: string;
+    sortKey: string; // for sorting: date + type priority
+  }> = [];
+
+  // Add restock events
+  for (const r of restocks) {
+    events.push({
+      type: 'restock',
+      date: r.restockDate,
+      quantity: r.restockQuantity,
+      note: `补货 +${r.restockQuantity}`,
+      sortKey: `${r.restockDate}-0`, // restocks sort before usage on same date
+    });
+  }
+
+  // Add usage events from symptom entries
+  const medName = reminder.medicationName.toLowerCase();
+  for (const entry of entries) {
+    if (!entry.medications || !Array.isArray(entry.medications)) continue;
+    const usageCount = (entry.medications as any[]).filter(
+      (m: any) =>
+        m.reminderId === reminderId ||
+        (m.name && m.name.toLowerCase() === medName)
+    ).length;
+    if (usageCount > 0) {
+      events.push({
+        type: 'usage',
+        date: entry.date,
+        quantity: usageCount,
+        note: `服药 -${usageCount}`,
+        sortKey: `${entry.date}-1`, // usage sorts after restock on same date
+      });
+    }
+  }
+
+  // Sort by date ascending for running total calculation
+  events.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+  // Calculate running totals
+  // If no restock records, start from legacy stockQuantity
+  let runningTotal = restocks.length === 0 ? (reminder.stockQuantity ?? 0) : 0;
+  const eventsWithTotal = events.map((e) => {
+    if (e.type === 'restock') {
+      runningTotal += e.quantity;
+    } else {
+      runningTotal = Math.max(0, runningTotal - e.quantity);
+    }
+    return {
+      type: e.type,
+      date: e.date,
+      quantity: e.quantity,
+      runningTotal,
+      note: e.note,
+    };
+  });
+
+  // Return newest first
+  return eventsWithTotal.reverse();
+}
+
+/**
  * Get today's medications from reminders — returns the list of medications
  * the user should take today based on their active reminders and repeat days.
  * This allows the symptom form to auto-fill medications from reminders.
@@ -2053,7 +2172,16 @@ export async function getTodayMedications(userId: number, dateStr: string) {
     intervalHours: number | null;
     lastTakenAt: string | null;
     note: string | null;
+    stockQuantity: number | null;
   }> = [];
+
+  // Pre-compute real-time stock for all reminders (cache by reminderId to avoid repeated queries)
+  const stockCache = new Map<number, number | null>();
+  for (const r of reminders) {
+    if (!stockCache.has(r.id)) {
+      stockCache.set(r.id, await computeRealTimeStock(userId, r));
+    }
+  }
 
   for (const r of reminders) {
     if (!isReminderScheduledOnDate(r, dateStr)) continue;
@@ -2083,6 +2211,7 @@ export async function getTodayMedications(userId: number, dateStr: string) {
         intervalHours: r.intervalHours,
         lastTakenAt: r.lastTakenAt,
         note: (matchedMed as any)?.note || null,
+        stockQuantity: stockCache.get(r.id) ?? null,
       });
     }
   }
