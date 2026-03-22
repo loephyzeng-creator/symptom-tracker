@@ -233,6 +233,14 @@ async function checkAndSendMedicationReminders() {
         continue;
       }
 
+      // --- Start/End date check ---
+      if (reminder.startDate && todayStr < reminder.startDate) {
+        continue; // Not yet started
+      }
+      if (reminder.endDate && todayStr > reminder.endDate) {
+        continue; // Already ended / archived
+      }
+
       // --- Day of week check ---
       if (!isDayActive(reminder.repeatDays, dayOfWeek)) {
         continue;

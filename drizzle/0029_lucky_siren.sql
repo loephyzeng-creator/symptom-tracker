@@ -1,0 +1,1 @@
+ALTER TABLE `medication_reminders` ADD `endDate` varchar(10);

@@ -204,6 +204,13 @@
       "when": 1774191022243,
       "tag": "0028_flaky_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1774191751004,
+      "tag": "0029_lucky_siren",
+      "breakpoints": true
     }
   ]
 }

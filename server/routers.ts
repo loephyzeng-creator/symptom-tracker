@@ -697,6 +697,7 @@ export const appRouter = router({
           groupId: z.number().nullable().optional(),
           intervalHours: z.number().min(1).max(72).nullable().optional(),
           startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+          endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
           defaultRestockQuantity: z.number().min(1).max(9999).nullable().optional(),
         })
       )
@@ -726,6 +727,7 @@ export const appRouter = router({
           groupId: z.number().nullable().optional(),
           intervalHours: z.number().min(1).max(72).nullable().optional(),
           startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+          endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
           defaultRestockQuantity: z.number().min(1).max(9999).nullable().optional(),
         })
       )

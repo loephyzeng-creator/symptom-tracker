@@ -1436,6 +1436,7 @@ export async function getMedicationRemindersToSend(todayStr: string) {
       lastNotifiedDate: medicationReminders.lastNotifiedDate,
       lastNotifiedTimeSlots: medicationReminders.lastNotifiedTimeSlots,
       startDate: medicationReminders.startDate,
+      endDate: medicationReminders.endDate,
       notificationSound: notificationSettings.notificationSound,
       timezone: notificationSettings.timezone,
     })
@@ -2411,15 +2412,19 @@ export function getAllReminderTimes(reminder: { reminderHour: number; reminderMi
 
 /**
  * Check if a medication reminder is scheduled on a given date.
- * Considers both repeatDays (day of week) and startDate (medication start date).
- * Returns false if the date is before the reminder's startDate or not in repeatDays.
+ * Considers repeatDays (day of week), startDate, and endDate.
+ * Returns false if the date is before startDate, after endDate, or not in repeatDays.
  */
 export function isReminderScheduledOnDate(
-  reminder: { repeatDays?: number[] | null; startDate?: string | null },
+  reminder: { repeatDays?: number[] | null; startDate?: string | null; endDate?: string | null },
   dateStr: string
 ): boolean {
   // Check startDate: if the date is before the start date, not scheduled
   if (reminder.startDate && dateStr < reminder.startDate) {
+    return false;
+  }
+  // Check endDate: if the date is after the end date, not scheduled (archived)
+  if (reminder.endDate && dateStr > reminder.endDate) {
     return false;
   }
   // Check repeatDays

@@ -33,6 +33,9 @@ import {
   ArrowUp,
   ArrowDown,
   Loader2,
+  Archive,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -78,6 +81,7 @@ interface ReminderForm {
   groupId: number | null;
   intervalHours: number | null;
   startDate: string;
+  endDate: string;
 }
 
 const EMPTY_FORM: ReminderForm = {
@@ -98,6 +102,7 @@ const EMPTY_FORM: ReminderForm = {
   groupId: null,
   intervalHours: null,
   startDate: getLocalDateStr(),
+  endDate: "",
 };
 
 function DaySelector({
@@ -508,19 +513,34 @@ function ReminderFormFields({
           className="h-8 text-sm"
         />
       </div>
-      {/* 用药起始日期 */}
+      {/* 用药起始/结束日期 */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <CalendarPlus className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-foreground">用药起始日期</span>
-          <span className="text-xs text-muted-foreground">(起始日期前不计入打卡)</span>
+          <span className="text-sm font-medium text-foreground">用药日期</span>
         </div>
-        <Input
-          type="date"
-          value={formData.startDate}
-          onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-          className="h-8 text-sm"
-        />
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-muted-foreground">起始日期</label>
+            <Input
+              type="date"
+              value={formData.startDate}
+              onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+              className="h-8 text-sm mt-1"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">结束日期 (可选)</label>
+            <Input
+              type="date"
+              value={formData.endDate}
+              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+              className="h-8 text-sm mt-1"
+              min={formData.startDate || undefined}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">起始日期前不计入打卡；结束日期后自动归档</p>
       </div>
       {/* 药品有效期 */}
       <div className="space-y-2">
@@ -724,10 +744,17 @@ export default function MedicationReminders() {
   const [stockLogOpenId, setStockLogOpenId] = useState<number | null>(null);
   const [restockQuantity, setRestockQuantity] = useState(30);
   const [restockDate, setRestockDate] = useState(() => getLocalDateStr());
+  // Archive
+  const [showArchive, setShowArchive] = useState(false);
 
   const utils = trpc.useUtils();
-  const { data: reminders = [], isLoading } =
+  const { data: allReminders = [], isLoading } =
     trpc.medReminders.list.useQuery(undefined);
+
+  // Split into active and archived based on endDate
+  const todayStr = useMemo(() => getLocalDateStr(), []);
+  const reminders = useMemo(() => allReminders.filter((r: any) => !r.endDate || r.endDate >= todayStr), [allReminders, todayStr]);
+  const archivedReminders = useMemo(() => allReminders.filter((r: any) => r.endDate && r.endDate < todayStr), [allReminders, todayStr]);
   const { data: medHistory = [] } =
     trpc.medications.history.useQuery(undefined);
 
@@ -908,6 +935,7 @@ export default function MedicationReminders() {
       groupId: form.groupId,
       intervalHours: form.intervalHours,
       startDate: form.startDate || null,
+      endDate: form.endDate || null,
     });
   };
 
@@ -935,6 +963,7 @@ export default function MedicationReminders() {
       groupId: editForm.groupId,
       intervalHours: editForm.intervalHours,
       startDate: editForm.startDate || null,
+      endDate: editForm.endDate || null,
     });
   };
 
@@ -958,6 +987,7 @@ export default function MedicationReminders() {
       groupId: reminder.groupId ?? null,
       intervalHours: reminder.intervalHours ?? null,
       startDate: reminder.startDate ?? "",
+      endDate: reminder.endDate ?? "",
     });
   };
 
@@ -992,6 +1022,7 @@ export default function MedicationReminders() {
             groupId: reminder.groupId ?? null,
             intervalHours: reminder.intervalHours ?? null,
             startDate: reminder.startDate ?? null,
+            endDate: reminder.endDate ?? null,
           });
         },
       },
@@ -1489,10 +1520,14 @@ export default function MedicationReminders() {
                               </button>
                             )
                           )}
-                          {reminder.startDate && (
+                          {(reminder.startDate || reminder.endDate) && (
                             <span className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full flex items-center gap-1">
                               <CalendarPlus className="w-3 h-3" />
-                              起始 {reminder.startDate}
+                              {reminder.startDate && reminder.endDate
+                                ? `${reminder.startDate} ~ ${reminder.endDate}`
+                                : reminder.startDate
+                                  ? `起始 ${reminder.startDate}`
+                                  : `至 ${reminder.endDate}`}
                             </span>
                           )}
                           {reminder.expirationDate && (() => {
@@ -1591,6 +1626,90 @@ export default function MedicationReminders() {
           ))}
         </div>
       ) : null}
+
+      {/* Archived medications section */}
+      {archivedReminders.length > 0 && (
+        <div className="mt-4">
+          <button
+            onClick={() => setShowArchive(!showArchive)}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full"
+          >
+            {showArchive ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
+            <Archive className="w-4 h-4" />
+            <span>归档药品 ({archivedReminders.length})</span>
+          </button>
+          {showArchive && (
+            <div className="mt-2 space-y-2">
+              {archivedReminders.map((reminder: any) => (
+                <div
+                  key={reminder.id}
+                  className="border border-border/30 rounded-xl p-3 opacity-60 hover:opacity-80 transition-opacity"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Archive className="w-4 h-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground text-sm truncate">
+                          {reminder.medicationName}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {reminder.dosage}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => {
+                            updateMutation.mutate({ id: reminder.id, endDate: null });
+                            toast.success("已恢复为活跃药品");
+                          }}>
+                            <Undo2 className="w-3.5 h-3.5 mr-2" />
+                            恢复为活跃
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => startEdit(reminder)}>
+                            <Edit2 className="w-3.5 h-3.5 mr-2" />
+                            编辑
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => handleDeleteWithUndo(reminder.id, reminder)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-2" />
+                            删除
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap pl-7 mt-1">
+                    <span className="text-xs bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full">
+                      {reminder.startDate && `${reminder.startDate} ~ `}{reminder.endDate}
+                    </span>
+                    {reminder.reminderTimes && reminder.reminderTimes.length > 0 ? (
+                      <span className="text-xs bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full">
+                        {reminder.reminderTimes.length}次/天
+                      </span>
+                    ) : null}
+                    <span className="text-xs bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full">
+                      {formatRepeatDays(reminder.repeatDays)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
