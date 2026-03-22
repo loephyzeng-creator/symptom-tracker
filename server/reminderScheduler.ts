@@ -15,6 +15,7 @@ import {
   updatePainkillerAlertLastDate,
   getWeeklyPainkillerReport,
   getPainkillerDayLimit,
+  getNotificationSoundForUser,
 } from "./db";
 import webpush from "web-push";
 import { ENV } from "./_core/env";
@@ -134,7 +135,8 @@ async function sendWebPush(
   body: string,
   tag?: string,
   actions?: Array<{ action: string; title: string }>,
-  extraData?: Record<string, unknown>
+  extraData?: Record<string, unknown>,
+  sound?: string
 ): Promise<boolean> {
   const subscriptions = await getPushSubscriptionsByUserId(userId);
   if (subscriptions.length === 0) {
@@ -153,6 +155,7 @@ async function sendWebPush(
       ...extraData,
     },
     actions: actions || [],
+    sound: sound || "default",
   });
 
   let anySuccess = false;
@@ -216,7 +219,8 @@ async function checkAndSendMedicationReminders() {
                 { action: "confirm-taken", title: "✅ 已服药" },
                 { action: "snooze", title: "⏰ 再等15分钟" },
               ],
-              { reminderId: reminder.id, userId: reminder.userId }
+              { reminderId: reminder.id, userId: reminder.userId },
+              reminder.notificationSound ?? "default"
             );
             if (sent) {
               await markMedicationReminderNotified(reminder.id, todayStr);
@@ -275,7 +279,8 @@ async function checkAndSendMedicationReminders() {
               { action: "confirm-taken", title: "✅ 已服药" },
               { action: "snooze", title: "⏰ 再等15分钟" },
             ],
-            { reminderId: reminder.id, userId: reminder.userId, timeIndex: effective.timeIndex }
+            { reminderId: reminder.id, userId: reminder.userId, timeIndex: effective.timeIndex },
+            reminder.notificationSound ?? "default"
           );
 
           if (sent) {
@@ -330,7 +335,11 @@ async function checkAndSendReminders() {
         const sent = await sendWebPush(
           user.userId,
           "📝 症状日记提醒",
-          `${userName}，今天还没有记录症状哦！花几分钟记录一下今天的身体状况吧。`
+          `${userName}，今天还没有记录症状哦！花几分钟记录一下今天的身体状况吧。`,
+          undefined,
+          undefined,
+          undefined,
+          user.notificationSound ?? "default"
         );
         if (sent) {
           await markUserNotified(user.userId, todayStr);
@@ -391,12 +400,9 @@ async function checkAndSendReminders() {
     console.error("[Reminder] Error in painkiller threshold alerts (non-fatal):", error);
   }
 
-  // 7. Weekly painkiller usage report (every Sunday at 19:00)
+  // 7. Weekly painkiller usage report (per-user frequency: weekly/biweekly/monthly)
   try {
-    const { dayOfWeek } = getChinaTime();
-    if (dayOfWeek === 0 && hour === 19 && minute < 15) {
-      await sendWeeklyPainkillerReports(todayStr);
-    }
+    await sendWeeklyPainkillerReports(todayStr, hour, minute);
   } catch (error) {
     console.error("[Reminder] Error in weekly painkiller report (non-fatal):", error);
   }
@@ -429,11 +435,15 @@ async function checkAndSendMissedMedicationAlerts() {
       const medNames = alerts.map((a) => a.medicationName).join("、");
       const maxMissed = Math.max(...alerts.map((a) => a.missedDays));
 
+      const userSound = await getNotificationSoundForUser(userId);
       await sendWebPush(
         userId,
         `⚠️ 漏服警告`,
         `${medNames} 已连续 ${maxMissed} 天未服用，请注意按时服药。`,
-        "missed-medication-alert"
+        "missed-medication-alert",
+        undefined,
+        undefined,
+        userSound
       );
 
       console.log(`[MissedMed] Sent missed medication alert to user ${userId}: ${medNames}`);
@@ -475,11 +485,15 @@ async function checkAndSendLowStockAlerts() {
           ? `${alert.medicationName} 已用完，请尽快补药。`
           : `${alert.medicationName} 剩余 ${alert.stockQuantity} 剂，预计 ${alert.daysRemaining} 天后用完，请及时补药。`;
 
+        const stockSound = await getNotificationSoundForUser(userId);
         await sendWebPush(
           userId,
           `💊 药品库存不足`,
           body,
-          `low-stock-${alert.reminderId}`
+          `low-stock-${alert.reminderId}`,
+          undefined,
+          undefined,
+          stockSound
         );
 
         await markStockAlertSent(alert.reminderId);
@@ -514,7 +528,8 @@ async function checkAndSendPainkillerThresholdAlerts(todayStr: string) {
           `\u8fd130\u5929\u5185\u60a8\u5df2\u4f7f\u7528\u6b62\u75bc\u836f ${usageDays} \u5929\uff0c\u5df2\u8fbe\u5230\u8bbe\u5b9a\u4e0a\u9650\uff08${limit} \u5929\uff09\u3002\u8bf7\u6ce8\u610f\u63a7\u5236\u7528\u91cf\uff0c\u5fc5\u8981\u65f6\u54a8\u8be2\u533b\u751f\u3002`,
           "painkiller-threshold-exceeded",
           [{ action: "view-trend", title: "\u67e5\u770b\u8be6\u60c5" }],
-          { type: "painkiller-alert", level: "exceeded", url: "/?tab=medication" }
+          { type: "painkiller-alert", level: "exceeded", url: "/?tab=medication" },
+          user.notificationSound ?? "default"
         );
         if (sent) {
           await updatePainkillerAlertLastDate(user.userId, todayStr);
@@ -529,7 +544,8 @@ async function checkAndSendPainkillerThresholdAlerts(todayStr: string) {
           `\u8fd130\u5929\u5185\u60a8\u5df2\u4f7f\u7528\u6b62\u75bc\u836f ${usageDays} \u5929\uff0c\u8ddd\u79bb\u4e0a\u9650\uff08${limit} \u5929\uff09\u8fd8\u5269 ${remaining} \u5929\u3002\u8bf7\u6ce8\u610f\u63a7\u5236\u7528\u91cf\u3002`,
           "painkiller-threshold-warning",
           [{ action: "view-trend", title: "\u67e5\u770b\u8be6\u60c5" }],
-          { type: "painkiller-alert", level: "warning", url: "/?tab=medication" }
+          { type: "painkiller-alert", level: "warning", url: "/?tab=medication" },
+          user.notificationSound ?? "default"
         );
         if (sent) {
           await updatePainkillerAlertLastDate(user.userId, todayStr);
@@ -545,15 +561,45 @@ async function checkAndSendPainkillerThresholdAlerts(todayStr: string) {
 }
 
 /**
- * Send weekly painkiller usage reports to all users with alert enabled.
- * Runs every Sunday at 19:00. Includes usage trend and headache correlation.
+ * Send weekly painkiller usage reports to users based on their frequency preference.
+ * Frequency options: weekly (every Sunday), biweekly (every other Sunday), monthly (1st of month).
+ * Each user can set their preferred report hour.
  */
-async function sendWeeklyPainkillerReports(todayStr: string) {
+async function sendWeeklyPainkillerReports(todayStr: string, currentHour: number, currentMinute: number) {
   try {
     const usersToCheck = await getUsersForPainkillerAlert(todayStr);
-    console.log(`[WeeklyReport] Sending weekly painkiller reports to ${usersToCheck.length} user(s)`);
+    const { dayOfWeek } = getChinaTime();
+    const todayDate = new Date(todayStr + "T00:00:00");
+    const todayDay = todayDate.getDate();
 
-    for (const user of usersToCheck) {
+    // Filter users who should receive report now based on their frequency and hour settings
+    const eligibleUsers = usersToCheck.filter((user) => {
+      const reportHour = user.weeklyReportHour ?? 19;
+      const frequency = user.weeklyReportFrequency ?? "weekly";
+
+      // Check if current hour matches user's preferred hour (within 15-min window)
+      if (currentHour !== reportHour || currentMinute >= 15) return false;
+
+      // Check if already sent today
+      if (user.lastWeeklyReportDate === todayStr) return false;
+
+      // Check frequency
+      if (frequency === "weekly") {
+        return dayOfWeek === 0; // Every Sunday
+      } else if (frequency === "biweekly") {
+        // Every other Sunday: check if week number is even
+        const startOfYear = new Date(todayDate.getFullYear(), 0, 1);
+        const weekNum = Math.ceil(((todayDate.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
+        return dayOfWeek === 0 && weekNum % 2 === 0;
+      } else if (frequency === "monthly") {
+        return todayDay === 1; // 1st of each month
+      }
+      return false;
+    });
+
+    console.log(`[WeeklyReport] Sending painkiller reports to ${eligibleUsers.length} eligible user(s) out of ${usersToCheck.length}`);
+
+    for (const user of eligibleUsers) {
       const report = await getWeeklyPainkillerReport(user.userId, todayStr);
       if (!report) continue;
 
@@ -579,10 +625,23 @@ async function sendWeeklyPainkillerReports(todayStr: string) {
         body,
         "painkiller-weekly-report",
         [{ action: "view-trend", title: "\u67e5\u770b\u8be6\u60c5" }],
-        { type: "painkiller-weekly-report", url: "/?tab=medication" }
+        { type: "painkiller-weekly-report", url: "/?tab=medication" },
+        user.notificationSound ?? "default"
       );
 
       if (sent) {
+        // Update lastWeeklyReportDate to prevent duplicate sends
+        try {
+          const dbModule = await import("./db");
+          const dbInst = await dbModule.getDb();
+          if (dbInst) {
+            const { notificationSettings: ns } = await import("../drizzle/schema");
+            const { eq: eqOp } = await import("drizzle-orm");
+            await dbInst.update(ns).set({ lastWeeklyReportDate: todayStr }).where(eqOp(ns.userId, user.userId));
+          }
+        } catch (updateErr: unknown) {
+          console.error(`[WeeklyReport] Failed to update lastWeeklyReportDate for user ${user.userId}:`, updateErr);
+        }
         console.log(`[WeeklyReport] Report sent to user ${user.userId}: ${report.thisWeekPainkiller} days this week`);
       }
     }

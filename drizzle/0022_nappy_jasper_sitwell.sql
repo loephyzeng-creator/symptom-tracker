@@ -1,0 +1,1 @@
+ALTER TABLE `medication_reminders` ADD `sortOrder` int DEFAULT 0 NOT NULL;

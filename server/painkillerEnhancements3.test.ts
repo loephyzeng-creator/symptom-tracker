@@ -107,10 +107,11 @@ describe("Feature 2: Weekly Painkiller Usage Report Push", () => {
       expect(typeof scheduler.sendWeeklyPainkillerReports).toBe("function");
     });
 
-    it("weekly report runs on Sunday at 19:00", () => {
+    it("weekly report runs based on user frequency preference", () => {
       const schedulerPath = path.resolve(__dirname, "reminderScheduler.ts");
       const content = fs.readFileSync(schedulerPath, "utf-8");
-      expect(content).toContain("dayOfWeek === 0 && hour === 19");
+      // Weekly report now supports per-user frequency (weekly/biweekly/monthly)
+      expect(content).toContain("dayOfWeek === 0"); // Sunday check for weekly
       expect(content).toContain("sendWeeklyPainkillerReports");
     });
 

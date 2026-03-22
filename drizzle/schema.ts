@@ -75,6 +75,10 @@ export const notificationSettings = mysqlTable("notification_settings", {
   painkillerDayLimit: int("painkillerDayLimit").default(10).notNull(), // max painkiller days in 30-day window
   painkillerAlertEnabled: int("painkillerAlertEnabled").default(1).notNull(), // 1 = on, 0 = off
   painkillerAlertLastDate: varchar("painkillerAlertLastDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate daily alerts
+  weeklyReportFrequency: mysqlEnum("weeklyReportFrequency", ["weekly", "biweekly", "monthly"]).default("weekly").notNull(), // weekly report push frequency
+  weeklyReportHour: int("weeklyReportHour").default(19).notNull(), // 0-23, hour to send weekly report
+  lastWeeklyReportDate: varchar("lastWeeklyReportDate", { length: 10 }), // YYYY-MM-DD, last weekly report sent date
+  notificationSound: mysqlEnum("notificationSound", ["default", "gentle", "urgent", "silent"]).default("default").notNull(), // notification sound preference
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -196,6 +200,7 @@ export const medicationReminders = mysqlTable("medication_reminders", {
   groupId: int("groupId"), // FK to medication_groups.id, null = ungrouped
   intervalHours: int("intervalHours"), // null = fixed-time mode, number = interval mode (e.g. 8 = every 8 hours)
   lastTakenAt: varchar("lastTakenAt", { length: 30 }), // ISO datetime of last actual dose taken, for interval calculation
+  sortOrder: int("sortOrder").default(0).notNull(), // for drag-to-reorder
   startDate: varchar("startDate", { length: 10 }), // YYYY-MM-DD, medication start date (don't count as missed before this date)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

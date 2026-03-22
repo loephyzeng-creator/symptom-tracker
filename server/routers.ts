@@ -59,6 +59,7 @@ import {
   assignMedicationToGroup,
   batchAssignMedicationsToGroup,
   getMedicationRemindersGrouped,
+  reorderMedicationReminders,
   confirmGroupMedicationsTaken,
   getIntervalMedicationStatus,
   getDrugInteractions,
@@ -71,6 +72,8 @@ import {
   togglePainkillerForDate,
   getPainkillerAlertEnabled,
   updatePainkillerAlertEnabled,
+  getNotificationSoundForUser,
+  getDb,
 } from "./db";
 import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
@@ -114,6 +117,7 @@ async function checkPainkillerThresholdInstant(userId: number, dateStr: string) 
   const usageDays = await getPainkillerUsageLast30Days(userId, dateStr);
   const limit = await getPainkillerDayLimit(userId);
   const warningThreshold = Math.ceil(limit * 0.7);
+  const userSound = await getNotificationSoundForUser(userId);
 
   if (usageDays >= limit) {
     await sendWebPush(
@@ -122,7 +126,8 @@ async function checkPainkillerThresholdInstant(userId: number, dateStr: string) 
       `\u8fd130\u5929\u5185\u60a8\u5df2\u4f7f\u7528\u6b62\u75bc\u836f ${usageDays} \u5929\uff0c\u5df2\u8fbe\u5230\u8bbe\u5b9a\u4e0a\u9650\uff08${limit} \u5929\uff09\u3002\u8bf7\u6ce8\u610f\u63a7\u5236\u7528\u91cf\uff0c\u5fc5\u8981\u65f6\u54a8\u8be2\u533b\u751f\u3002`,
       "painkiller-instant-exceeded",
       [{ action: "view-trend", title: "\u67e5\u770b\u8be6\u60c5" }],
-      { type: "painkiller-alert", level: "exceeded", url: "/?tab=medication" }
+      { type: "painkiller-alert", level: "exceeded", url: "/?tab=medication" },
+      userSound
     );
     console.log(`[PainkillerAlert] Instant exceeded alert: user ${userId}, ${usageDays}/${limit} days`);
   } else if (usageDays >= warningThreshold) {
@@ -133,7 +138,8 @@ async function checkPainkillerThresholdInstant(userId: number, dateStr: string) 
       `\u8fd130\u5929\u5185\u60a8\u5df2\u4f7f\u7528\u6b62\u75bc\u836f ${usageDays} \u5929\uff0c\u8ddd\u79bb\u4e0a\u9650\uff08${limit} \u5929\uff09\u8fd8\u5269 ${remaining} \u5929\u3002\u8bf7\u6ce8\u610f\u63a7\u5236\u7528\u91cf\u3002`,
       "painkiller-instant-warning",
       [{ action: "view-trend", title: "\u67e5\u770b\u8be6\u60c5" }],
-      { type: "painkiller-alert", level: "warning", url: "/?tab=medication" }
+      { type: "painkiller-alert", level: "warning", url: "/?tab=medication" },
+      userSound
     );
     console.log(`[PainkillerAlert] Instant warning alert: user ${userId}, ${usageDays}/${limit} days`);
   }
@@ -277,6 +283,9 @@ export const appRouter = router({
           reminderMinute: 0,
           painkillerDayLimit: 10,
           painkillerAlertEnabled: 1,
+          weeklyReportFrequency: "weekly" as const,
+          weeklyReportHour: 19,
+          notificationSound: "default" as const,
         }),
         hasPushSubscription: subs.length > 0,
       };
@@ -302,6 +311,57 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await updatePainkillerAlertEnabled(ctx.user.id, input.enabled);
         return { success: true, enabled: input.enabled };
+      }),
+
+    /** Update weekly report frequency */
+    updateWeeklyReportFrequency: protectedProcedure
+      .input(z.object({ frequency: z.enum(["weekly", "biweekly", "monthly"]) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const { notificationSettings: ns } = await import("../drizzle/schema");
+        const { eq: eqOp } = await import("drizzle-orm");
+        const existing = await getNotificationSettings(ctx.user.id);
+        if (existing) {
+          await db.update(ns).set({ weeklyReportFrequency: input.frequency }).where(eqOp(ns.userId, ctx.user.id));
+        } else {
+          await db.insert(ns).values({ userId: ctx.user.id, weeklyReportFrequency: input.frequency });
+        }
+        return { success: true, frequency: input.frequency };
+      }),
+
+    /** Update weekly report hour */
+    updateWeeklyReportHour: protectedProcedure
+      .input(z.object({ hour: z.number().min(0).max(23) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const { notificationSettings: ns } = await import("../drizzle/schema");
+        const { eq: eqOp } = await import("drizzle-orm");
+        const existing = await getNotificationSettings(ctx.user.id);
+        if (existing) {
+          await db.update(ns).set({ weeklyReportHour: input.hour }).where(eqOp(ns.userId, ctx.user.id));
+        } else {
+          await db.insert(ns).values({ userId: ctx.user.id, weeklyReportHour: input.hour });
+        }
+        return { success: true, hour: input.hour };
+      }),
+
+    /** Update notification sound preference */
+    updateNotificationSound: protectedProcedure
+      .input(z.object({ sound: z.enum(["default", "gentle", "urgent", "silent"]) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const { notificationSettings: ns } = await import("../drizzle/schema");
+        const { eq: eqOp } = await import("drizzle-orm");
+        const existing = await getNotificationSettings(ctx.user.id);
+        if (existing) {
+          await db.update(ns).set({ notificationSound: input.sound }).where(eqOp(ns.userId, ctx.user.id));
+        } else {
+          await db.insert(ns).values({ userId: ctx.user.id, notificationSound: input.sound });
+        }
+        return { success: true, sound: input.sound };
       }),
 
     /** Update notification settings */
@@ -764,6 +824,24 @@ export const appRouter = router({
       .input(z.object({ dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(366) }))
       .query(async ({ ctx, input }) => {
         return getMedCompletionByDates(ctx.user.id, input.dates);
+      }),
+
+    /** Batch delete multiple medication reminders */
+    batchDelete: protectedProcedure
+      .input(z.object({ ids: z.array(z.number()).min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        for (const id of input.ids) {
+          await deleteMedicationReminder(id, ctx.user.id);
+        }
+        return { success: true };
+      }),
+
+    /** Reorder medication reminders */
+    reorder: protectedProcedure
+      .input(z.object({ orderedIds: z.array(z.number()).min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        await reorderMedicationReminders(ctx.user.id, input.orderedIds);
+        return { success: true };
       }),
 
     /** Batch update multiple medication reminders */

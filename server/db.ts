@@ -555,6 +555,10 @@ export async function getUsersForPainkillerAlert(todayStr: string) {
       userId: notificationSettings.userId,
       painkillerDayLimit: notificationSettings.painkillerDayLimit,
       painkillerAlertLastDate: notificationSettings.painkillerAlertLastDate,
+      weeklyReportFrequency: notificationSettings.weeklyReportFrequency,
+      weeklyReportHour: notificationSettings.weeklyReportHour,
+      lastWeeklyReportDate: notificationSettings.lastWeeklyReportDate,
+      notificationSound: notificationSettings.notificationSound,
     })
     .from(notificationSettings)
     .where(
@@ -592,6 +596,7 @@ export async function getUsersNeedingReminder(todayStr: string) {
     hasEntryToday: boolean;
     lastNotifiedDate: string | null;
     userName: string | null;
+    notificationSound: string;
   }> = [];
 
   for (const setting of settings) {
@@ -615,6 +620,7 @@ export async function getUsersNeedingReminder(todayStr: string) {
       hasEntryToday: !!entry,
       lastNotifiedDate: setting.lastNotifiedDate,
       userName: userResult[0]?.name ?? null,
+      notificationSound: setting.notificationSound ?? "default",
     });
   }
 
@@ -1256,7 +1262,29 @@ export async function getMedicationReminders(userId: number) {
     .select()
     .from(medicationReminders)
     .where(eq(medicationReminders.userId, userId))
-    .orderBy(medicationReminders.reminderHour, medicationReminders.reminderMinute);
+    .orderBy(medicationReminders.sortOrder, medicationReminders.reminderHour, medicationReminders.reminderMinute);
+}
+
+/**
+ * Reorder medication reminders by updating sortOrder.
+ */
+export async function reorderMedicationReminders(
+  userId: number,
+  orderedIds: number[]
+) {
+  const db = await getDb();
+  if (!db) return;
+  for (let i = 0; i < orderedIds.length; i++) {
+    await db
+      .update(medicationReminders)
+      .set({ sortOrder: i })
+      .where(
+        and(
+          eq(medicationReminders.id, orderedIds[i]),
+          eq(medicationReminders.userId, userId)
+        )
+      );
+  }
 }
 
 /**
@@ -1357,7 +1385,23 @@ export async function deleteMedicationReminder(id: number, userId: number) {
 }
 
 /**
+ * Get notification sound preference for a specific user.
+ * Returns 'default' if no setting found.
+ */
+export async function getNotificationSoundForUser(userId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) return "default";
+  const result = await db
+    .select({ notificationSound: notificationSettings.notificationSound })
+    .from(notificationSettings)
+    .where(eq(notificationSettings.userId, userId))
+    .limit(1);
+  return result[0]?.notificationSound ?? "default";
+}
+
+/**
  * Get all enabled medication reminders that need to be sent (not yet notified today).
+ * Includes user's notification sound preference via LEFT JOIN.
  */
 export async function getMedicationRemindersToSend(todayStr: string) {
   const db = await getDb();
@@ -1376,8 +1420,10 @@ export async function getMedicationRemindersToSend(todayStr: string) {
       snoozedUntil: medicationReminders.snoozedUntil,
       lastNotifiedDate: medicationReminders.lastNotifiedDate,
       startDate: medicationReminders.startDate,
+      notificationSound: notificationSettings.notificationSound,
     })
     .from(medicationReminders)
+    .leftJoin(notificationSettings, eq(medicationReminders.userId, notificationSettings.userId))
     .where(
       and(
         eq(medicationReminders.enabled, 1),
@@ -2390,6 +2436,7 @@ export async function checkExpiringMedications() {
               vapidPublicKey,
               vapidPrivateKey
             );
+            const userSound = await getNotificationSoundForUser(reminder.userId);
             for (const sub of subs) {
               try {
                 await webpush.sendNotification(
@@ -2397,7 +2444,7 @@ export async function checkExpiringMedications() {
                     endpoint: sub.endpoint,
                     keys: { p256dh: sub.p256dh, auth: sub.auth },
                   },
-                  JSON.stringify({ title, body, tag: `expiry-${reminder.id}` })
+                  JSON.stringify({ title, body, tag: `expiry-${reminder.id}`, sound: userSound })
                 );
               } catch (err: any) {
                 if (err.statusCode === 410) {

@@ -46,6 +46,24 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  // Determine vibration and interaction based on sound preference
+  const sound = data.sound || 'default';
+  let vibrate = [200, 100, 200];
+  let requireInteraction = true;
+  let silent = false;
+
+  if (sound === 'gentle') {
+    vibrate = [100];
+    requireInteraction = false;
+  } else if (sound === 'urgent') {
+    vibrate = [300, 100, 300, 100, 300];
+    requireInteraction = true;
+  } else if (sound === 'silent') {
+    vibrate = [];
+    requireInteraction = false;
+    silent = true;
+  }
+
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
@@ -54,8 +72,9 @@ self.addEventListener('push', (event) => {
       tag: data.tag,
       data: data.data,
       actions: data.actions,
-      vibrate: [200, 100, 200],
-      requireInteraction: true,
+      vibrate: vibrate,
+      requireInteraction: requireInteraction,
+      silent: silent,
     })
   );
 });

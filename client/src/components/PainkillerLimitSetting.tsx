@@ -1,24 +1,41 @@
 /**
  * PainkillerLimitSetting — allows user to configure the painkiller day limit
- * (max days of painkiller usage within a 30-day window before warning)
- * and toggle push notification alerts when approaching/exceeding the threshold.
+ * (max days of painkiller usage within a 30-day window before warning),
+ * toggle push notification alerts, and customize weekly report frequency/time.
  */
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Pill, Check, Loader2, Info, Bell, BellOff } from "lucide-react";
+import { Pill, Check, Loader2, Info, Bell, BellOff, CalendarClock, Clock, Volume2 } from "lucide-react";
 import { toast } from "sonner";
+
+const FREQUENCY_OPTIONS = [
+  { value: "weekly" as const, label: "每周", desc: "每周日推送" },
+  { value: "biweekly" as const, label: "每两周", desc: "隔周日推送" },
+  { value: "monthly" as const, label: "每月", desc: "每月1日推送" },
+];
+
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
+  value: i,
+  label: `${String(i).padStart(2, "0")}:00`,
+}));
 
 export default function PainkillerLimitSetting() {
   const settings = trpc.notification.getSettings.useQuery();
   const updateLimit = trpc.notification.updatePainkillerLimit.useMutation();
   const updateAlertEnabled = trpc.notification.updatePainkillerAlertEnabled.useMutation();
+  const updateFrequency = trpc.notification.updateWeeklyReportFrequency.useMutation();
+  const updateReportHour = trpc.notification.updateWeeklyReportHour.useMutation();
+  const updateSound = trpc.notification.updateNotificationSound.useMutation();
   const utils = trpc.useUtils();
 
   const currentLimit = (settings.data as any)?.painkillerDayLimit ?? 10;
   const currentAlertEnabled = (settings.data as any)?.painkillerAlertEnabled === 1;
+  const currentFrequency = (settings.data as any)?.weeklyReportFrequency ?? "weekly";
+  const currentReportHour = (settings.data as any)?.weeklyReportHour ?? 19;
+  const currentSound = (settings.data as any)?.notificationSound ?? "default";
   const [localLimit, setLocalLimit] = useState(10);
   const [dirty, setDirty] = useState(false);
 
@@ -51,6 +68,27 @@ export default function PainkillerLimitSetting() {
           ? "当用量接近或超过阈值时，将推送通知到您的手机"
           : "将不再推送止疼药阈值提醒",
       });
+    } catch {
+      toast.error("设置失败，请重试");
+    }
+  };
+
+  const handleFrequencyChange = async (frequency: "weekly" | "biweekly" | "monthly") => {
+    try {
+      await updateFrequency.mutateAsync({ frequency });
+      utils.notification.getSettings.invalidate();
+      const label = FREQUENCY_OPTIONS.find((o) => o.value === frequency)?.label ?? frequency;
+      toast.success(`周报频率已改为${label}`);
+    } catch {
+      toast.error("设置失败，请重试");
+    }
+  };
+
+  const handleReportHourChange = async (hour: number) => {
+    try {
+      await updateReportHour.mutateAsync({ hour });
+      utils.notification.getSettings.invalidate();
+      toast.success(`周报推送时间已改为 ${String(hour).padStart(2, "0")}:00`);
     } catch {
       toast.error("设置失败，请重试");
     }
@@ -102,6 +140,92 @@ export default function PainkillerLimitSetting() {
           onCheckedChange={handleToggleAlert}
           disabled={updateAlertEnabled.isPending}
         />
+      </div>
+
+      {/* Weekly report frequency */}
+      <div className="p-3 rounded-lg border border-border/30 bg-card space-y-3">
+        <div className="flex items-center gap-2">
+          <CalendarClock className="w-4 h-4 text-dusty-blue" />
+          <span className="text-sm font-medium">周报推送频率</span>
+        </div>
+        <div className="flex gap-2">
+          {FREQUENCY_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => handleFrequencyChange(opt.value)}
+              disabled={updateFrequency.isPending}
+              className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${
+                currentFrequency === opt.value
+                  ? "bg-dusty-blue/10 text-dusty-blue border-dusty-blue/30"
+                  : "bg-card border-border/50 text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              <div>{opt.label}</div>
+              <div className="text-[9px] mt-0.5 opacity-70">{opt.desc}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Report hour selector */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">推送时间</span>
+          </div>
+          <select
+            value={currentReportHour}
+            onChange={(e) => handleReportHourChange(Number(e.target.value))}
+            disabled={updateReportHour.isPending}
+            className="text-xs bg-muted/50 border border-border/50 rounded-lg px-2 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-dusty-blue/50"
+          >
+            {HOUR_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Notification sound preference */}
+      <div className="p-3 rounded-lg border border-border/30 bg-card space-y-3">
+        <div className="flex items-center gap-2">
+          <Volume2 className="w-4 h-4 text-sage-green" />
+          <span className="text-sm font-medium">提醒铃声</span>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {([
+            { value: "default" as const, label: "默认", desc: "系统铃声" },
+            { value: "gentle" as const, label: "柔和", desc: "轻柔提示" },
+            { value: "urgent" as const, label: "紧急", desc: "强提醒" },
+            { value: "silent" as const, label: "静音", desc: "仅横幅" },
+          ]).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={async () => {
+                try {
+                  await updateSound.mutateAsync({ sound: opt.value });
+                  utils.notification.getSettings.invalidate();
+                  toast.success(`提醒铃声已设为「${opt.label}」`);
+                } catch {
+                  toast.error("设置失败，请重试");
+                }
+              }}
+              disabled={updateSound.isPending}
+              className={`py-2 rounded-lg text-xs font-medium border transition-all ${
+                currentSound === opt.value
+                  ? "bg-sage-green/10 text-sage-green border-sage-green/30"
+                  : "bg-card border-border/50 text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              <div>{opt.label}</div>
+              <div className="text-[9px] mt-0.5 opacity-70">{opt.desc}</div>
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          注意：Web Push 通知的实际铃声受浏览器和系统设置影响，“静音”模式会尽量静音推送。
+        </p>
       </div>
 
       {/* Current value display */}

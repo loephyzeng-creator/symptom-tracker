@@ -1,0 +1,1 @@
+ALTER TABLE `notification_settings` ADD `notificationSound` enum('default','gentle','urgent','silent') DEFAULT 'default' NOT NULL;

@@ -156,8 +156,9 @@ describe("Painkiller Enhancement Features", () => {
       const chartContent = fs.readFileSync(chartPath, "utf-8");
       // Should use entries.list, not checkInCalendar
       expect(chartContent).toContain("entries.list");
-      expect(chartContent).toContain("近30天止疼药趋势");
-      expect(chartContent).toContain("滚动统计最近30天");
+      // Text is rendered via unicode escapes in the component
+      expect(chartContent).toContain("\\u8fd130\\u5929\\u6b62\\u75bc\\u836f\\u8d8b\\u52bf");
+      expect(chartContent).toContain("\\u6eda\\u52a8\\u7edf\\u8ba1\\u6700\\u8fd130\\u5929");
       // Should NOT reference calendar month
       expect(chartContent).not.toContain("本月止疼药趋势");
     });

@@ -1,0 +1,122 @@
+{
+  "query": "DESCRIBE notification_settings;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute DESCRIBE notification_settings;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "userId",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "UNI",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "enabled",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "1",
+      "Extra": ""
+    },
+    {
+      "Field": "reminderHour",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "21",
+      "Extra": ""
+    },
+    {
+      "Field": "reminderMinute",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "lastNotifiedDate",
+      "Type": "varchar(10)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "Field": "painkillerDayLimit",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "10",
+      "Extra": ""
+    },
+    {
+      "Field": "painkillerAlertEnabled",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "1",
+      "Extra": ""
+    },
+    {
+      "Field": "painkillerAlertLastDate",
+      "Type": "varchar(10)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "weeklyReportFrequency",
+      "Type": "enum('weekly','biweekly','monthly')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "weekly",
+      "Extra": ""
+    },
+    {
+      "Field": "weeklyReportHour",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "19",
+      "Extra": ""
+    },
+    {
+      "Field": "lastWeeklyReportDate",
+      "Type": "varchar(10)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\nuserId\tint\tNO\tUNI\tNULL\t\nenabled\tint\tNO\t\t1\t\nreminderHour\tint\tNO\t\t21\t\nreminderMinute\tint\tNO\t\t0\t\nlastNotifiedDate\tvarchar(10)\tYES\t\tNULL\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\npainkillerDayLimit\tint\tNO\t\t10\t\npainkillerAlertEnabled\tint\tNO\t\t1\t\npainkillerAlertLastDate\tvarchar(10)\tYES\t\tNULL\t\nweeklyReportFrequency\tenum('weekly','biweekly','monthly')\tNO\t\tweekly\t\nweeklyReportHour\tint\tNO\t\t19\t\nlastWeeklyReportDate\tvarchar(10)\tYES\t\tNULL\t\n",
+  "stderr": "",
+  "execution_time_ms": 102
+}

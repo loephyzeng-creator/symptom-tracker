@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import MedicationCheckInCalendar from "@/components/MedicationCheckInCalendar";
 import DrugInteractionChecker from "@/components/DrugInteractionChecker";
 import PainkillerTrendChart from "@/components/PainkillerTrendChart";
+import PainkillerHeatmapCalendar from "@/components/PainkillerHeatmapCalendar";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -536,6 +537,9 @@ export default function MedicationView() {
           </div>
         )}
       </motion.div>
+
+      {/* Painkiller Heatmap Calendar */}
+      <PainkillerHeatmapCalendar />
 
       {/* Painkiller Trend Chart */}
       <PainkillerTrendChart />

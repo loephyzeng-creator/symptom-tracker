@@ -16,6 +16,7 @@ import TriggerBubbleChart from "@/components/TriggerBubbleChart";
 import AIAnalysis from "@/components/AIAnalysis";
 import MedicationAdherence from "@/components/MedicationAdherence";
 import HeadachePainkillerChart from "@/components/HeadachePainkillerChart";
+import PainkillerHeadacheScatter from "@/components/PainkillerHeadacheScatter";
 import { motion } from "framer-motion";
 import { Calendar, TrendingDown, TrendingUp, Minus, BarChart3, Flame, Sparkles, Pill } from "lucide-react";
 
@@ -365,6 +366,9 @@ export default function StatsView({ entries }: StatsViewProps) {
 
           {/* Headache & Painkiller Charts */}
           <HeadachePainkillerChart entries={filteredEntries} />
+
+          {/* Painkiller-Headache Scatter Plot */}
+          <PainkillerHeadacheScatter entries={filteredEntries} />
 
           {/* Medication Chart */}
           <MedicationChart entries={filteredEntries} />
