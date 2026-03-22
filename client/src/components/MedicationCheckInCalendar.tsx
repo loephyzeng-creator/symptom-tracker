@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -15,6 +15,7 @@ import {
   MessageSquare,
   Brain,
   AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -200,11 +201,45 @@ function DayDetailPanel({
   );
 }
 
-export default function MedicationCheckInCalendar() {
+interface MedicationCheckInCalendarProps {
+  /** Currently selected date string (YYYY-MM-DD) from parent */
+  selectedDate?: string;
+  /** Callback when user clicks a date on the calendar */
+  onDateSelect?: (dateStr: string) => void;
+  /** Whether to show the day detail panel inline (default: true when no onDateSelect) */
+  showDayDetail?: boolean;
+}
+
+export default function MedicationCheckInCalendar({
+  selectedDate: externalSelectedDate,
+  onDateSelect,
+  showDayDetail,
+}: MedicationCheckInCalendarProps = {}) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [internalSelectedDay, setInternalSelectedDay] = useState<string | null>(null);
+
+  // Use external selected date if provided, otherwise use internal state
+  const isControlled = !!onDateSelect;
+  const selectedDay = isControlled ? (externalSelectedDate ?? null) : internalSelectedDay;
+  // Show day detail panel: if explicitly set, use that; otherwise show only when NOT controlled (standalone mode)
+  const shouldShowDayDetail = showDayDetail !== undefined ? showDayDetail : !isControlled;
+
+  // When external selected date changes, auto-navigate calendar to that month
+  useEffect(() => {
+    if (externalSelectedDate) {
+      const parts = externalSelectedDate.split("-");
+      if (parts.length === 3) {
+        const extYear = parseInt(parts[0], 10);
+        const extMonth = parseInt(parts[1], 10);
+        if (extYear !== year || extMonth !== month) {
+          setYear(extYear);
+          setMonth(extMonth);
+        }
+      }
+    }
+  }, [externalSelectedDate]);
 
   // Long-press state
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -278,13 +313,19 @@ export default function MedicationCheckInCalendar() {
     }
 
     // Fill day cells
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
     for (let d = 1; d <= lastDate; d++) {
       const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       const dayData = data?.days.find((dd) => dd.date === dateStr);
+      // Determine default status: past/today = "no-schedule", future = "future"
+      const cellDate = new Date(year, month - 1, d);
+      cellDate.setHours(0, 0, 0, 0);
+      const defaultStatus: DayStatus = cellDate > todayDate ? "future" : "no-schedule";
       grid.push({
         date: dateStr,
         day: d,
-        status: dayData?.status ?? "future",
+        status: dayData?.status ?? defaultStatus,
         scheduledCount: dayData?.scheduledCount ?? 0,
         takenCount: dayData?.takenCount ?? 0,
         painkillerTaken: dayData?.painkillerTaken ?? false,
@@ -306,7 +347,7 @@ export default function MedicationCheckInCalendar() {
     } else {
       setMonth(month - 1);
     }
-    setSelectedDay(null);
+    setInternalSelectedDay(null);
   };
 
   const handleNextMonth = () => {
@@ -321,7 +362,7 @@ export default function MedicationCheckInCalendar() {
     } else {
       setMonth(month + 1);
     }
-    setSelectedDay(null);
+    setInternalSelectedDay(null);
   };
 
   const isCurrentMonth =
@@ -343,6 +384,23 @@ export default function MedicationCheckInCalendar() {
     return `🔥 连续打卡 ${data.streak} 天`;
   }, [data]);
 
+  const handleDayClick = useCallback((cell: { date: string; status: DayStatus }) => {
+    // Only handle click if long press wasn't triggered
+    if (longPressTriggeredRef.current) return;
+
+    if (cell.status === "future") return;
+
+    if (isControlled && onDateSelect) {
+      // In controlled mode, notify parent of date selection
+      onDateSelect(cell.date);
+    } else {
+      // In standalone mode, toggle internal selection for day detail
+      setInternalSelectedDay(
+        internalSelectedDay === cell.date ? null : cell.date
+      );
+    }
+  }, [isControlled, onDateSelect, internalSelectedDay]);
+
   return (
     <div className="bg-card rounded-2xl border border-border/50 shadow-sm overflow-hidden">
       {/* Header with stats */}
@@ -354,6 +412,23 @@ export default function MedicationCheckInCalendar() {
               服药打卡
             </h3>
           </div>
+          {/* Back to today button when viewing other months */}
+          {!isCurrentMonth && (
+            <button
+              onClick={() => {
+                const now = new Date();
+                setYear(now.getFullYear());
+                setMonth(now.getMonth() + 1);
+                if (isControlled && onDateSelect) {
+                  onDateSelect(todayStr);
+                }
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-dusty-blue/8 text-dusty-blue text-[11px] font-medium hover:bg-dusty-blue/15 transition-colors active:scale-95"
+            >
+              <RotateCcw className="w-3 h-3" />
+              返回今天
+            </button>
+          )}
         </div>
 
         {/* Stats row */}
@@ -431,10 +506,10 @@ export default function MedicationCheckInCalendar() {
         </button>
       </div>
 
-      {/* Long-press hint */}
+      {/* Hint text */}
       <div className="px-4 pb-2">
         <p className="text-[10px] text-muted-foreground/60 text-center">
-          长按日期可快速标记/取消止疼药
+          {isControlled ? "点击日期查看/补打卡 · 长按标记止疼药" : "长按日期可快速标记/取消止疼药"}
         </p>
       </div>
 
@@ -471,14 +546,7 @@ export default function MedicationCheckInCalendar() {
                 <motion.button
                   key={cell.date}
                   whileTap={{ scale: 0.9 }}
-                  onClick={() => {
-                    // Only handle click if long press wasn't triggered
-                    if (!longPressTriggeredRef.current) {
-                      setSelectedDay(
-                        selectedDay === cell.date ? null : cell.date
-                      );
-                    }
-                  }}
+                  onClick={() => handleDayClick(cell)}
                   onPointerDown={() => handlePointerDown(cell.date, cell.status)}
                   onPointerUp={handlePointerUp}
                   onPointerLeave={handlePointerLeave}
@@ -487,7 +555,8 @@ export default function MedicationCheckInCalendar() {
                     aspect-square rounded-lg flex flex-col items-center justify-center relative transition-all select-none touch-none
                     ${getStatusColor(cell.status)}
                     ${isToday ? "ring-2 ring-terracotta ring-offset-1 ring-offset-card" : ""}
-                    ${isSelected ? "ring-2 ring-foreground/40 ring-offset-1 ring-offset-card" : ""}
+                    ${isSelected && !isToday ? "ring-2 ring-dusty-blue ring-offset-1 ring-offset-card" : ""}
+                    ${isSelected && isToday ? "ring-2 ring-terracotta ring-offset-2 ring-offset-card shadow-md" : ""}
                     ${cell.status === "future" ? "cursor-default" : "cursor-pointer hover:opacity-80"}
                   `}
                   disabled={cell.status === "future"}
@@ -527,9 +596,9 @@ export default function MedicationCheckInCalendar() {
         )}
       </div>
 
-      {/* Selected day detail with per-medication breakdown */}
+      {/* Selected day detail (only in standalone mode or when explicitly enabled) */}
       <AnimatePresence>
-        {selectedDayData && selectedDayData.status !== "future" && (
+        {shouldShowDayDetail && selectedDayData && selectedDayData.status !== "future" && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}

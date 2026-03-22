@@ -1,9 +1,9 @@
 /**
  * MedicationView — Standalone medication management tab
- * Includes: Date selector for retroactive check-ins, medication checklist,
- * medication check-in calendar, and drug interaction checker.
+ * The check-in calendar IS the date selector: click any date on the calendar
+ * to view that day's medications and perform check-ins / retroactive check-ins.
  */
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import MedicationCheckInCalendar from "@/components/MedicationCheckInCalendar";
 import DrugInteractionChecker from "@/components/DrugInteractionChecker";
@@ -26,21 +26,11 @@ import {
   Moon,
   MessageSquare,
   Send,
-  ChevronLeft,
-  ChevronRight,
-  CalendarDays,
   RotateCcw,
 } from "lucide-react";
 import MedicationAutocomplete from "@/components/MedicationAutocomplete";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { zhCN } from "date-fns/locale";
 
 /* ─── Date helpers ─── */
-function dateStrToDate(dateStr: string): Date {
-  return new Date(dateStr + "T00:00:00");
-}
-
 function dateToDateStr(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -55,46 +45,10 @@ function getTodayStr(): string {
 
 export default function MedicationView() {
   const [selectedDate, setSelectedDate] = useState(() => getTodayStr());
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  const medListRef = useRef<HTMLDivElement>(null);
 
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-  const todayStr = useMemo(() => dateToDateStr(today), [today]);
+  const todayStr = useMemo(() => getTodayStr(), []);
   const isToday = selectedDate === todayStr;
-
-  const handleCalendarSelect = useCallback((day: Date | undefined) => {
-    if (day) {
-      setSelectedDate(dateToDateStr(day));
-      setCalendarOpen(false);
-    }
-  }, []);
-
-  const handlePrevDay = useCallback(() => {
-    const d = dateStrToDate(selectedDate);
-    d.setDate(d.getDate() - 1);
-    setSelectedDate(dateToDateStr(d));
-  }, [selectedDate]);
-
-  const handleNextDay = useCallback(() => {
-    const d = dateStrToDate(selectedDate);
-    d.setDate(d.getDate() + 1);
-    if (d <= today) {
-      setSelectedDate(dateToDateStr(d));
-    }
-  }, [selectedDate, today]);
-
-  const handleBackToToday = useCallback(() => {
-    setSelectedDate(todayStr);
-  }, [todayStr]);
-
-  const canGoNext = useMemo(() => {
-    const next = dateStrToDate(selectedDate);
-    next.setDate(next.getDate() + 1);
-    return next <= today;
-  }, [selectedDate, today]);
 
   // Format date parts for display
   const dateDisplay = useMemo(() => {
@@ -106,7 +60,14 @@ export default function MedicationView() {
     };
   }, [selectedDate]);
 
-  const selectedDateObj = useMemo(() => dateStrToDate(selectedDate), [selectedDate]);
+  // Handle date selection from calendar
+  const handleCalendarDateSelect = useCallback((dateStr: string) => {
+    setSelectedDate(dateStr);
+    // Scroll to medication list after a short delay for state update
+    setTimeout(() => {
+      medListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  }, []);
 
   // ─── Medications from reminders for selected date ──────
   const utils = trpc.useUtils();
@@ -259,113 +220,59 @@ export default function MedicationView() {
 
   return (
     <div className="space-y-4">
-      {/* ─── Date Selector ─── */}
-      <div className="flex flex-col items-center gap-2">
-        {/* Main date row */}
-        <div className="flex items-center gap-1">
-          {/* Prev day arrow */}
-          <button
-            onClick={handlePrevDay}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground/60 hover:text-dusty-blue hover:bg-dusty-blue/10 transition-all active:scale-90"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          {/* Date display - clickable to open calendar */}
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-            <PopoverTrigger asChild>
-              <button className="group flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-card border border-border/40 shadow-sm hover:shadow-md hover:border-dusty-blue/20 transition-all active:scale-[0.98]">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-dusty-blue/15 to-dusty-blue/5 flex items-center justify-center">
-                  <Pill className="w-[18px] h-[18px] text-dusty-blue" />
-                </div>
-                <div className="text-left">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="font-serif text-[17px] font-semibold text-foreground tracking-tight">
-                      {dateDisplay.monthDay}
-                    </span>
-                    <span className="text-xs text-muted-foreground font-medium">
-                      {dateDisplay.weekday}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {isToday && (
-                      <span className="text-[10px] px-1.5 py-px rounded-full bg-sage/15 text-sage font-semibold">今天</span>
-                    )}
-                    {!isToday && (
-                      <span className="text-[10px] px-1.5 py-px rounded-full bg-dusty-blue/10 text-dusty-blue font-semibold">补打卡</span>
-                    )}
-                    {totalMedCount > 0 && takenCount === totalMedCount && (
-                      <span className="text-[10px] px-1.5 py-px rounded-full bg-sage/15 text-sage font-semibold">✓ 全部已服</span>
-                    )}
-                  </div>
-                </div>
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 rounded-2xl shadow-lg border-border/40" align="center" sideOffset={8}>
-              <Calendar
-                mode="single"
-                selected={selectedDateObj}
-                onSelect={handleCalendarSelect}
-                locale={zhCN}
-                disabled={{ after: today }}
-                defaultMonth={selectedDateObj}
-                className="rounded-2xl"
-                classNames={{
-                  today: "bg-dusty-blue/15 text-dusty-blue font-bold rounded-lg",
-                  month_caption: "flex items-center justify-center h-10 w-full px-8 font-serif font-semibold",
-                }}
-              />
-            </PopoverContent>
-          </Popover>
-
-          {/* Next day arrow */}
-          <button
-            onClick={handleNextDay}
-            disabled={!canGoNext}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 ${
-              canGoNext
-                ? "text-muted-foreground/60 hover:text-dusty-blue hover:bg-dusty-blue/10"
-                : "text-muted-foreground/20 cursor-not-allowed"
-            }`}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Back to today pill */}
-        <AnimatePresence>
-          {!isToday && (
-            <motion.button
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              onClick={handleBackToToday}
-              className="flex items-center gap-1 px-3 py-1 rounded-full bg-dusty-blue/8 text-dusty-blue text-[11px] font-medium hover:bg-dusty-blue/15 transition-colors active:scale-95"
-            >
-              <RotateCcw className="w-3 h-3" />
-              返回今天
-            </motion.button>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Medication Checklist */}
+      {/* ─── Check-in Calendar (also serves as date selector) ─── */}
       <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <MedicationCheckInCalendar
+          selectedDate={selectedDate}
+          onDateSelect={handleCalendarDateSelect}
+        />
+      </motion.div>
+
+      {/* ─── Selected Date Header + Medication Checklist ─── */}
+      <motion.div
+        ref={medListRef}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
         className="bg-card rounded-2xl p-4 shadow-sm border border-border/40"
       >
+        {/* Date indicator bar */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-dusty-blue/10 flex items-center justify-center">
               <Pill className="w-4 h-4 text-dusty-blue" />
             </div>
-            <h3 className="font-serif font-semibold text-sm">
-              {isToday ? "今日用药" : `${dateDisplay.monthDay} 用药`}
-            </h3>
+            <div>
+              <h3 className="font-serif font-semibold text-sm">
+                {isToday ? "今日用药" : `${dateDisplay.monthDay} 用药`}
+              </h3>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {isToday && (
+                  <span className="text-[10px] px-1.5 py-px rounded-full bg-sage/15 text-sage font-semibold">今天</span>
+                )}
+                {!isToday && (
+                  <span className="text-[10px] px-1.5 py-px rounded-full bg-dusty-blue/10 text-dusty-blue font-semibold">补打卡</span>
+                )}
+                {totalMedCount > 0 && takenCount === totalMedCount && (
+                  <span className="text-[10px] px-1.5 py-px rounded-full bg-sage/15 text-sage font-semibold">✓ 全部已服</span>
+                )}
+              </div>
+            </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Back to today button */}
+            {!isToday && (
+              <button
+                onClick={() => setSelectedDate(todayStr)}
+                className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-dusty-blue/8 text-dusty-blue hover:bg-dusty-blue/15 transition-colors font-medium"
+              >
+                <RotateCcw className="w-3 h-3" />
+                今天
+              </button>
+            )}
             {totalMedCount > 0 && takenCount < totalMedCount && (
               <button
                 onClick={handleConfirmAll}
@@ -641,15 +548,6 @@ export default function MedicationView() {
         className="bg-card rounded-2xl p-4 shadow-sm border border-border/40"
       >
         <DrugInteractionChecker />
-      </motion.div>
-
-      {/* Medication Check-in Calendar */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-      >
-        <MedicationCheckInCalendar />
       </motion.div>
     </div>
   );
