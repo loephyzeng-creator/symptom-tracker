@@ -1,6 +1,7 @@
 /**
  * Headache Attack Frequency & Painkiller Usage Trend Chart
  * Shows daily headache attack levels and painkiller usage
+ * Only shows dates with relevant data (headache > 0 or painkiller taken)
  */
 import { useMemo, useState } from "react";
 import {
@@ -82,7 +83,7 @@ export default function HeadachePainkillerChart({ entries }: HeadachePainkillerC
   const [today] = useState(() => new Date().toISOString().slice(0, 10));
   const painkillerUsage = trpc.entries.painkillerUsage.useQuery({ date: today });
 
-  // Daily data sorted by date, last 30 days
+  // All daily data sorted by date, last 30 days
   const dailyData = useMemo(() => {
     if (entries.length === 0) return [];
 
@@ -101,7 +102,17 @@ export default function HeadachePainkillerChart({ entries }: HeadachePainkillerC
       }));
   }, [entries]);
 
-  // Calculate summary stats
+  // Filtered data: only dates with headache attacks (level > 0)
+  const headacheData = useMemo(() => {
+    return dailyData.filter((d) => d.headacheLevel > 0);
+  }, [dailyData]);
+
+  // Filtered data: only dates with painkiller usage
+  const painkillerData = useMemo(() => {
+    return dailyData.filter((d) => d.painkillerTaken);
+  }, [dailyData]);
+
+  // Calculate summary stats from ALL daily data (not filtered)
   const summary = useMemo(() => {
     const attackDays = dailyData.filter((d) => d.headacheLevel > 0).length;
     const severeDays = dailyData.filter((d) => d.headacheLevel >= 3).length;
@@ -170,13 +181,13 @@ export default function HeadachePainkillerChart({ entries }: HeadachePainkillerC
         </div>
       </div>
 
-      {/* Headache Attack Level by Day */}
+      {/* Headache Attack Level by Day - only shows dates with headache attacks */}
       <div className="bg-card rounded-xl p-4 border border-border/50 shadow-sm">
         <div className="flex items-center gap-2 mb-1">
           <Brain className="w-4 h-4 text-muted-foreground" />
           <h3 className="font-serif font-semibold text-sm">头痛发作等级（按日）</h3>
         </div>
-        <p className="text-[10px] text-muted-foreground mb-3">近30天每日头痛发作等级</p>
+        <p className="text-[10px] text-muted-foreground mb-3">近30天头痛发作日的等级分布</p>
 
         {/* Legend */}
         <div className="flex flex-wrap gap-3 mb-3">
@@ -188,80 +199,92 @@ export default function HeadachePainkillerChart({ entries }: HeadachePainkillerC
           ))}
         </div>
 
-        <div className="h-[200px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={dailyData} barCategoryGap="15%">
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis
-                dataKey="dateLabel"
-                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-                interval={dailyData.length > 15 ? Math.floor(dailyData.length / 8) : 0}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-                domain={[0, 3]}
-                ticks={[0, 1, 2, 3]}
-                tickFormatter={headacheLevelTick}
-                width={36}
-              />
-              <Tooltip content={<HeadacheTooltip />} />
-              <Bar dataKey="headacheLevel" radius={[3, 3, 0, 0]}>
-                {dailyData.map((d, index) => (
-                  <Cell
-                    key={index}
-                    fill={HEADACHE_LEVELS[d.headacheLevel]?.color ?? "#d4d4d4"}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {headacheData.length > 0 ? (
+          <div className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={headacheData} barCategoryGap="15%">
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis
+                  dataKey="dateLabel"
+                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border)" }}
+                  interval={headacheData.length > 15 ? Math.floor(headacheData.length / 8) : 0}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border)" }}
+                  domain={[0, 3]}
+                  ticks={[0, 1, 2, 3]}
+                  tickFormatter={headacheLevelTick}
+                  width={36}
+                />
+                <Tooltip content={<HeadacheTooltip />} />
+                <Bar dataKey="headacheLevel" radius={[3, 3, 0, 0]}>
+                  {headacheData.map((d, index) => (
+                    <Cell
+                      key={index}
+                      fill={HEADACHE_LEVELS[d.headacheLevel]?.color ?? "#d4d4d4"}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-[100px] flex items-center justify-center text-xs text-muted-foreground">
+            近30天无头痛发作记录
+          </div>
+        )}
       </div>
 
-      {/* Painkiller Usage by Day */}
+      {/* Painkiller Usage by Day - only shows dates with painkiller usage */}
       <div className="bg-card rounded-xl p-4 border border-border/50 shadow-sm">
         <div className="flex items-center gap-2 mb-1">
           <Pill className="w-4 h-4 text-muted-foreground" />
           <h3 className="font-serif font-semibold text-sm">止疼药使用（按日）</h3>
         </div>
-        <p className="text-[10px] text-muted-foreground mb-3">近30天每日止疼药服用情况</p>
+        <p className="text-[10px] text-muted-foreground mb-3">近30天止疼药服用日期</p>
 
-        <div className="h-[150px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={dailyData} barCategoryGap="15%">
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis
-                dataKey="dateLabel"
-                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-                interval={dailyData.length > 15 ? Math.floor(dailyData.length / 8) : 0}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-                domain={[0, 1]}
-                ticks={[0, 1]}
-                tickFormatter={(v: number) => v === 1 ? "是" : "否"}
-                width={24}
-              />
-              <Tooltip content={<PainkillerTooltip />} />
-              <Bar dataKey={(d: DayData) => d.painkillerTaken ? 1 : 0} name="止疼药" radius={[3, 3, 0, 0]}>
-                {dailyData.map((d, index) => (
-                  <Cell
-                    key={index}
-                    fill={d.painkillerTaken ? "#e8944a" : "transparent"}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {painkillerData.length > 0 ? (
+          <div className="h-[150px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={painkillerData} barCategoryGap="15%">
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis
+                  dataKey="dateLabel"
+                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border)" }}
+                  interval={painkillerData.length > 15 ? Math.floor(painkillerData.length / 8) : 0}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border)" }}
+                  domain={[0, 1]}
+                  ticks={[0, 1]}
+                  tickFormatter={(v: number) => v === 1 ? "是" : "否"}
+                  width={24}
+                />
+                <Tooltip content={<PainkillerTooltip />} />
+                <Bar dataKey={() => 1} name="止疼药" radius={[3, 3, 0, 0]}>
+                  {painkillerData.map((_d, index) => (
+                    <Cell
+                      key={index}
+                      fill="#e8944a"
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-[80px] flex items-center justify-center text-xs text-muted-foreground">
+            近30天无止疼药使用记录
+          </div>
+        )}
 
         {/* Monthly limit indicator */}
         <div className="text-center text-[10px] text-muted-foreground mt-2">
