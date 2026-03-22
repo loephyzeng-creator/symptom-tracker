@@ -584,7 +584,9 @@ async function sendWeeklyPainkillerReports(todayStr: string, currentHour: number
       if (user.lastWeeklyReportDate === todayStr) return false;
 
       // Check frequency
-      if (frequency === "weekly") {
+      if (frequency === "daily") {
+        return true; // Every day at the user's preferred hour
+      } else if (frequency === "weekly") {
         return dayOfWeek === 0; // Every Sunday
       } else if (frequency === "biweekly") {
         // Every other Sunday: check if week number is even

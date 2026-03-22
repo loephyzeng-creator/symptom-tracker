@@ -1,0 +1,1 @@
+ALTER TABLE `notification_settings` MODIFY COLUMN `weeklyReportFrequency` enum('daily','weekly','biweekly','monthly') NOT NULL DEFAULT 'weekly';

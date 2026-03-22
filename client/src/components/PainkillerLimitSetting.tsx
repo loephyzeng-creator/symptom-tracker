@@ -12,6 +12,7 @@ import { Pill, Check, Loader2, Info, Bell, BellOff, CalendarClock, Clock, Volume
 import { toast } from "sonner";
 
 const FREQUENCY_OPTIONS = [
+  { value: "daily" as const, label: "每日", desc: "每天推送" },
   { value: "weekly" as const, label: "每周", desc: "每周日推送" },
   { value: "biweekly" as const, label: "每两周", desc: "隔周日推送" },
   { value: "monthly" as const, label: "每月", desc: "每月1日推送" },
@@ -73,12 +74,12 @@ export default function PainkillerLimitSetting() {
     }
   };
 
-  const handleFrequencyChange = async (frequency: "weekly" | "biweekly" | "monthly") => {
+  const handleFrequencyChange = async (frequency: "daily" | "weekly" | "biweekly" | "monthly") => {
     try {
       await updateFrequency.mutateAsync({ frequency });
       utils.notification.getSettings.invalidate();
       const label = FREQUENCY_OPTIONS.find((o) => o.value === frequency)?.label ?? frequency;
-      toast.success(`周报频率已改为${label}`);
+      toast.success(`报告频率已改为${label}`);
     } catch {
       toast.error("设置失败，请重试");
     }
@@ -146,7 +147,7 @@ export default function PainkillerLimitSetting() {
       <div className="p-3 rounded-lg border border-border/30 bg-card space-y-3">
         <div className="flex items-center gap-2">
           <CalendarClock className="w-4 h-4 text-dusty-blue" />
-          <span className="text-sm font-medium">周报推送频率</span>
+          <span className="text-sm font-medium">报告推送频率</span>
         </div>
         <div className="flex gap-2">
           {FREQUENCY_OPTIONS.map((opt) => (

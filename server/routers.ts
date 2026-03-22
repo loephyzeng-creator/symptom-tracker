@@ -315,7 +315,7 @@ export const appRouter = router({
 
     /** Update weekly report frequency */
     updateWeeklyReportFrequency: protectedProcedure
-      .input(z.object({ frequency: z.enum(["weekly", "biweekly", "monthly"]) }))
+      .input(z.object({ frequency: z.enum(["daily", "weekly", "biweekly", "monthly"]) }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");

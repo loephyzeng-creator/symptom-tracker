@@ -75,7 +75,7 @@ export const notificationSettings = mysqlTable("notification_settings", {
   painkillerDayLimit: int("painkillerDayLimit").default(10).notNull(), // max painkiller days in 30-day window
   painkillerAlertEnabled: int("painkillerAlertEnabled").default(1).notNull(), // 1 = on, 0 = off
   painkillerAlertLastDate: varchar("painkillerAlertLastDate", { length: 10 }), // YYYY-MM-DD, prevent duplicate daily alerts
-  weeklyReportFrequency: mysqlEnum("weeklyReportFrequency", ["weekly", "biweekly", "monthly"]).default("weekly").notNull(), // weekly report push frequency
+  weeklyReportFrequency: mysqlEnum("weeklyReportFrequency", ["daily", "weekly", "biweekly", "monthly"]).default("weekly").notNull(), // report push frequency
   weeklyReportHour: int("weeklyReportHour").default(19).notNull(), // 0-23, hour to send weekly report
   lastWeeklyReportDate: varchar("lastWeeklyReportDate", { length: 10 }), // YYYY-MM-DD, last weekly report sent date
   notificationSound: mysqlEnum("notificationSound", ["default", "gentle", "urgent", "silent"]).default("default").notNull(), // notification sound preference

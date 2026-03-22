@@ -169,6 +169,13 @@
       "when": 1774153020002,
       "tag": "0023_youthful_warpath",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1774156482552,
+      "tag": "0024_slippery_strong_guy",
+      "breakpoints": true
     }
   ]
 }
