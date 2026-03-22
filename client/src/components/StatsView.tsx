@@ -365,7 +365,7 @@ export default function StatsView({ entries }: StatsViewProps) {
           )}
 
           {/* Headache & Painkiller Charts */}
-          <HeadachePainkillerChart entries={filteredEntries} />
+          <HeadachePainkillerChart entries={filteredEntries} rangeDays={RANGES.find((r) => r.key === range)?.days ?? 30} />
 
           {/* Painkiller-Headache Scatter Plot */}
           <PainkillerHeadacheScatter entries={filteredEntries} />

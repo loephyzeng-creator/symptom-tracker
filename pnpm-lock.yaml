@@ -148,6 +148,9 @@ importers:
       framer-motion:
         specifier: ^12.23.22
         version: 12.23.22(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      html2canvas:
+        specifier: ^1.4.1
+        version: 1.4.1
       html2canvas-pro:
         specifier: ^2.0.2
         version: 2.0.2
@@ -8048,7 +8051,6 @@ snapshots:
     dependencies:
       css-line-break: 2.1.0
       text-segmentation: 1.0.3
-    optional: true
 
   http-errors@2.0.0:
     dependencies:
