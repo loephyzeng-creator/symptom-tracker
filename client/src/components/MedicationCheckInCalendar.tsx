@@ -335,10 +335,17 @@ export default function MedicationCheckInCalendar({
     return grid;
   }, [year, month, data]);
 
-  // Monthly painkiller count
-  const monthlyPainkillerCount = useMemo(() => {
-    return calendarGrid.filter((cell) => cell?.painkillerTaken).length;
-  }, [calendarGrid]);
+  // Rolling 30-day painkiller count (from painkillerUsage API)
+  const painkillerTodayStr = useMemo(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+  }, []);
+  const { data: painkillerUsageData } = trpc.entries.painkillerUsage.useQuery(
+    { date: painkillerTodayStr },
+    { staleTime: 60_000 }
+  );
+  const rolling30DayPainkillerCount = painkillerUsageData?.days ?? 0;
+  const painkillerLimit = painkillerUsageData?.limit ?? 10;
 
   const handlePrevMonth = () => {
     if (month === 1) {
@@ -444,30 +451,30 @@ export default function MedicationCheckInCalendar({
               </div>
             )}
 
-            {/* Monthly painkiller count */}
-            {monthlyPainkillerCount > 0 && (
+            {/* Rolling 30-day painkiller count */}
+            {rolling30DayPainkillerCount > 0 && (
               <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${
-                monthlyPainkillerCount >= 10
+                rolling30DayPainkillerCount >= painkillerLimit
                   ? "bg-red-50 dark:bg-red-950/30 border-red-200/50 dark:border-red-800/30"
-                  : monthlyPainkillerCount >= 7
+                  : rolling30DayPainkillerCount >= painkillerLimit * 0.7
                     ? "bg-orange-50 dark:bg-orange-950/30 border-orange-200/50 dark:border-orange-800/30"
                     : "bg-rose-50 dark:bg-rose-950/30 border-rose-200/50 dark:border-rose-800/30"
               }`}>
                 <Pill className={`w-3.5 h-3.5 ${
-                  monthlyPainkillerCount >= 10
+                  rolling30DayPainkillerCount >= painkillerLimit
                     ? "text-red-500"
-                    : monthlyPainkillerCount >= 7
+                    : rolling30DayPainkillerCount >= painkillerLimit * 0.7
                       ? "text-orange-500"
                       : "text-rose-500"
                 }`} />
                 <span className={`text-xs font-semibold ${
-                  monthlyPainkillerCount >= 10
+                  rolling30DayPainkillerCount >= painkillerLimit
                     ? "text-red-600 dark:text-red-400"
-                    : monthlyPainkillerCount >= 7
+                    : rolling30DayPainkillerCount >= painkillerLimit * 0.7
                       ? "text-orange-600 dark:text-orange-400"
                       : "text-rose-600 dark:text-rose-400"
                 }`}>
-                  止疼药 {monthlyPainkillerCount}天
+                  近30天止疼药 {rolling30DayPainkillerCount}天
                 </span>
               </div>
             )}

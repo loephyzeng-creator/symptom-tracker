@@ -138,15 +138,38 @@ describe("Painkiller Enhancement Features", () => {
     });
   });
 
-  describe("Feature 2: PainkillerTrendChart uses checkInCalendar data", () => {
-    it("checkInCalendar procedure should exist in router", async () => {
+  describe("Feature 2: PainkillerTrendChart uses rolling 30-day data", () => {
+    it("entries.list procedure should exist for fetching entries", async () => {
       const { appRouter } = await import("./routers");
-      expect(appRouter._def.procedures).toHaveProperty("medReminders.checkInCalendar");
+      expect(appRouter._def.procedures).toHaveProperty("entries.list");
     });
 
-    it("entries.painkillerUsage procedure should exist in router", async () => {
+    it("entries.painkillerUsage procedure should exist for limit data", async () => {
       const { appRouter } = await import("./routers");
       expect(appRouter._def.procedures).toHaveProperty("entries.painkillerUsage");
+    });
+
+    it("PainkillerTrendChart component should use rolling 30-day window", () => {
+      const fs = require("fs");
+      const path = require("path");
+      const chartPath = path.resolve(__dirname, "../client/src/components/PainkillerTrendChart.tsx");
+      const chartContent = fs.readFileSync(chartPath, "utf-8");
+      // Should use entries.list, not checkInCalendar
+      expect(chartContent).toContain("entries.list");
+      expect(chartContent).toContain("近30天止疼药趋势");
+      expect(chartContent).toContain("滚动统计最近30天");
+      // Should NOT reference calendar month
+      expect(chartContent).not.toContain("本月止疼药趋势");
+    });
+
+    it("MedicationCheckInCalendar should show rolling 30-day count", () => {
+      const fs = require("fs");
+      const path = require("path");
+      const calPath = path.resolve(__dirname, "../client/src/components/MedicationCheckInCalendar.tsx");
+      const calContent = fs.readFileSync(calPath, "utf-8");
+      expect(calContent).toContain("近30天止疼药");
+      expect(calContent).toContain("painkillerUsage");
+      expect(calContent).toContain("rolling30DayPainkillerCount");
     });
   });
 

@@ -1,6 +1,6 @@
 /**
- * PainkillerTrendChart — Mini line chart showing monthly painkiller usage trend
- * Displays weekly painkiller usage frequency for the current month
+ * PainkillerTrendChart — Mini line chart showing painkiller usage trend
+ * Displays weekly painkiller usage frequency for the last 30 days (rolling window)
  * with headache attack level correlation.
  */
 import { useMemo } from "react";
@@ -20,15 +20,12 @@ import { Pill, TrendingUp, TrendingDown, Minus, AlertTriangle } from "lucide-rea
 
 export default function PainkillerTrendChart() {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
-  const todayStr = `${year}-${String(month).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-  // Get calendar data which includes painkillerTaken per day
-  const { data: calendarData, isLoading } = trpc.medReminders.checkInCalendar.useQuery(
-    { year, month },
-    { staleTime: 60_000 }
-  );
+  // Get all entries — we'll filter to last 30 days on the client
+  const { data: entries, isLoading: entriesLoading } = trpc.entries.list.useQuery(undefined, {
+    staleTime: 60_000,
+  });
 
   // Get painkiller limit setting
   const { data: usageData } = trpc.entries.painkillerUsage.useQuery(
@@ -38,46 +35,71 @@ export default function PainkillerTrendChart() {
 
   const limit = usageData?.limit ?? 10;
 
-  // Build weekly data from calendar
+  // Build weekly data from last 30 days
   const { weeklyData, totalDays, trend } = useMemo(() => {
-    if (!calendarData?.days) return { weeklyData: [], totalDays: 0, trend: "stable" as const };
+    if (!entries || entries.length === 0) return { weeklyData: [], totalDays: 0, trend: "stable" as const };
 
-    const pastDays = calendarData.days.filter(
-      (d) => d.status !== "future"
+    // Calculate the date 30 days ago
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29); // Include today = 30 days
+
+    const thirtyDaysAgoStr = `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(thirtyDaysAgo.getDate()).padStart(2, "0")}`;
+    const todayStr2 = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+    // Filter entries to last 30 days
+    const recentEntries = entries.filter(
+      (e: any) => e.date >= thirtyDaysAgoStr && e.date <= todayStr2
     );
 
-    // Group by week number within the month
-    const weeks: { weekLabel: string; painkillerDays: number; totalDays: number; dates: string[] }[] = [];
-    let currentWeek: typeof weeks[0] | null = null;
-    let weekNum = 1;
-
-    for (const day of pastDays) {
-      const d = new Date(day.date + "T00:00:00");
-      const dayOfWeek = d.getDay();
-
-      // Start new week on Monday (or first day of month)
-      if (!currentWeek || (dayOfWeek === 1 && currentWeek.dates.length > 0)) {
-        if (currentWeek) weeks.push(currentWeek);
-        currentWeek = {
-          weekLabel: `第${weekNum}周`,
-          painkillerDays: 0,
-          totalDays: 0,
-          dates: [],
-        };
-        weekNum++;
-      }
-
-      currentWeek.totalDays++;
-      currentWeek.dates.push(day.date);
-      if (day.painkillerTaken) {
-        currentWeek.painkillerDays++;
-      }
-    }
-    if (currentWeek && currentWeek.dates.length > 0) {
-      weeks.push(currentWeek);
+    // Build a map of date -> painkillerTaken for the 30-day window
+    const painkillerMap = new Map<string, boolean>();
+    for (const e of recentEntries) {
+      painkillerMap.set(e.date, !!(e as any).painkillerTaken);
     }
 
-    const totalPainkillerDays = pastDays.filter((d) => d.painkillerTaken).length;
+    // Generate all 30 days and group into ~4 weeks
+    const allDays: { date: string; painkillerTaken: boolean }[] = [];
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(thirtyDaysAgo);
+      d.setDate(d.getDate() + i);
+      if (d > today) break;
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      allDays.push({
+        date: ds,
+        painkillerTaken: painkillerMap.get(ds) ?? false,
+      });
+    }
+
+    // Group into 4 periods of ~7-8 days each
+    const periodSize = Math.ceil(allDays.length / 4);
+    const weeks: { weekLabel: string; painkillerDays: number; totalDays: number; startDate: string; endDate: string }[] = [];
+
+    for (let i = 0; i < 4; i++) {
+      const start = i * periodSize;
+      const end = Math.min(start + periodSize, allDays.length);
+      if (start >= allDays.length) break;
+
+      const periodDays = allDays.slice(start, end);
+      const painkillerCount = periodDays.filter((d) => d.painkillerTaken).length;
+
+      // Format date range label
+      const startD = new Date(periodDays[0].date + "T00:00:00");
+      const endD = new Date(periodDays[periodDays.length - 1].date + "T00:00:00");
+      const startLabel = `${startD.getMonth() + 1}/${startD.getDate()}`;
+      const endLabel = `${endD.getMonth() + 1}/${endD.getDate()}`;
+
+      weeks.push({
+        weekLabel: `${startLabel}-${endLabel}`,
+        painkillerDays: painkillerCount,
+        totalDays: periodDays.length,
+        startDate: periodDays[0].date,
+        endDate: periodDays[periodDays.length - 1].date,
+      });
+    }
+
+    const totalPainkillerDays = allDays.filter((d) => d.painkillerTaken).length;
 
     // Determine trend
     let trendDir: "up" | "down" | "stable" = "stable";
@@ -100,16 +122,16 @@ export default function PainkillerTrendChart() {
       totalDays: totalPainkillerDays,
       trend: trendDir,
     };
-  }, [calendarData]);
+  }, [entries]);
 
-  if (isLoading) return null;
-  if (!calendarData || weeklyData.length === 0) return null;
+  if (entriesLoading) return null;
+  if (!entries || weeklyData.length === 0) return null;
 
   const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
   const trendColor = trend === "up" ? "text-red-500" : trend === "down" ? "text-emerald-500" : "text-muted-foreground";
   const trendLabel = trend === "up" ? "上升趋势" : trend === "down" ? "下降趋势" : "平稳";
 
-  // Weekly limit reference (proportional to 10 days / ~4.3 weeks)
+  // Weekly limit reference (proportional to limit days / ~4.3 weeks)
   const weeklyLimitRef = Math.round((limit / 30) * 7 * 10) / 10;
 
   const isOverLimit = totalDays >= limit;
@@ -137,8 +159,8 @@ export default function PainkillerTrendChart() {
             }`} />
           </div>
           <div>
-            <h3 className="font-serif font-semibold text-sm">本月止疼药趋势</h3>
-            <p className="text-[10px] text-muted-foreground">{year}年{month}月</p>
+            <h3 className="font-serif font-semibold text-sm">近30天止疼药趋势</h3>
+            <p className="text-[10px] text-muted-foreground">滚动统计最近30天</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -159,7 +181,7 @@ export default function PainkillerTrendChart() {
               : "bg-rose-50 dark:bg-rose-950/30 border-rose-200/50 dark:border-rose-800/30 text-rose-600 dark:text-rose-400"
         }`}>
           <Pill className="w-3 h-3" />
-          本月 {totalDays} 天
+          近30天 {totalDays} 天
         </div>
         <span className="text-[11px] text-muted-foreground">
           阈值 {limit} 天/30天
@@ -185,7 +207,7 @@ export default function PainkillerTrendChart() {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.3} />
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+              tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
               axisLine={false}
               tickLine={false}
             />
