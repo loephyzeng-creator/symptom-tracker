@@ -44,6 +44,7 @@ import TimePicker from "@/components/TimePicker";
 import AnimatedNumber from "@/components/AnimatedNumber";
 import StockChangeLogPanel from "@/components/StockChangeLogPanel";
 import { exportSingleReminder, exportAllReminders } from "@/lib/icsExport";
+import { getLocalDateStr } from "@shared/timezone";
 
 const DAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
@@ -96,7 +97,7 @@ const EMPTY_FORM: ReminderForm = {
   expirationAlertDays: 30,
   groupId: null,
   intervalHours: null,
-  startDate: new Date().toISOString().slice(0, 10),
+  startDate: getLocalDateStr(),
 };
 
 function DaySelector({
@@ -722,11 +723,7 @@ export default function MedicationReminders() {
   const [showRestockDialog, setShowRestockDialog] = useState(false);
   const [stockLogOpenId, setStockLogOpenId] = useState<number | null>(null);
   const [restockQuantity, setRestockQuantity] = useState(30);
-  const [restockDate, setRestockDate] = useState(() => {
-    const now = new Date();
-    const offset = 8 * 60 * 60 * 1000;
-    return new Date(now.getTime() + offset).toISOString().slice(0, 10);
-  });
+  const [restockDate, setRestockDate] = useState(() => getLocalDateStr());
 
   const utils = trpc.useUtils();
   const { data: reminders = [], isLoading } =

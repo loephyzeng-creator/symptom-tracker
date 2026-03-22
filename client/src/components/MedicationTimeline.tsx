@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Check, X, Minus, ChevronLeft, ChevronRight, Pill } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getLocalDateStr } from "@shared/timezone";
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 
@@ -35,8 +36,8 @@ export default function MedicationTimeline() {
     const start = new Date(year, month, 1);
     const end = new Date(year, month + 1, 0); // Last day of month
     return {
-      startDate: start.toISOString().slice(0, 10),
-      endDate: end.toISOString().slice(0, 10),
+      startDate: getLocalDateStr(start),
+      endDate: getLocalDateStr(end),
       monthLabel: `${start.getFullYear()}年${start.getMonth() + 1}月`,
     };
   }, [monthOffset]);
@@ -150,7 +151,7 @@ export default function MedicationTimeline() {
               {data.days.map((day) => {
                 const isToday =
                   day.date ===
-                  new Date().toISOString().slice(0, 10);
+                  getLocalDateStr();
                 return (
                   <th
                     key={day.date}
@@ -187,7 +188,7 @@ export default function MedicationTimeline() {
                   const med = day.medications[medIdx];
                   const isToday =
                     day.date ===
-                    new Date().toISOString().slice(0, 10);
+                    getLocalDateStr();
                   return (
                     <td
                       key={day.date}

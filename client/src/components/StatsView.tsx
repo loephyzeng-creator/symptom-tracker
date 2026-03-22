@@ -19,6 +19,7 @@ import HeadachePainkillerChart from "@/components/HeadachePainkillerChart";
 import PainkillerHeadacheScatter from "@/components/PainkillerHeadacheScatter";
 import { motion } from "framer-motion";
 import { Calendar, TrendingDown, TrendingUp, Minus, BarChart3, Flame, Sparkles, Pill } from "lucide-react";
+import { getLocalDateStr } from "@shared/timezone";
 
 interface StatsViewProps {
   entries: SymptomEntry[];
@@ -82,7 +83,7 @@ export default function StatsView({ entries }: StatsViewProps) {
     if (!r || r.key === "all") return entries;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - r.days);
-    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    const cutoffStr = getLocalDateStr(cutoff);
     return entries.filter((e) => e.date >= cutoffStr);
   }, [entries, range]);
 

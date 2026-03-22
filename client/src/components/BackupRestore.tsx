@@ -10,6 +10,7 @@ import {
   Download, Upload, Shield, CheckCircle, AlertCircle, Loader2, Database,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getLocalDateStr } from "@shared/timezone";
 
 export default function BackupRestore() {
   const [isExporting, setIsExporting] = useState(false);
@@ -45,7 +46,7 @@ export default function BackupRestore() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `症状日记_完整备份_${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `症状日记_完整备份_${getLocalDateStr()}.json`;
       a.click();
       URL.revokeObjectURL(url);
 

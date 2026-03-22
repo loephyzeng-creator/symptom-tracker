@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { getLocalDateStr } from "@shared/timezone";
 
 const ALL_METRICS = [
   { key: "dizziness", label: "头晕脑胀", icon: Brain, color: "text-terracotta", default: 0, invert: true },
@@ -197,7 +198,7 @@ export default function QuickRecord({ date, existingEntry, onSave, onSwitchToMed
     }
   };
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getLocalDateStr();
   const isToday = date === todayStr;
 
   return (

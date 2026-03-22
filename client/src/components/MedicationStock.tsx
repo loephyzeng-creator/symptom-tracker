@@ -27,6 +27,7 @@ import {
 import { exportSingleStockReminder, exportAllStockReminders } from "@/lib/icsExport";
 import AnimatedNumber from "@/components/AnimatedNumber";
 import StockChangeLogPanel from "@/components/StockChangeLogPanel";
+import { getLocalDateStr } from "@shared/timezone";
 
 function getRemainingColor(days: number, alertDays: number): string {
   if (days <= 0) return "#c45c5c"; // red - empty
@@ -41,9 +42,7 @@ function getRemainingLabel(days: number): string {
 }
 
 function getTodayStr(): string {
-  const now = new Date();
-  const offset = 8 * 60 * 60 * 1000;
-  return new Date(now.getTime() + offset).toISOString().slice(0, 10);
+  return getLocalDateStr();
 }
 
 // StockChangeLogPanel is now imported from @/components/StockChangeLogPanel

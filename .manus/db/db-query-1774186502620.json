@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, userId, date, painkillerTaken FROM symptom_entries WHERE userId = 999999 AND date = '2099-12-31';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT id, userId, date, painkillerTaken FROM symptom_entries WHERE userId = 999999 AND date = '2099-12-31';",
+  "rows": [
+    {
+      "id": "60004",
+      "userId": "999999",
+      "date": "2099-12-31",
+      "painkillerTaken": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tdate\tpainkillerTaken\n60004\t999999\t2099-12-31\t0\n",
+  "stderr": "",
+  "execution_time_ms": 129
+}

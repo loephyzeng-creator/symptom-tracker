@@ -14,6 +14,7 @@ import { Brain, Pill, AlertTriangle, Download, Loader2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { getLocalDateStr } from "@shared/timezone";
 
 const HEADACHE_LEVELS = [
   { value: 0, label: "\u65e0", color: "#d4d4d4" },
@@ -110,7 +111,7 @@ function getRangeLabel(days: number): string {
 }
 
 export default function HeadachePainkillerChart({ entries, rangeDays = 30 }: HeadachePainkillerChartProps) {
-  const [today] = useState(() => new Date().toISOString().slice(0, 10));
+  const [today] = useState(() => getLocalDateStr());
   const painkillerUsage = trpc.entries.painkillerUsage.useQuery({ date: today });
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);

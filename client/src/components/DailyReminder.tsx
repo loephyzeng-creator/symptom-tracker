@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, X, PenLine, Sparkles } from "lucide-react";
+import { getLocalDateStr } from "@shared/timezone";
 
 interface DailyReminderProps {
   /** Whether today's entry has been recorded */
@@ -53,7 +54,7 @@ export default function DailyReminder({
   useEffect(() => {
     const stored = localStorage.getItem(DISMISS_KEY);
     if (stored) {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getLocalDateStr();
       if (stored === today) {
         setDismissed(true);
       }
@@ -67,7 +68,7 @@ export default function DailyReminder({
 
   const handleDismiss = () => {
     setDismissed(true);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateStr();
     localStorage.setItem(DISMISS_KEY, today);
   };
 

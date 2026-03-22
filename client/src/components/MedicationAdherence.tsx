@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { motion } from "framer-motion";
 import { Pill, TrendingUp, Calendar, CheckCircle2, XCircle } from "lucide-react";
+import { getLocalDateStr } from "@shared/timezone";
 
 const RANGES = [
   { key: "7d", label: "7天", days: 7 },
@@ -30,8 +31,8 @@ function getDateRange(days: number): { startDate: string; endDate: string } {
   const start = new Date();
   start.setDate(start.getDate() - days + 1);
   return {
-    startDate: start.toISOString().slice(0, 10),
-    endDate: end.toISOString().slice(0, 10),
+    startDate: getLocalDateStr(start),
+    endDate: getLocalDateStr(end),
   };
 }
 

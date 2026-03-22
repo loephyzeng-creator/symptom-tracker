@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
-import { Bell, BellOff, Clock, Loader2, Check, BellRing, AlertTriangle } from "lucide-react";
+import { Bell, BellOff, Clock, Loader2, Check, BellRing, AlertTriangle, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { TIMEZONE_OPTIONS, getBrowserTimezone } from "@shared/timezone";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
@@ -38,12 +39,16 @@ export default function NotificationSettings() {
   const [hasChanges, setHasChanges] = useState(false);
   const [pushStatus, setPushStatus] = useState<PushStatus>("loading");
   const [subscribing, setSubscribing] = useState(false);
+  const [timezone, setTimezone] = useState(getBrowserTimezone());
 
   useEffect(() => {
     if (settings) {
       setEnabled(settings.enabled === 1);
       setHour(settings.reminderHour);
       setMinute(settings.reminderMinute);
+      if (settings.timezone) {
+        setTimezone(settings.timezone);
+      }
     }
   }, [settings]);
 
@@ -144,12 +149,18 @@ export default function NotificationSettings() {
     }
   };
 
+  const handleTimezoneChange = (newTz: string) => {
+    setTimezone(newTz);
+    setHasChanges(true);
+  };
+
   const handleSave = async () => {
     try {
       await updateMutation.mutateAsync({
         enabled: enabled ? 1 : 0,
         reminderHour: hour,
         reminderMinute: minute,
+        timezone,
       });
       utils.notification.getSettings.invalidate();
       setHasChanges(false);
@@ -389,6 +400,36 @@ export default function NotificationSettings() {
           </button>
         </motion.div>
       )}
+
+      {/* Timezone Selector */}
+      <div className="bg-card rounded-2xl border border-border/30 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Globe className="w-4 h-4 text-terracotta" />
+          <p className="text-sm font-semibold text-foreground">时区设置</p>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">
+          提醒推送和日期计算将按照所选时区执行。切换时区后，用药提醒时间会自动适配。
+        </p>
+        <select
+          value={timezone}
+          onChange={(e) => handleTimezoneChange(e.target.value)}
+          className="w-full bg-muted/50 border border-border/30 rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-terracotta/30 transition-colors"
+        >
+          {TIMEZONE_OPTIONS.map((tz) => (
+            <option key={tz.value} value={tz.value}>
+              {tz.label}
+            </option>
+          ))}
+        </select>
+        {timezone !== getBrowserTimezone() && (
+          <button
+            onClick={() => handleTimezoneChange(getBrowserTimezone())}
+            className="mt-2 text-xs text-terracotta hover:text-terracotta/80 transition-colors"
+          >
+            ← 使用浏览器时区 ({TIMEZONE_OPTIONS.find(o => o.value === getBrowserTimezone())?.label || getBrowserTimezone()})
+          </button>
+        )}
+      </div>
 
       {/* Info note */}
       <div className="bg-sage/10 rounded-xl p-3 border border-sage/20">

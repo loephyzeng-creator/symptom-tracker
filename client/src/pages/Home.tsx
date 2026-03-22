@@ -39,6 +39,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { zhCN } from "date-fns/locale";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
+import { getLocalDateStr } from "@shared/timezone";
 
 type TabKey = "record" | "medication" | "stats" | "history" | "settings";
 
@@ -386,9 +387,7 @@ export default function Home() {
   const [quickMode, setQuickMode] = useState(() => {
     try { return localStorage.getItem("record-mode") === "quick"; } catch { return false; }
   });
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
+  const [selectedDate, setSelectedDate] = useState(() => getLocalDateStr());
 
   const {
     entries,
@@ -413,7 +412,7 @@ export default function Home() {
     [getEntryByDate, selectedDate]
   );
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = useMemo(() => getLocalDateStr(), []);
   const hasRecordedToday = useMemo(
     () => !!getEntryByDate(todayStr),
     [getEntryByDate, todayStr]

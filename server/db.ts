@@ -18,6 +18,7 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { buildEntryMedMap, wasMedTaken } from "./medMatchHelper";
+import { getDateStrInTimezone, getTimeInTimezone, DEFAULT_TIMEZONE } from "../shared/timezone";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -423,29 +424,31 @@ export async function getNotificationSettings(userId: number) {
 
 export async function upsertNotificationSettings(
   userId: number,
-  data: { enabled: number; reminderHour: number; reminderMinute: number }
+  data: { enabled: number; reminderHour: number; reminderMinute: number; timezone?: string }
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
   const existing = await getNotificationSettings(userId);
+  const setData: Record<string, any> = {
+    enabled: data.enabled,
+    reminderHour: data.reminderHour,
+    reminderMinute: data.reminderMinute,
+  };
+  if (data.timezone) {
+    setData.timezone = data.timezone;
+  }
 
   if (existing) {
     await db
       .update(notificationSettings)
-      .set({
-        enabled: data.enabled,
-        reminderHour: data.reminderHour,
-        reminderMinute: data.reminderMinute,
-      })
+      .set(setData)
       .where(eq(notificationSettings.userId, userId));
     return { ...existing, ...data };
   } else {
     const result = await db.insert(notificationSettings).values({
       userId,
-      enabled: data.enabled,
-      reminderHour: data.reminderHour,
-      reminderMinute: data.reminderMinute,
+      ...setData,
     });
     return {
       id: Number(result[0].insertId),
@@ -1795,7 +1798,7 @@ export async function computeRealTimeStock(
 
   // Determine the base date for counting usage (reminder creation date or fallback)
   const baseDate = reminder.createdAt
-    ? new Date(reminder.createdAt.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    ? getDateStrInTimezone(DEFAULT_TIMEZONE, reminder.createdAt)
     : "2020-01-01";
 
   const allRestocks = await getAllRestocks(db, reminder.id);
@@ -2200,12 +2203,12 @@ export async function getMonthlyMedicationConsumption(
 
   // Calculate the start date (N months ago)
   const now = new Date();
-  const offset = 8 * 60 * 60 * 1000;
-  const chinaTime = new Date(now.getTime() + offset);
-  const startDate = new Date(chinaTime);
+  const todayStr = getDateStrInTimezone(DEFAULT_TIMEZONE, now);
+  const todayDate = new Date(todayStr + "T00:00:00");
+  const startDate = new Date(todayDate);
   startDate.setMonth(startDate.getMonth() - months + 1);
   startDate.setDate(1);
-  const startDateStr = startDate.toISOString().slice(0, 10);
+  const startDateStr = getDateStrInTimezone(DEFAULT_TIMEZONE, startDate);
 
   // Get all active medication reminders for this user
   const reminders = await db
@@ -2232,9 +2235,9 @@ export async function getMonthlyMedicationConsumption(
 
   // Initialize months
   for (let i = 0; i < months; i++) {
-    const d = new Date(chinaTime);
+    const d = new Date(todayDate);
     d.setMonth(d.getMonth() - (months - 1 - i));
-    const monthKey = d.toISOString().slice(0, 7); // YYYY-MM
+    const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; // YYYY-MM
     monthMap.set(monthKey, new Map());
   }
 
@@ -2437,12 +2440,7 @@ export async function confirmMedicationTaken(
   }
 
   const med = reminder[0];
-  const todayStr = date || (() => {
-    const now = new Date();
-    const offset = 8 * 60 * 60 * 1000;
-    const chinaTime = new Date(now.getTime() + offset);
-    return chinaTime.toISOString().slice(0, 10);
-  })();
+  const todayStr = date || getDateStrInTimezone(DEFAULT_TIMEZONE);
 
   const allTimes = getAllReminderTimes(med);
   const effectiveTimeIndex = timeIndex ?? 0;
@@ -2549,12 +2547,7 @@ export async function unconfirmMedicationTaken(
   const allTimes = getAllReminderTimes(med);
   const effectiveTimeIndex = timeIndex ?? 0;
 
-  const todayStr = date || (() => {
-    const now = new Date();
-    const offset = 8 * 60 * 60 * 1000;
-    const chinaTime = new Date(now.getTime() + offset);
-    return chinaTime.toISOString().slice(0, 10);
-  })();
+  const todayStr = date || getDateStrInTimezone(DEFAULT_TIMEZONE);
 
   // Get the target date's entry
   const existing = await getEntryByUserAndDate(userId, todayStr);
@@ -3277,12 +3270,7 @@ export async function confirmGroupMedicationsTaken(
     return { confirmed: 0, skipped: 0 };
   }
 
-  const todayStr = (() => {
-    const now = new Date();
-    const offset = 8 * 60 * 60 * 1000;
-    const chinaTime = new Date(now.getTime() + offset);
-    return chinaTime.toISOString().slice(0, 10);
-  })();
+  const todayStr = getDateStrInTimezone(DEFAULT_TIMEZONE);
 
   // Filter to medications scheduled for today (considering repeatDays + startDate)
   const scheduledReminders = reminders.filter((r) => isReminderScheduledOnDate(r, todayStr));

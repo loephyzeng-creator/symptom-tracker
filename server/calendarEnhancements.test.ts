@@ -4,9 +4,12 @@
  * 2. Monthly painkiller usage summary (frontend computed from calendar data)
  * 3. Long-press to toggle painkiller status (uses entries.togglePainkiller mutation)
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import { appRouter } from "./routers";
 import * as db from "./db";
+import { getDb } from "./db";
+import { symptomEntries } from "../drizzle/schema";
+import { and, eq, inArray } from "drizzle-orm";
 
 describe("Calendar Enhancement Features", () => {
   describe("Feature 1: Day Detail with Headache & Painkiller Data", () => {
@@ -60,6 +63,25 @@ describe("Calendar Enhancement Features", () => {
   });
 
   describe("Feature 3: Quick Toggle Painkiller (Long-press)", () => {
+    // Use unique user IDs and dates to avoid cross-test contamination
+    const TOGGLE_USER = 888801;
+    const TOGGLE_DATE = "2098-06-15";
+    const DETAIL_USER = 888802;
+    const DETAIL_DATE = "2098-06-16";
+
+    afterAll(async () => {
+      // Clean up test data to prevent flaky tests on re-runs
+      const database = await getDb();
+      if (database) {
+        await database.delete(symptomEntries).where(
+          and(
+            inArray(symptomEntries.userId, [TOGGLE_USER, DETAIL_USER]),
+            inArray(symptomEntries.date, [TOGGLE_DATE, DETAIL_DATE])
+          )
+        );
+      }
+    });
+
     it("should have entries.togglePainkiller mutation procedure", () => {
       expect(appRouter._def.procedures).toHaveProperty("entries.togglePainkiller");
     });
@@ -70,27 +92,27 @@ describe("Calendar Enhancement Features", () => {
 
     it("togglePainkillerForDate should toggle painkiller for a new date", async () => {
       // First toggle should set painkillerTaken to true (creates entry)
-      const result1 = await db.togglePainkillerForDate(999999, "2099-12-31");
+      const result1 = await db.togglePainkillerForDate(TOGGLE_USER, TOGGLE_DATE);
       expect(result1).toBe(true);
 
       // Second toggle should set painkillerTaken to false
-      const result2 = await db.togglePainkillerForDate(999999, "2099-12-31");
+      const result2 = await db.togglePainkillerForDate(TOGGLE_USER, TOGGLE_DATE);
       expect(result2).toBe(false);
 
       // Third toggle should set it back to true
-      const result3 = await db.togglePainkillerForDate(999999, "2099-12-31");
+      const result3 = await db.togglePainkillerForDate(TOGGLE_USER, TOGGLE_DATE);
       expect(result3).toBe(true);
     });
 
     it("togglePainkillerForDate should reflect in day detail", async () => {
       // After toggling to true, dayDetail should show painkillerTaken = true
-      await db.togglePainkillerForDate(999998, "2099-12-30");
-      const detail = await db.getMedicationCheckInDayDetail(999998, "2099-12-30");
+      await db.togglePainkillerForDate(DETAIL_USER, DETAIL_DATE);
+      const detail = await db.getMedicationCheckInDayDetail(DETAIL_USER, DETAIL_DATE);
       expect(detail.painkillerTaken).toBe(true);
 
       // Toggle back to false
-      await db.togglePainkillerForDate(999998, "2099-12-30");
-      const detail2 = await db.getMedicationCheckInDayDetail(999998, "2099-12-30");
+      await db.togglePainkillerForDate(DETAIL_USER, DETAIL_DATE);
+      const detail2 = await db.getMedicationCheckInDayDetail(DETAIL_USER, DETAIL_DATE);
       expect(detail2.painkillerTaken).toBe(false);
     });
   });

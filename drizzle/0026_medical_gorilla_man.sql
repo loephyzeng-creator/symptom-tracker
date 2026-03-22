@@ -1,0 +1,1 @@
+ALTER TABLE `notification_settings` ADD `timezone` varchar(50) DEFAULT 'Asia/Shanghai' NOT NULL;

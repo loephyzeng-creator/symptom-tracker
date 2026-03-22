@@ -8,6 +8,7 @@ import type { SymptomEntry } from "@/hooks/useSymptomData";
 import { formatMedications } from "@/hooks/useSymptomData";
 import { motion } from "framer-motion";
 import { FileText, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
+import { getLocalDateStr } from "@shared/timezone";
 import { toast } from "sonner";
 
 interface SymptomSummaryProps {
@@ -38,7 +39,7 @@ function getEntriesInPeriod(entries: SymptomEntry[], period: SummaryPeriod): Sym
   } else {
     cutoff.setDate(now.getDate() - 30);
   }
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const cutoffStr = getLocalDateStr(cutoff);
   return entries.filter((e) => e.date >= cutoffStr);
 }
 

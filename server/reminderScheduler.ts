@@ -19,6 +19,7 @@ import {
 } from "./db";
 import webpush from "web-push";
 import { ENV } from "./_core/env";
+import { getDateStrInTimezone, getTimeInTimezone, getDateTimeStrInTimezone, DEFAULT_TIMEZONE } from "../shared/timezone";
 
 /**
  * Check interval in milliseconds (every 15 minutes)
@@ -42,43 +43,27 @@ function configureWebPush() {
 }
 
 /**
- * Get current date string in YYYY-MM-DD format (UTC+8 for China timezone)
+ * Get current date string in YYYY-MM-DD format using user's timezone.
+ * Falls back to DEFAULT_TIMEZONE if no timezone provided.
  */
-function getTodayStr(): string {
-  const now = new Date();
-  // UTC+8
-  const offset = 8 * 60 * 60 * 1000;
-  const chinaTime = new Date(now.getTime() + offset);
-  return chinaTime.toISOString().slice(0, 10);
+function getTodayStr(tz?: string): string {
+  return getDateStrInTimezone(tz || DEFAULT_TIMEZONE);
 }
 
 /**
- * Get current hour, minute, and day of week in China timezone (UTC+8)
+ * Get current hour, minute, and day of week in user's timezone.
+ * Falls back to DEFAULT_TIMEZONE if no timezone provided.
  */
-function getChinaTime(): { hour: number; minute: number; dayOfWeek: number } {
-  const now = new Date();
-  const offset = 8 * 60 * 60 * 1000;
-  const chinaTime = new Date(now.getTime() + offset);
-  return {
-    hour: chinaTime.getUTCHours(),
-    minute: chinaTime.getUTCMinutes(),
-    dayOfWeek: chinaTime.getUTCDay(), // 0=Sunday, 6=Saturday
-  };
+function getChinaTime(tz?: string): { hour: number; minute: number; dayOfWeek: number } {
+  return getTimeInTimezone(tz || DEFAULT_TIMEZONE);
 }
 
 /**
- * Get current China time as ISO-like string for snooze comparison "YYYY-MM-DDTHH:MM"
+ * Get current time as ISO-like string for snooze comparison "YYYY-MM-DDTHH:MM".
+ * Falls back to DEFAULT_TIMEZONE if no timezone provided.
  */
-function getChinaTimeStr(): string {
-  const now = new Date();
-  const offset = 8 * 60 * 60 * 1000;
-  const chinaTime = new Date(now.getTime() + offset);
-  const y = chinaTime.getUTCFullYear();
-  const mo = String(chinaTime.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(chinaTime.getUTCDate()).padStart(2, "0");
-  const h = String(chinaTime.getUTCHours()).padStart(2, "0");
-  const mi = String(chinaTime.getUTCMinutes()).padStart(2, "0");
-  return `${y}-${mo}-${d}T${h}:${mi}`;
+function getChinaTimeStr(tz?: string): string {
+  return getDateTimeStrInTimezone(tz || DEFAULT_TIMEZONE).replace(" ", "T");
 }
 
 /**

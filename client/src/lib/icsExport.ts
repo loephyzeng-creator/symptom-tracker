@@ -229,7 +229,7 @@ function formatIcsFullDate(dateStr: string, hour: number, minute: number): strin
  */
 function generateStockVEvent(item: StockItem): string {
   // Calculate the refill reminder date: estimatedRunOutDate - alertDays
-  const runOutDate = new Date(item.estimatedRunOutDate + "T00:00:00+08:00");
+  const runOutDate = new Date(item.estimatedRunOutDate + "T00:00:00");
   const refillDate = new Date(runOutDate.getTime() - item.alertDays * 24 * 60 * 60 * 1000);
   
   // If refill date is already past, use tomorrow

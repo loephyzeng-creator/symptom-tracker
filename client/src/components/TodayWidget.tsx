@@ -19,6 +19,7 @@ import {
   Minus,
   Activity,
 } from "lucide-react";
+import { getLocalDateStr } from "@shared/timezone";
 
 const METRICS = [
   { key: "dizziness", label: "头晕", icon: Brain, invert: true },
@@ -41,11 +42,11 @@ interface TodayWidgetProps {
 function getYesterdayStr(): string {
   const d = new Date();
   d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+  return getLocalDateStr(d);
 }
 
 function getTodayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return getLocalDateStr();
 }
 
 /**

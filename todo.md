@@ -636,3 +636,13 @@
 
 ## 撤销按钮位置调整
 - [x] 垃圾桶图标从行末尾移到日期后面，改善视觉层次
+
+## 时区适配修复
+- [x] 数据库：notification_settings 表添加 timezone 字段（默认 Asia/Shanghai）
+- [x] 共享工具：创建 shared/timezone.ts 时区工具函数（getLocalDateStr, getTimeInTimezone 等）
+- [x] 前端：所有 toISOString().slice(0,10) 替换为本地时间日期字符串
+- [x] 前端：设置页面添加时区选择器
+- [x] 后端 db.ts：所有 chinaTime / UTC+8 硬编码替换为用户时区
+- [x] 后端 routers.ts：时区相关逻辑替换
+- [x] 后端 reminderScheduler.ts：提醒调度器按用户时区推送
+- [x] 测试验证（833个测试全部通过，含17个新增时区测试）

@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useCallback, useMemo } from "react";
+import { getLocalDateStr } from "@shared/timezone";
 
 export interface MedicationItem {
   name: string;
@@ -133,7 +134,7 @@ export function useSymptomData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `症状日记_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `症状日记_${getLocalDateStr()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }, [entries]);
@@ -174,7 +175,7 @@ export function useSymptomData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `症状日记_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `症状日记_${getLocalDateStr()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }, [entries]);

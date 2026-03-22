@@ -84,6 +84,7 @@ import { generateReportHTML } from "./report";
 import { analyzeSymptoms } from "./aiAnalysis";
 import { invokeLLM } from "./_core/llm";
 import { sendWebPush } from "./reminderScheduler";
+import { getDateTimeStrInTimezone, getDateStrInTimezone, DEFAULT_TIMEZONE } from "../shared/timezone";
 
 const medicationSchema = z.object({
   name: z.string(),
@@ -291,6 +292,7 @@ export const appRouter = router({
           weeklyReportFrequency: "weekly" as const,
           weeklyReportHour: 19,
           notificationSound: "default" as const,
+          timezone: "Asia/Shanghai",
         }),
         hasPushSubscription: subs.length > 0,
       };
@@ -376,6 +378,7 @@ export const appRouter = router({
           enabled: z.number().min(0).max(1),
           reminderHour: z.number().min(0).max(23),
           reminderMinute: z.number().min(0).max(59),
+          timezone: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -708,16 +711,9 @@ export const appRouter = router({
     snooze: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        // Calculate snooze time: now + 15 minutes in China timezone
-        const now = new Date();
-        const offset = 8 * 60 * 60 * 1000;
-        const chinaTime = new Date(now.getTime() + offset + 15 * 60 * 1000);
-        const y = chinaTime.getUTCFullYear();
-        const mo = String(chinaTime.getUTCMonth() + 1).padStart(2, "0");
-        const d = String(chinaTime.getUTCDate()).padStart(2, "0");
-        const h = String(chinaTime.getUTCHours()).padStart(2, "0");
-        const mi = String(chinaTime.getUTCMinutes()).padStart(2, "0");
-        const snoozeUntil = `${y}-${mo}-${d}T${h}:${mi}`;
+        // Calculate snooze time: now + 15 minutes in user's timezone
+        const snoozeTime = new Date(Date.now() + 15 * 60 * 1000);
+        const snoozeUntil = getDateTimeStrInTimezone(DEFAULT_TIMEZONE, snoozeTime).replace(" ", "T");
         await snoozeMedicationReminder(input.id, ctx.user.id, snoozeUntil);
         return { success: true, snoozeUntil };
       }),

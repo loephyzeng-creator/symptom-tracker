@@ -79,6 +79,7 @@ export const notificationSettings = mysqlTable("notification_settings", {
   weeklyReportHour: int("weeklyReportHour").default(19).notNull(), // 0-23, hour to send weekly report
   lastWeeklyReportDate: varchar("lastWeeklyReportDate", { length: 10 }), // YYYY-MM-DD, last weekly report sent date
   notificationSound: mysqlEnum("notificationSound", ["default", "gentle", "urgent", "silent"]).default("default").notNull(), // notification sound preference
+  timezone: varchar("timezone", { length: 50 }).default("Asia/Shanghai").notNull(), // IANA timezone, e.g. 'America/New_York'
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
