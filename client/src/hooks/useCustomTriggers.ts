@@ -1,5 +1,9 @@
-import { trpc } from "@/lib/trpc";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
+import {
+  getTriggers,
+  addTrigger as addTriggerToStorage,
+  deleteTrigger as deleteTriggerFromStorage,
+} from "@/lib/local-storage";
 
 const DEFAULT_TRIGGERS = [
   "睡眠不足", "压力大", "天气变化", "饮食不当", "运动过量",
@@ -8,35 +12,20 @@ const DEFAULT_TRIGGERS = [
 ];
 
 export function useCustomTriggers() {
-  const utils = trpc.useUtils();
-
-  const triggersQuery = trpc.triggers.list.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-  });
-
-  const addMutation = trpc.triggers.add.useMutation({
-    onSuccess: () => {
-      utils.triggers.list.invalidate();
-    },
-  });
-
-  const deleteMutation = trpc.triggers.delete.useMutation({
-    onSuccess: () => {
-      utils.triggers.list.invalidate();
-    },
-  });
+  const [version, setVersion] = useState(0);
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
 
   const customTriggers = useMemo(() => {
-    if (!triggersQuery.data) return [];
-    return triggersQuery.data.map((t) => t.name);
-  }, [triggersQuery.data]);
+    return getTriggers().map((t) => t.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version]);
 
   const customTriggerIds = useMemo(() => {
-    if (!triggersQuery.data) return new Map<string, number>();
     const map = new Map<string, number>();
-    triggersQuery.data.forEach((t) => map.set(t.name, t.id));
+    getTriggers().forEach((t) => map.set(t.name, t.id));
     return map;
-  }, [triggersQuery.data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version]);
 
   const allTriggers = [...DEFAULT_TRIGGERS, ...customTriggers];
 
@@ -45,24 +34,22 @@ export function useCustomTriggers() {
       const trimmed = trigger.trim();
       if (!trimmed) return false;
       if (allTriggers.includes(trimmed)) return false;
-      try {
-        await addMutation.mutateAsync({ name: trimmed });
-        return true;
-      } catch {
-        return false;
-      }
+      addTriggerToStorage(trimmed);
+      refresh();
+      return true;
     },
-    [allTriggers, addMutation]
+    [allTriggers, refresh]
   );
 
   const removeTrigger = useCallback(
     async (trigger: string) => {
       const id = customTriggerIds.get(trigger);
       if (id) {
-        await deleteMutation.mutateAsync({ id });
+        deleteTriggerFromStorage(id);
+        refresh();
       }
     },
-    [customTriggerIds, deleteMutation]
+    [customTriggerIds, refresh]
   );
 
   return {
@@ -71,6 +58,6 @@ export function useCustomTriggers() {
     allTriggers,
     addTrigger,
     removeTrigger,
-    isLoading: triggersQuery.isLoading,
+    isLoading: false,
   };
 }

@@ -5,8 +5,6 @@
  * Typography: Noto Serif SC (headings), Noto Sans SC (body)
  */
 import { useState, useMemo, useEffect } from "react";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import { useSymptomData } from "@/hooks/useSymptomData";
 import { useCustomTriggers } from "@/hooks/useCustomTriggers";
 import SymptomForm from "@/components/SymptomForm";
@@ -15,7 +13,6 @@ import TodayWidget from "@/components/TodayWidget";
 import StatsView from "@/components/StatsView";
 import HistoryView from "@/components/HistoryView";
 import DailyReminder from "@/components/DailyReminder";
-import NotificationSettings from "@/components/NotificationSettings";
 import AlertSettings from "@/components/AlertSettings";
 import MedicationReminders from "@/components/MedicationReminders";
 import MedicationGroupManager from "@/components/MedicationGroupManager";
@@ -27,17 +24,12 @@ import CustomMetricsManager from "@/components/CustomMetricsManager";
 import PainkillerLimitSetting from "@/components/PainkillerLimitSetting";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2,
-  Bell, Settings, Sun, Moon, Zap, CalendarDays, User,
   ChevronLeft, ChevronRight, Database, Shield, Activity, Palette, Pill, RotateCcw
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { zhCN } from "date-fns/locale";
 import { useTheme } from "@/contexts/ThemeContext";
-import { Button } from "@/components/ui/button";
-import { getLocalDateStr, getBrowserTimezone } from "@shared/timezone";
-import { trpc } from "@/lib/trpc";
 
 type TabKey = "record" | "medication" | "stats" | "history" | "settings";
 
@@ -243,45 +235,11 @@ function SettingsSection({
 }
 
 /* ─── Settings Tab Content ─── */
-function SettingsView({
-  user,
-  onLogout,
-}: {
-  user: { name?: string | null; avatarUrl?: string; openId?: string } | null;
-  onLogout: () => void;
-}) {
+function SettingsView() {
   const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="space-y-3">
-      {/* User Profile Card */}
-      <div className="bg-card rounded-xl border border-border/40 p-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-terracotta/10 flex items-center justify-center overflow-hidden">
-            {user?.avatarUrl ? (
-              <img src={user.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
-            ) : (
-              <User className="w-6 h-6 text-terracotta" />
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-foreground truncate">
-              {user?.name ?? "用户"}
-            </p>
-            <p className="text-xs text-muted-foreground">已登录</p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onLogout}
-            className="text-xs h-8 gap-1.5 text-muted-foreground hover:text-destructive hover:border-destructive/40"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            退出
-          </Button>
-        </div>
-      </div>
-
       {/* Appearance */}
       <div className="bg-card rounded-xl border border-border/40 p-4">
         <div className="flex items-center justify-between">
@@ -311,9 +269,6 @@ function SettingsView({
       </div>
 
       {/* Notification & Reminders */}
-      <SettingsSection title="推送通知" icon={Bell} defaultOpen={false}>
-        <NotificationSettings />
-      </SettingsSection>
 
       <SettingsSection title="用药提醒" icon={Clock} defaultOpen={false}>
         <MedicationReminders />
@@ -336,7 +291,7 @@ function SettingsView({
       </SettingsSection>
 
       {/* Data Management */}
-      <SettingsSection title="数据同步" icon={Database} defaultOpen={false}>
+      <SettingsSection title="数据状态" icon={Database} defaultOpen={false}>
         <SyncStatus />
       </SettingsSection>
 
@@ -350,28 +305,14 @@ function SettingsView({
 
       {/* App Info */}
       <div className="text-center py-4">
-        <p className="text-xs text-muted-foreground">症状日记 v1.0</p>
-        <p className="text-[10px] text-muted-foreground mt-1">记录每一天，看见每一步改善</p>
+        <p className="text-xs text-muted-foreground">症状日记 v2.0 · 本地存储版</p>
+        <p className="text-[10px] text-muted-foreground mt-1">数据存储在您的设备上，记录每一天，看见每一步改善</p>
       </div>
     </div>
   );
 }
 
 export default function Home() {
-  const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
-
-  // Auto-detect and save browser timezone on first login
-  const setTimezoneMutation = trpc.notification.setTimezone.useMutation();
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      const browserTz = getBrowserTimezone();
-      if (browserTz && browserTz !== "UTC") {
-        setTimezoneMutation.mutate({ timezone: browserTz });
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user?.id]);
-
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     // Support deep linking from notifications via ?tab=medication etc.
     const params = new URLSearchParams(window.location.search);
@@ -407,7 +348,6 @@ export default function Home() {
     exportData,
     exportCSV,
     importData,
-    isLoading: dataLoading,
   } = useSymptomData();
 
   const {
@@ -438,45 +378,6 @@ export default function Home() {
     setActiveTab("record");
   };
 
-  // Loading state
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-terracotta mb-4" />
-        <p className="text-sm text-muted-foreground">加载中...</p>
-      </div>
-    );
-  }
-
-  // Not logged in — show login prompt
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
-        <div className="text-center max-w-sm">
-          <img
-            src="https://d2xsxph8kpxj0f.cloudfront.net/310519663299884726/7CnBeGxyBasxbKLjVrJzxx/wellness-icon-6VW4Dy8xn7zsxPdzmdLqpc.webp"
-            alt="logo"
-            className="w-16 h-16 rounded-2xl mx-auto mb-4"
-          />
-          <h1 className="font-serif text-2xl font-bold text-foreground mb-2">
-            症状日记
-          </h1>
-          <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
-            记录每一天的身体状况，发现症状规律，<br />
-            数据安全存储在云端，随时随地访问。
-          </p>
-          <Button
-            onClick={() => { window.location.href = getLoginUrl(); }}
-            className="bg-terracotta hover:bg-terracotta/90 text-white rounded-xl h-12 px-8 text-base"
-          >
-            <LogIn className="w-5 h-5 mr-2" />
-            登录开始记录
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header — simplified */}
@@ -484,11 +385,9 @@ export default function Home() {
         <div className="container max-w-lg mx-auto px-4">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-2.5">
-              <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663299884726/7CnBeGxyBasxbKLjVrJzxx/wellness-icon-6VW4Dy8xn7zsxPdzmdLqpc.webp"
-                alt="logo"
-                className="w-8 h-8 rounded-lg"
-              />
+              <div className="w-8 h-8 rounded-lg bg-terracotta/15 flex items-center justify-center">
+                <Pill className="w-4 h-4 text-terracotta" />
+              </div>
               <div>
                 <h1 className="font-serif text-base font-bold leading-tight text-foreground">
                   症状日记
@@ -509,7 +408,7 @@ export default function Home() {
       {/* Content */}
       <main className="flex-1 container max-w-lg mx-auto px-4 py-5 pb-24">
         {/* Daily reminder - show on all tabs except record and settings when not recorded today */}
-        {!dataLoading && activeTab !== "record" && activeTab !== "settings" && activeTab !== "medication" && (
+        {activeTab !== "record" && activeTab !== "settings" && activeTab !== "medication" && (
           <DailyReminder
             hasRecordedToday={hasRecordedToday}
             totalEntries={entries.length}
@@ -517,20 +416,14 @@ export default function Home() {
           />
         )}
         {/* Also show on record tab if viewing a different date */}
-        {!dataLoading && activeTab === "record" && selectedDate !== todayStr && (
+        {activeTab === "record" && selectedDate !== todayStr && (
           <DailyReminder
             hasRecordedToday={hasRecordedToday}
             totalEntries={entries.length}
             onGoToRecord={handleGoToRecord}
           />
         )}
-        {dataLoading && activeTab !== "settings" ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-terracotta mb-3" />
-            <p className="text-sm text-muted-foreground">加载数据中...</p>
-          </div>
-        ) : (
-          <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
               initial={{ opacity: 0, x: 10 }}
@@ -541,7 +434,7 @@ export default function Home() {
               {activeTab === "record" && (
                 <>
                   {/* Today Widget - overview card */}
-                  {selectedDate === todayStr && !dataLoading && (
+                  {selectedDate === todayStr && (
                     <TodayWidget entries={entries} />
                   )}
                   {/* Shared Date Picker - above mode toggle */}
@@ -610,11 +503,10 @@ export default function Home() {
                 />
               )}
               {activeTab === "settings" && (
-                <SettingsView user={user} onLogout={logout} />
+                <SettingsView />
               )}
             </motion.div>
-          </AnimatePresence>
-        )}
+        </AnimatePresence>
       </main>
 
       {/* Bottom Tab Bar */}
