@@ -336,7 +336,29 @@ export const appRouter = router({
   backup: router({
     /** Export all user data as a complete backup */
     export: protectedProcedure.query(async ({ ctx }) => {
-      return exportUserData(ctx.user.id);
+      const data = await exportUserData(ctx.user.id);
+      // Record backup timestamp
+      try {
+        const { getDb } = await import("./db/connection");
+        const { users } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const db = await getDb();
+        if (db) {
+          await db.update(users).set({ lastBackupAt: new Date() }).where(eq(users.id, ctx.user.id));
+        }
+      } catch (_) { /* non-critical */ }
+      return data;
+    }),
+
+    /** Get last backup timestamp for the current user */
+    lastBackupTime: protectedProcedure.query(async ({ ctx }) => {
+      const { getDb } = await import("./db/connection");
+      const { users } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return { lastBackupAt: null };
+      const [user] = await db.select({ lastBackupAt: users.lastBackupAt }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      return { lastBackupAt: user?.lastBackupAt ?? null };
     }),
 
     /** Restore user data from a backup JSON (v2: includes all tables) */

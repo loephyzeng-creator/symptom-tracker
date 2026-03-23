@@ -211,6 +211,13 @@
       "when": 1774191751004,
       "tag": "0029_lucky_siren",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1774279357516,
+      "tag": "0030_pink_supreme_intelligence",
+      "breakpoints": true
     }
   ]
 }

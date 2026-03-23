@@ -157,19 +157,19 @@ describe("Backup v2 — frontend component", () => {
   );
 
   it("passes medicationReminders to restore mutation", () => {
-    expect(frontendCode).toContain("medicationReminders: data.medicationReminders");
+    expect(frontendCode).toContain("medicationReminders: previewData.medicationReminders");
   });
 
   it("passes medicationGroups to restore mutation", () => {
-    expect(frontendCode).toContain("medicationGroups: data.medicationGroups");
+    expect(frontendCode).toContain("medicationGroups: previewData.medicationGroups");
   });
 
   it("passes drugInteractions to restore mutation", () => {
-    expect(frontendCode).toContain("drugInteractions: data.drugInteractions");
+    expect(frontendCode).toContain("drugInteractions: previewData.drugInteractions");
   });
 
   it("passes alertRules to restore mutation", () => {
-    expect(frontendCode).toContain("alertRules: data.alertRules");
+    expect(frontendCode).toContain("alertRules: previewData.alertRules");
   });
 
   it("displays medication reminders count in backup info", () => {
