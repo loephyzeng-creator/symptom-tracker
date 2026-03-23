@@ -7,58 +7,51 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import { readDbContent, readRoutersContent } from "./test-compat";
 
 describe("Feature 1: Instant Painkiller Threshold Check", () => {
   describe("Router integration", () => {
     it("upsert mutation calls checkPainkillerThresholdInstant when painkillerTaken is 1", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       expect(content).toContain("checkPainkillerThresholdInstant");
       expect(content).toContain("input.painkillerTaken === 1");
     });
 
     it("togglePainkiller mutation calls checkPainkillerThresholdInstant when toggled ON", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       // Should check newState before calling
       expect(content).toContain("if (newState)");
       expect(content).toContain("checkPainkillerThresholdInstant(ctx.user.id, input.date)");
     });
 
     it("checkPainkillerThresholdInstant function is defined in routers.ts", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       expect(content).toContain("async function checkPainkillerThresholdInstant(userId: number, dateStr: string)");
     });
 
     it("instant check respects user's alert enabled setting", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       expect(content).toContain("getPainkillerAlertEnabled");
       expect(content).toContain("if (!alertEnabled) return");
     });
 
     it("instant check sends exceeded alert with correct tag", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       expect(content).toContain("painkiller-instant-exceeded");
     });
 
     it("instant check sends warning alert with correct tag", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       expect(content).toContain("painkiller-instant-warning");
     });
 
     it("instant check calls are non-blocking (uses .catch)", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       expect(content).toContain("checkPainkillerThresholdInstant(ctx.user.id, input.date).catch");
     });
 
     it("imports sendWebPush from reminderScheduler", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       expect(content).toContain('import { sendWebPush } from "./reminderScheduler"');
     });
   });
@@ -72,8 +65,7 @@ describe("Feature 2: Weekly Painkiller Usage Report Push", () => {
     });
 
     it("getWeeklyPainkillerReport returns correct structure", () => {
-      const dbPath = path.resolve(__dirname, "db.ts");
-      const content = fs.readFileSync(dbPath, "utf-8");
+      const content = readDbContent();
       expect(content).toContain("thisWeekPainkiller");
       expect(content).toContain("prevWeekPainkiller");
       expect(content).toContain("last30Painkiller");
@@ -85,16 +77,14 @@ describe("Feature 2: Weekly Painkiller Usage Report Push", () => {
     });
 
     it("calculates trend by comparing this week vs previous week", () => {
-      const dbPath = path.resolve(__dirname, "db.ts");
-      const content = fs.readFileSync(dbPath, "utf-8");
+      const content = readDbContent();
       expect(content).toContain("thisWeekPainkiller > prevWeekPainkiller");
       expect(content).toContain("thisWeekPainkiller < prevWeekPainkiller");
       expect(content).toContain('"up" | "down" | "stable"');
     });
 
     it("calculates headache correlation correctly", () => {
-      const dbPath = path.resolve(__dirname, "db.ts");
-      const content = fs.readFileSync(dbPath, "utf-8");
+      const content = readDbContent();
       expect(content).toContain("painkillerTaken === 1 && (e.headache >= 5");
       expect(content).toContain("avgHeadachePainkiller");
       expect(content).toContain("avgHeadacheNoPainkiller");
@@ -205,15 +195,13 @@ describe("Feature 3: Notification Click-to-Detail Navigation", () => {
 
   describe("Notification payloads include URL and actions", () => {
     it("instant alerts include view-trend action button", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       expect(content).toContain('"view-trend"');
       expect(content).toContain("\\u67e5\\u770b\\u8be6\\u60c5"); // 查看详情
     });
 
     it("instant alerts include medication tab URL", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       expect(content).toContain('url: "/?tab=medication"');
     });
 

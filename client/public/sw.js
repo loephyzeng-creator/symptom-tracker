@@ -1,10 +1,124 @@
-const CACHE_NAME = 'symptom-diary-v1';
+const CACHE_NAME = 'symptom-diary-v2';
+const API_CACHE_NAME = 'symptom-diary-api-v1';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
 ];
 
-// Install: cache core assets
+// API paths that should be cached for offline access (GET queries only)
+const CACHEABLE_API_PATTERNS = [
+  '/api/trpc/entries.',
+  '/api/trpc/medReminders.',
+  '/api/trpc/notification.',
+  '/api/trpc/triggers.',
+  '/api/trpc/medications.',
+  '/api/trpc/customMetrics.',
+  '/api/trpc/medGroups.',
+  '/api/trpc/alerts.',
+  '/api/trpc/auth.me',
+];
+
+// ─── IndexedDB for Offline Mutation Queue ───────────────────────────
+const DB_NAME = 'symptom-diary-offline';
+const STORE_NAME = 'mutation-queue';
+
+function openOfflineDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function enqueueOfflineMutation(url, options) {
+  try {
+    const db = await openOfflineDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).add({
+      url,
+      method: options.method || 'POST',
+      headers: Object.fromEntries(new Headers(options.headers || {}).entries()),
+      body: options.body || null,
+      timestamp: Date.now(),
+    });
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.error('[SW] Failed to enqueue offline mutation:', e);
+  }
+}
+
+async function replayOfflineMutations() {
+  try {
+    const db = await openOfflineDB();
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const allItems = await new Promise((resolve, reject) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+
+    if (allItems.length === 0) return;
+    console.log(`[SW] Replaying ${allItems.length} offline mutations`);
+
+    for (const item of allItems) {
+      try {
+        const resp = await fetch(item.url, {
+          method: item.method,
+          headers: item.headers,
+          body: item.body,
+          credentials: 'include',
+        });
+        if (resp.ok) {
+          const delTx = db.transaction(STORE_NAME, 'readwrite');
+          delTx.objectStore(STORE_NAME).delete(item.id);
+          await new Promise((resolve) => { delTx.oncomplete = resolve; });
+        }
+      } catch (e) {
+        console.warn('[SW] Replay failed for item', item.id, e);
+        break;
+      }
+    }
+  } catch (e) {
+    console.error('[SW] replayOfflineMutations error:', e);
+  }
+}
+
+// ─── API Response Caching ───────────────────────────────────────────
+
+function isCacheableApiPath(pathname) {
+  return CACHEABLE_API_PATTERNS.some((p) => pathname.startsWith(p));
+}
+
+async function cacheApiResponse(request, response) {
+  try {
+    const cache = await caches.open(API_CACHE_NAME);
+    await cache.put(request, response.clone());
+  } catch (e) {
+    // Quota exceeded or other cache error
+  }
+}
+
+async function getCachedApiResponse(request) {
+  try {
+    const cache = await caches.open(API_CACHE_NAME);
+    return await cache.match(request);
+  } catch (e) {
+    return undefined;
+  }
+}
+
+// ─── Install & Activate ─────────────────────────────────────────────
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -14,19 +128,21 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate: clean old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+        keys
+          .filter((key) => key !== CACHE_NAME && key !== API_CACHE_NAME)
+          .map((key) => caches.delete(key))
       );
     })
   );
   self.clients.claim();
 });
 
-// Push: handle incoming push notifications
+// ─── Push Notifications ─────────────────────────────────────────────
+
 self.addEventListener('push', (event) => {
   let data = {
     title: '📝 症状日记提醒',
@@ -46,7 +162,6 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  // Determine vibration and interaction based on sound preference
   const sound = data.sound || 'default';
   let vibrate = [200, 100, 200];
   let requireInteraction = true;
@@ -79,7 +194,8 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Notification click: handle actions and default click
+// ─── Notification Click ─────────────────────────────────────────────
+
 self.addEventListener('notificationclick', (event) => {
   const action = event.action;
   const notificationData = event.notification.data || {};
@@ -91,7 +207,6 @@ self.addEventListener('notificationclick', (event) => {
     event.waitUntil(
       handleConfirmTaken(notificationData.reminderId)
         .then(() => {
-          // Show a confirmation notification
           return self.registration.showNotification('✅ 已记录服药', {
             body: '服药记录已保存，库存已更新。',
             icon: '/pwa-icon-192.png',
@@ -102,7 +217,6 @@ self.addEventListener('notificationclick', (event) => {
         })
         .catch((err) => {
           console.error('[SW] Failed to confirm medication:', err);
-          // Show error notification
           return self.registration.showNotification('❌ 记录失败', {
             body: '服药记录保存失败，请打开应用手动记录。',
             icon: '/pwa-icon-192.png',
@@ -159,7 +273,6 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          // Navigate existing window to the target URL (supports hash-based tab switching)
           if (urlToOpen && urlToOpen !== '/') {
             client.navigate(urlToOpen);
           }
@@ -171,10 +284,8 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-/**
- * Call the backend API to confirm medication taken.
- * Uses tRPC batch endpoint format.
- */
+// ─── API Helpers ────────────────────────────────────────────────────
+
 async function handleConfirmTaken(reminderId) {
   const response = await fetch('/api/trpc/medReminders.confirmTaken', {
     method: 'POST',
@@ -192,9 +303,6 @@ async function handleConfirmTaken(reminderId) {
   return response.json();
 }
 
-/**
- * Call the backend API to snooze a medication reminder.
- */
 async function handleSnooze(reminderId) {
   const response = await fetch('/api/trpc/medReminders.snooze', {
     method: 'POST',
@@ -212,22 +320,64 @@ async function handleSnooze(reminderId) {
   return response.json();
 }
 
-// Fetch: network-first for API, cache-first for static assets
+// ─── Fetch: Network-first with cache fallback ───────────────────────
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests
-  if (request.method !== 'GET') return;
+  // Skip non-GET requests — but queue POST mutations when offline
+  if (request.method !== 'GET') {
+    if (request.method === 'POST' && url.pathname.startsWith('/api/trpc/')) {
+      event.respondWith(
+        fetch(request.clone()).catch(async () => {
+          // Offline: queue the mutation for later replay
+          const body = await request.clone().text();
+          await enqueueOfflineMutation(request.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: body,
+          });
+          return new Response(JSON.stringify({ result: { data: { json: { queued: true } } } }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        })
+      );
+    }
+    return;
+  }
 
-  // API requests: network only
+  // API GET requests: network-first with cache fallback
+  if (url.pathname.startsWith('/api/trpc/') && isCacheableApiPath(url.pathname)) {
+    event.respondWith(
+      fetch(request.clone())
+        .then((response) => {
+          if (response.ok) {
+            cacheApiResponse(request, response);
+          }
+          return response;
+        })
+        .catch(() => {
+          return getCachedApiResponse(request).then((cached) => {
+            if (cached) return cached;
+            return new Response(JSON.stringify({ error: 'offline' }), {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          });
+        })
+    );
+    return;
+  }
+
+  // Other API requests: network only
   if (url.pathname.startsWith('/api/')) return;
 
   // Static assets: network first, fallback to cache
   event.respondWith(
     fetch(request)
       .then((response) => {
-        // Cache successful responses
         if (response.ok) {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -240,4 +390,12 @@ self.addEventListener('fetch', (event) => {
         return caches.match(request);
       })
   );
+});
+
+// ─── Message Handler: Online status ─────────────────────────────────
+
+self.addEventListener('message', (event) => {
+  if (event.data === 'ONLINE') {
+    replayOfflineMutations();
+  }
 });

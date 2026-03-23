@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import { readDbContent } from "./test-compat";
 
 describe("Stock Quantity Real-time Update", () => {
   const medViewPath = path.resolve(__dirname, "../client/src/components/MedicationView.tsx");
@@ -51,8 +52,7 @@ describe("Stock Quantity Real-time Update", () => {
   });
 
   describe("Backend - stock deduction logic", () => {
-    const dbPath = path.resolve(__dirname, "./db.ts");
-    const dbContent = fs.readFileSync(dbPath, "utf-8");
+    const dbContent = readDbContent();
 
     it("deductMedicationStock should be a no-op since stock is now real-time", () => {
       expect(dbContent).toContain("export async function deductMedicationStock");

@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import { readRoutersContent } from "./test-compat";
 
 describe("Painkiller Threshold Alert Feature", () => {
   describe("Database Schema", () => {
@@ -54,8 +55,7 @@ describe("Painkiller Threshold Alert Feature", () => {
     });
 
     it("getSettings returns painkillerAlertEnabled in default", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       expect(content).toContain("painkillerAlertEnabled: 1");
     });
   });

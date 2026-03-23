@@ -5,12 +5,11 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import { readDbContent, readRoutersContent } from "./test-compat";
 
 describe("Headache Attack Level + Painkiller Feature", () => {
-  const dbPath = path.resolve(__dirname, "./db.ts");
-  const dbContent = fs.readFileSync(dbPath, "utf-8");
-  const routerPath = path.resolve(__dirname, "./routers.ts");
-  const routerContent = fs.readFileSync(routerPath, "utf-8");
+  const dbContent = readDbContent();
+  const routerContent = readRoutersContent();
   const schemaPath = path.resolve(__dirname, "../drizzle/schema.ts");
   const schemaContent = fs.readFileSync(schemaPath, "utf-8");
 

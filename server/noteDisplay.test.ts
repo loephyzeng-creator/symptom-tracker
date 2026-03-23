@@ -5,10 +5,10 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import { readDbContent, readRoutersContent } from "./test-compat";
 
 describe("Medication Note Display", () => {
-  const dbPath = path.resolve(__dirname, "./db.ts");
-  const dbContent = fs.readFileSync(dbPath, "utf-8");
+  const dbContent = readDbContent();
 
   describe("confirmMedicationTaken - note storage", () => {
     it("should accept note parameter in confirmMedicationTaken", () => {
@@ -56,8 +56,7 @@ describe("Medication Note Display", () => {
   });
 
   describe("Router - confirmTaken endpoint", () => {
-    const routerPath = path.resolve(__dirname, "./routers.ts");
-    const routerContent = fs.readFileSync(routerPath, "utf-8");
+    const routerContent = readRoutersContent();
 
     it("should accept note in confirmTaken input schema", () => {
       expect(routerContent).toContain("note: z.string()");

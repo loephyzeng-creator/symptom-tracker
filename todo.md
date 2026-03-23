@@ -610,9 +610,9 @@
 - [x] 测试验证
 
 ## 月度药品消耗趋势图 + 补货提醒推送
-- [ ] 后端：新增月度药品消耗统计API（按月统计每种药品的用药次数）
-- [ ] 前端：在统计页面新增"药品消耗趋势"图表（折线图/柱状图，按月展示各药品消耗量）
-- [ ] 后端：低库存自动推送通知逻辑（当库存低于预警值时发送推送提醒补货）
+- [x] 后端：新增月度药品消耗统计API（按月统计每种药品的用药次数）（已在后续"三项新功能"中实现）
+- [x] 前端：在统计页面新增"药品消耗趋势"图表（已在后续"三项新功能"中实现）
+- [x] 后端：低库存自动推送通知逻辑（已在"药品库存管理"中实现 checkAndSendLowStockAlerts）
 - [x] 测试验证
 
 ## Bug修复：补货覆盖问题仍存在 + 撤销按钮不可见
@@ -680,3 +680,22 @@
 
 ## 测试修复
 - [x] 修复 notificationSound.test.ts 中 sendWeeklyPainkillerReports 测试查找偏移量错误（搜索函数定义而非首次调用引用）
+
+## 代码清理
+- [x] 移除 Home.tsx 中未使用的 import（MissedMedicationAlert、MedicationCheckInCalendar、DrugInteractionChecker）
+- [x] 删除未被引用的 ManusDialog.tsx 死代码
+- [x] 修复 todo.md 中"月度药品消耗趋势图 + 补货提醒推送"标记不一致
+
+## 大文件拆分
+- [x] MedicationReminders.tsx（1717行）拆分为子模块
+- [x] server/db.ts（3625行）按功能域拆分
+- [x] server/routers.ts（1206行）按功能域拆分
+
+## 测试稳定性优化
+- [x] 为 DB 相关测试添加重试机制和超时处理（vitest retry:2, timeout:30s, withDbRetry helper）
+
+## 离线增强
+- [x] Service Worker 离线数据缓存（缓存 API 响应+静态资源，network-first + cache fallback）
+- [x] 离线时显示缓存数据+离线状态提示（OfflineBanner 组件）
+- [x] 离线 mutation 队列（IndexedDB 暂存 + 网络恢复后自动重放）
+- [x] 恢复在线后自动同步（SW 监听 online 事件 + useOfflineStatus hook 触发重放）

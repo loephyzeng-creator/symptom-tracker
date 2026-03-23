@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
+import { readDbContent, readRoutersContent } from "./test-compat";
 
 describe("Notification Sound Preference Feature", () => {
   describe("Database Schema", () => {
@@ -17,30 +18,26 @@ describe("Notification Sound Preference Feature", () => {
 
   describe("Database Helper: getNotificationSoundForUser", () => {
     it("getNotificationSoundForUser is exported from db.ts", () => {
-      const dbPath = path.resolve(__dirname, "db.ts");
-      const content = fs.readFileSync(dbPath, "utf-8");
+      const content = readDbContent();
       expect(content).toContain("export async function getNotificationSoundForUser");
     });
 
     it("getNotificationSoundForUser returns a string and defaults to 'default'", () => {
-      const dbPath = path.resolve(__dirname, "db.ts");
-      const content = fs.readFileSync(dbPath, "utf-8");
-      expect(content).toContain('return result[0]?.notificationSound ?? "default"');
+      const content = readDbContent();
+      expect(content).toContain('notificationSound ?? "default"');
     });
   });
 
   describe("getMedicationRemindersToSend includes notificationSound", () => {
     it("getMedicationRemindersToSend joins notificationSettings to get sound preference", () => {
-      const dbPath = path.resolve(__dirname, "db.ts");
-      const content = fs.readFileSync(dbPath, "utf-8");
+      const content = readDbContent();
       // Check that the function selects notificationSound from notificationSettings
       const fnMatch = content.match(/getMedicationRemindersToSend[\s\S]*?\.leftJoin\(notificationSettings/);
       expect(fnMatch).not.toBeNull();
     });
 
     it("getMedicationRemindersToSend selects notificationSound field", () => {
-      const dbPath = path.resolve(__dirname, "db.ts");
-      const content = fs.readFileSync(dbPath, "utf-8");
+      const content = readDbContent();
       // Find the function definition
       const fnStart = content.indexOf("function getMedicationRemindersToSend");
       expect(fnStart).toBeGreaterThan(-1);
@@ -51,16 +48,14 @@ describe("Notification Sound Preference Feature", () => {
 
   describe("getUsersNeedingReminder includes notificationSound", () => {
     it("getUsersNeedingReminder returns notificationSound in results", () => {
-      const dbPath = path.resolve(__dirname, "db.ts");
-      const content = fs.readFileSync(dbPath, "utf-8");
+      const content = readDbContent();
       const fnStart = content.indexOf("getUsersNeedingReminder");
       const fnSlice = content.slice(fnStart, fnStart + 1500);
       expect(fnSlice).toContain("notificationSound: setting.notificationSound");
     });
 
     it("getUsersNeedingReminder result type includes notificationSound: string", () => {
-      const dbPath = path.resolve(__dirname, "db.ts");
-      const content = fs.readFileSync(dbPath, "utf-8");
+      const content = readDbContent();
       const fnStart = content.indexOf("getUsersNeedingReminder");
       const fnSlice = content.slice(fnStart, fnStart + 1500);
       expect(fnSlice).toContain("notificationSound: string;");
@@ -141,8 +136,7 @@ describe("Notification Sound Preference Feature", () => {
 
   describe("Instant Painkiller Check: sound preference", () => {
     it("checkPainkillerThresholdInstant queries user sound preference", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       const fnStart = content.indexOf("checkPainkillerThresholdInstant");
       const fnSlice = content.slice(fnStart, fnStart + 1500);
       expect(fnSlice).toContain("getNotificationSoundForUser(userId)");
@@ -150,8 +144,7 @@ describe("Notification Sound Preference Feature", () => {
     });
 
     it("instant painkiller alerts pass userSound to sendWebPush", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       const fnStart = content.indexOf("checkPainkillerThresholdInstant");
       const fnSlice = content.slice(fnStart, fnStart + 1500);
       // Both exceeded and warning calls should pass userSound
@@ -164,8 +157,7 @@ describe("Notification Sound Preference Feature", () => {
 
   describe("Medication Expiration: sound preference", () => {
     it("checkExpiringMedications includes sound in push payload", () => {
-      const dbPath = path.resolve(__dirname, "db.ts");
-      const content = fs.readFileSync(dbPath, "utf-8");
+      const content = readDbContent();
       const fnStart = content.indexOf("checkExpiringMedications");
       const fnSlice = content.slice(fnStart, fnStart + 3000);
       expect(fnSlice).toContain("getNotificationSoundForUser");
@@ -209,20 +201,17 @@ describe("Notification Sound Preference Feature", () => {
 
   describe("Backend API: updateNotificationSound endpoint", () => {
     it("updateNotificationSound mutation exists in routers.ts", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       expect(content).toContain("updateNotificationSound: protectedProcedure");
     });
 
     it("updateNotificationSound accepts sound enum input", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       expect(content).toContain('z.enum(["default", "gentle", "urgent", "silent"])');
     });
 
     it("getSettings returns notificationSound field", () => {
-      const routersPath = path.resolve(__dirname, "routers.ts");
-      const content = fs.readFileSync(routersPath, "utf-8");
+      const content = readRoutersContent();
       // Check that getSettings returns notificationSound in its default or actual values
       expect(content).toContain('notificationSound: "default"');
     });

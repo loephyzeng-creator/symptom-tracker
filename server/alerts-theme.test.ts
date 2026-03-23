@@ -1,25 +1,23 @@
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
+import { readDbContent, readRoutersContent } from "./test-compat";
 
 // ─── Alert Rules Router Tests ────────────────────────────────────────
 
 describe("Alert Rules API", () => {
   it("alerts router is defined in routers.ts", () => {
-    const routersPath = path.resolve(__dirname, "routers.ts");
-    const content = fs.readFileSync(routersPath, "utf-8");
+    const content = readRoutersContent();
     expect(content).toContain("alerts: router({");
   });
 
   it("alerts.listRules procedure exists", () => {
-    const routersPath = path.resolve(__dirname, "routers.ts");
-    const content = fs.readFileSync(routersPath, "utf-8");
+    const content = readRoutersContent();
     expect(content).toContain("listRules: protectedProcedure");
   });
 
   it("alerts.createRule procedure exists with input validation", () => {
-    const routersPath = path.resolve(__dirname, "routers.ts");
-    const content = fs.readFileSync(routersPath, "utf-8");
+    const content = readRoutersContent();
     expect(content).toContain("createRule: protectedProcedure");
     expect(content).toContain("metricKey: z.string()");
     expect(content).toContain("threshold: z.number().min(0).max(10)");
@@ -28,32 +26,27 @@ describe("Alert Rules API", () => {
   });
 
   it("alerts.updateRule procedure exists", () => {
-    const routersPath = path.resolve(__dirname, "routers.ts");
-    const content = fs.readFileSync(routersPath, "utf-8");
+    const content = readRoutersContent();
     expect(content).toContain("updateRule: protectedProcedure");
   });
 
   it("alerts.deleteRule procedure exists", () => {
-    const routersPath = path.resolve(__dirname, "routers.ts");
-    const content = fs.readFileSync(routersPath, "utf-8");
+    const content = readRoutersContent();
     expect(content).toContain("deleteRule: protectedProcedure");
   });
 
   it("alerts.history procedure exists", () => {
-    const routersPath = path.resolve(__dirname, "routers.ts");
-    const content = fs.readFileSync(routersPath, "utf-8");
+    const content = readRoutersContent();
     expect(content).toContain("history: protectedProcedure");
   });
 
   it("alerts.unreadCount procedure exists", () => {
-    const routersPath = path.resolve(__dirname, "routers.ts");
-    const content = fs.readFileSync(routersPath, "utf-8");
+    const content = readRoutersContent();
     expect(content).toContain("unreadCount: protectedProcedure");
   });
 
   it("alerts.markRead procedure exists", () => {
-    const routersPath = path.resolve(__dirname, "routers.ts");
-    const content = fs.readFileSync(routersPath, "utf-8");
+    const content = readRoutersContent();
     expect(content).toContain("markRead: protectedProcedure");
   });
 });
@@ -62,34 +55,29 @@ describe("Alert Rules API", () => {
 
 describe("Alert Check Logic in db.ts", () => {
   it("checkAlertRules function exists", () => {
-    const dbPath = path.resolve(__dirname, "db.ts");
-    const content = fs.readFileSync(dbPath, "utf-8");
+    const content = readDbContent();
     expect(content).toContain("export async function checkAlertRules");
   });
 
   it("checkAlertRules handles both above and below directions", () => {
-    const dbPath = path.resolve(__dirname, "db.ts");
-    const content = fs.readFileSync(dbPath, "utf-8");
+    const content = readDbContent();
     expect(content).toContain('rule.direction === "above"');
     expect(content).toContain("value >= rule.threshold");
     expect(content).toContain("value <= rule.threshold");
   });
 
   it("checkAlertRules prevents duplicate alerts same day", () => {
-    const dbPath = path.resolve(__dirname, "db.ts");
-    const content = fs.readFileSync(dbPath, "utf-8");
+    const content = readDbContent();
     expect(content).toContain("rule.lastTriggeredDate === todayStr");
   });
 
   it("checkAlertRules records alert in history", () => {
-    const dbPath = path.resolve(__dirname, "db.ts");
-    const content = fs.readFileSync(dbPath, "utf-8");
+    const content = readDbContent();
     expect(content).toContain("db.insert(alertHistory)");
   });
 
   it("entries.upsert triggers alert check after saving", () => {
-    const routersPath = path.resolve(__dirname, "routers.ts");
-    const content = fs.readFileSync(routersPath, "utf-8");
+    const content = readRoutersContent();
     expect(content).toContain("checkAlertRules(ctx.user.id, input.date)");
   });
 });

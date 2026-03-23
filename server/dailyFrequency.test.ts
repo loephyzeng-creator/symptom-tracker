@@ -1,16 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { readRoutersContent } from "./test-compat";
 
 const schemaCode = readFileSync(
   path.resolve(__dirname, "../drizzle/schema.ts"),
   "utf-8"
 );
 
-const routersCode = readFileSync(
-  path.resolve(__dirname, "./routers.ts"),
-  "utf-8"
-);
+const routersCode = readRoutersContent();
 
 const schedulerCode = readFileSync(
   path.resolve(__dirname, "./reminderScheduler.ts"),

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { readRoutersContent } from "./test-compat";
 
 // ============================================================
 // 1. Medication Confirmation (confirmMedicationTaken)
@@ -93,8 +94,7 @@ describe("Router - medReminders endpoints", () => {
   it("routers.ts should include confirmTaken endpoint", async () => {
     const fs = await import("fs");
     const path = await import("path");
-    const routerPath = path.resolve(__dirname, "./routers.ts");
-    const content = fs.readFileSync(routerPath, "utf-8");
+    const content = readRoutersContent();
     expect(content).toContain("confirmTaken");
     expect(content).toContain("confirmMedicationTaken");
   });
@@ -102,8 +102,7 @@ describe("Router - medReminders endpoints", () => {
   it("routers.ts should include timeline endpoint", async () => {
     const fs = await import("fs");
     const path = await import("path");
-    const routerPath = path.resolve(__dirname, "./routers.ts");
-    const content = fs.readFileSync(routerPath, "utf-8");
+    const content = readRoutersContent();
     expect(content).toContain("timeline");
     expect(content).toContain("getMedicationTimeline");
   });
@@ -111,8 +110,7 @@ describe("Router - medReminders endpoints", () => {
   it("routers.ts should include instructionUrl in add/update schemas", async () => {
     const fs = await import("fs");
     const path = await import("path");
-    const routerPath = path.resolve(__dirname, "./routers.ts");
-    const content = fs.readFileSync(routerPath, "utf-8");
+    const content = readRoutersContent();
     // Should appear in both add and update input schemas
     const matches = content.match(/instructionUrl/g);
     expect(matches).not.toBeNull();

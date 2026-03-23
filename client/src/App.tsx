@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
+import { OfflineBanner } from "./components/OfflineBanner";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function App() {
               },
             }}
           />
+          <OfflineBanner />
           <Router />
           <PWAInstallPrompt />
         </TooltipProvider>

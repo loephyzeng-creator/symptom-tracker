@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { generateReportHTML } from "./report";
 import fs from "fs";
 import path from "path";
+import { readRoutersContent } from "./test-compat";
 
 function makeEntry(overrides: Record<string, any> = {}) {
   return {
@@ -26,15 +27,13 @@ function makeEntry(overrides: Record<string, any> = {}) {
 
 describe("Archived Medication Stats", () => {
   it("archivedStats route is defined in routers.ts", () => {
-    const routersPath = path.resolve(__dirname, "routers.ts");
-    const content = fs.readFileSync(routersPath, "utf-8");
+    const content = readRoutersContent();
     expect(content).toContain("archivedStats");
     expect(content).toContain("reminderId: z.number()");
   });
 
   it("archivedStats returns totalDays, takenDays, adherenceRate, dateRange", () => {
-    const routersPath = path.resolve(__dirname, "routers.ts");
-    const content = fs.readFileSync(routersPath, "utf-8");
+    const content = readRoutersContent();
     const statsStart = content.indexOf("archivedStats");
     const statsSlice = content.slice(statsStart, statsStart + 1500);
     expect(statsSlice).toContain("totalDays");
@@ -192,8 +191,7 @@ describe("Enhanced Report with Adherence Data", () => {
   });
 
   it("report.generate route fetches adherence data", () => {
-    const routersPath = path.resolve(__dirname, "routers.ts");
-    const content = fs.readFileSync(routersPath, "utf-8");
+    const content = readRoutersContent();
     const reportStart = content.indexOf("report: router");
     const reportSlice = content.slice(reportStart, reportStart + 2000);
     expect(reportSlice).toContain("getMedicationAdherence");

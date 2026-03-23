@@ -1,13 +1,11 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import { readDbContent, readRoutersContent } from "./test-compat";
 
 describe("Real-Time Stock Calculation System", () => {
-  const dbPath = path.resolve(__dirname, "./db.ts");
-  const dbContent = fs.readFileSync(dbPath, "utf-8");
-
-  const routersPath = path.resolve(__dirname, "./routers.ts");
-  const routersContent = fs.readFileSync(routersPath, "utf-8");
+  const dbContent = readDbContent();
+  const routersContent = readRoutersContent();
 
   const schemaPath = path.resolve(__dirname, "../drizzle/schema.ts");
   const schemaContent = fs.readFileSync(schemaPath, "utf-8");

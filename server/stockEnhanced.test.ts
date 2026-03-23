@@ -1,16 +1,13 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import { readDbContent, readRoutersContent } from "./test-compat";
 
 describe("Stock Management Enhancements", () => {
   const remindersPath = path.resolve(__dirname, "../client/src/components/MedicationReminders.tsx");
   const remindersContent = fs.readFileSync(remindersPath, "utf-8");
-
-  const dbPath = path.resolve(__dirname, "./db.ts");
-  const dbContent = fs.readFileSync(dbPath, "utf-8");
-
-  const routersPath = path.resolve(__dirname, "./routers.ts");
-  const routersContent = fs.readFileSync(routersPath, "utf-8");
+  const dbContent = readDbContent();
+  const routersContent = readRoutersContent();
 
   const animatedNumberPath = path.resolve(__dirname, "../client/src/components/AnimatedNumber.tsx");
   const animatedNumberContent = fs.readFileSync(animatedNumberPath, "utf-8");
