@@ -191,6 +191,14 @@ export async function upsertEntry(
   const existing = await getEntryByUserAndDate(userId, data.date);
 
   if (existing) {
+    // Preserve existing medications if the incoming data has an empty array.
+    // This prevents the symptom form (which sends medications: []) from
+    // overwriting medications recorded via the confirm-taken flow.
+    type MedEntry = { name: string; dosage: string; reminderId?: number; timeIndex?: number };
+    const existingMeds: MedEntry[] = Array.isArray(existing.medications) ? (existing.medications as MedEntry[]) : [];
+    const incomingMeds: MedEntry[] = Array.isArray(data.medications) ? data.medications : [];
+    const mergedMedications = incomingMeds.length > 0 ? incomingMeds : existingMeds;
+
     await db
       .update(symptomEntries)
       .set({
@@ -203,7 +211,7 @@ export async function upsertEntry(
         motionSickness: data.motionSickness,
         palpitations: data.palpitations,
         mood: data.mood,
-        medications: data.medications,
+        medications: mergedMedications,
         triggers: data.triggers,
         severeHeadache: data.severeHeadache,
         painkillerTaken: data.painkillerTaken,

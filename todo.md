@@ -699,3 +699,6 @@
 - [x] 离线时显示缓存数据+离线状态提示（OfflineBanner 组件）
 - [x] 离线 mutation 队列（IndexedDB 暂存 + 网络恢复后自动重放）
 - [x] 恢复在线后自动同步（SW 监听 online 事件 + useOfflineStatus hook 触发重放）
+
+## Bug 修复
+- [x] 今日服药打卡记录被删除/丢失：修复 upsertEntry 用空数组覆盖已有 medications 的 bug（保留现有打卡记录）
