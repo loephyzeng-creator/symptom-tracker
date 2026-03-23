@@ -16,7 +16,9 @@ import {
   Legend,
 } from "recharts";
 import { motion } from "framer-motion";
-import { TrendingUp, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  BarChart, ChevronDown, ChevronUp, Loader2, TrendingUp
+} from "lucide-react";
 
 // Warm palette that matches the app's Scandinavian design
 const MED_COLORS = [

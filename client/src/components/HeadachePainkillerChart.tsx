@@ -10,7 +10,9 @@ import {
 } from "recharts";
 import type { SymptomEntry } from "@/hooks/useSymptomData";
 import { motion } from "framer-motion";
-import { Brain, Pill, AlertTriangle, Download, Loader2 } from "lucide-react";
+import {
+  AlertTriangle, BarChart, Brain, Download, Loader2, Pill
+} from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";

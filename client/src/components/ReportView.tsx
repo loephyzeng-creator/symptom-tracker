@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { motion } from "framer-motion";
 import { zhCN } from "date-fns/locale";
 import {
-  FileText, CalendarDays, Download, Loader2, AlertCircle, Printer, ArrowLeft, Sparkles, RefreshCw, Copy, Check,
+  AlertCircle, ArrowLeft, Calendar, CalendarDays, Check, Copy, Download, FileText, Loader2, Printer, RefreshCw, Sparkles
 } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { toast } from "sonner";

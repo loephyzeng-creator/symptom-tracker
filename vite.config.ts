@@ -167,5 +167,6 @@ export default defineConfig({
   },
   server: {
     host: true,
+    allowedHosts: 'all',
   },
 });

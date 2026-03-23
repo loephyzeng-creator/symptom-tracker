@@ -16,7 +16,9 @@ import {
   Cell,
 } from "recharts";
 import { motion } from "framer-motion";
-import { Pill, TrendingUp, Calendar, CheckCircle2, XCircle } from "lucide-react";
+import {
+  BarChart, Calendar, CheckCircle2, Pill, TrendingUp, XCircle
+} from "lucide-react";
 import { getLocalDateStr } from "@shared/timezone";
 
 const RANGES = [

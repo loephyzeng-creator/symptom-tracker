@@ -6,7 +6,9 @@ import { useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import type { SymptomEntry } from "@/hooks/useSymptomData";
 import { motion } from "framer-motion";
-import { Pill } from "lucide-react";
+import {
+  BarChart, Pill
+} from "lucide-react";
 
 interface MedicationChartProps {
   entries: SymptomEntry[];

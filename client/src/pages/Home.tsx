@@ -24,7 +24,7 @@ import CustomMetricsManager from "@/components/CustomMetricsManager";
 import PainkillerLimitSetting from "@/components/PainkillerLimitSetting";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ChevronLeft, ChevronRight, Database, Shield, Activity, Palette, Pill, RotateCcw
+  Activity, BarChart3, Bell, BookOpen, CalendarDays, ChevronLeft, ChevronRight, Clock, Database, Moon, Palette, PenLine, Pill, RotateCcw, Settings, Shield, Sun, Zap
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
