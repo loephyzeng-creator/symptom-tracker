@@ -8,6 +8,7 @@ import {
   updatePainkillerDetail,
   togglePainkillerForDate,
 } from "@/lib/local-storage";
+import { notifyDataChanged } from "@/lib/trpc";
 
 export interface MedicationItem {
   name: string;
@@ -66,7 +67,10 @@ function toSymptomEntry(raw: ReturnType<typeof getEntries>[0]): SymptomEntry {
 
 export function useSymptomData() {
   const [version, setVersion] = useState(0);
-  const refresh = useCallback(() => setVersion((v) => v + 1), []);
+  const refresh = useCallback(() => {
+    setVersion((v) => v + 1);
+    notifyDataChanged();
+  }, []);
 
   const entries: SymptomEntry[] = useMemo(() => {
     const raw = getEntries();

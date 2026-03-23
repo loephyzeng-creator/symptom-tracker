@@ -24,17 +24,32 @@ import {
 } from "./local-storage/customMetrics";
 import { getLocalDateStr } from "@shared/timezone";
 
+// ─── Global invalidation counter ─────────────────────────────────────────────
+let _invalidationCounter = 0;
+const _invalidationListeners = new Set<() => void>();
+function _notifyInvalidation() {
+  _invalidationCounter++;
+  _invalidationListeners.forEach((fn) => fn());
+}
+export function notifyDataChanged() { _notifyInvalidation(); }
+
 // ─── Utility: reactive query hook ────────────────────────────────────────────
 function useQuery<T>(fetcher: () => T, deps: any[] = []) {
   const [data, setData] = useState<T | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
+  const [_tick, setTick] = useState(0);
   const fetchRef = useRef(fetcher);
   fetchRef.current = fetcher;
   const load = useCallback(() => {
     try { setData(fetchRef.current()); } catch (e) { console.error(e); }
     finally { setIsLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [...deps, load]);
+  useEffect(() => { load(); }, [...deps, load, _tick]);
+  useEffect(() => {
+    const handler = () => setTick((t) => t + 1);
+    _invalidationListeners.add(handler);
+    return () => { _invalidationListeners.delete(handler); };
+  }, []);
   return { data, isLoading, refetch: load };
 }
 
@@ -44,12 +59,14 @@ function useMutation<TInput, TOutput>(
   options?: { onSuccess?: (data: TOutput) => void; onError?: (err: any) => void }
 ) {
   const [isPending, setIsPending] = useState(false);
+  const [variables, setVariables] = useState<TInput | undefined>(undefined);
   const fnRef = useRef(fn);
   fnRef.current = fn;
   const optRef = useRef(options);
   optRef.current = options;
   const mutateAsync = useCallback(async (input: TInput): Promise<TOutput> => {
     setIsPending(true);
+    setVariables(input);
     try {
       const result = fnRef.current(input);
       optRef.current?.onSuccess?.(result);
@@ -60,15 +77,24 @@ function useMutation<TInput, TOutput>(
     } finally { setIsPending(false); }
   }, []);
   const mutate = useCallback((input: TInput) => { mutateAsync(input); }, [mutateAsync]);
-  return { mutate, mutateAsync, isPending, isLoading: isPending };
+  return { mutate, mutateAsync, isPending, isLoading: isPending, variables };
 }
 
-// ─── Utils (cache invalidation — no-op in localStorage world) ────────────────
-const makeProxy = (): any => new Proxy({}, { get: () => makeProxy(), apply: () => {} });
+// ─── Utils (cache invalidation — triggers reactive re-fetch) ─────────────────
+const makeInvalidateProxy = (): any => new Proxy(
+  { invalidate: () => _notifyInvalidation() },
+  {
+    get: (target, prop) => {
+      if (prop === 'invalidate') return target.invalidate;
+      return makeInvalidateProxy();
+    },
+    apply: () => {}
+  }
+);
 
 // ─── Main trpc mock object ────────────────────────────────────────────────────
 export const trpc = {
-  useUtils: () => makeProxy(),
+  useUtils: () => makeInvalidateProxy(),
 
   entries: {
     list: { useQuery: () => useQuery(() => getEntries()) },
