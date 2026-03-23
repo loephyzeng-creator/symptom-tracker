@@ -30,6 +30,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { zhCN } from "date-fns/locale";
 import { useTheme } from "@/contexts/ThemeContext";
+import { getLocalDateStr } from "@shared/timezone";
 
 type TabKey = "record" | "medication" | "stats" | "history" | "settings";
 
