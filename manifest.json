@@ -1,0 +1,25 @@
+{
+  "name": "症状日记",
+  "short_name": "症状日记",
+  "description": "记录每一天的身体状况，发现症状规律",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF6F0",
+  "theme_color": "#C4704B",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663299884726/7CnBeGxyBasxbKLjVrJzxx/pwa-icon-192_326b750e.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663299884726/7CnBeGxyBasxbKLjVrJzxx/pwa-icon-512-TFjQq973ARePBuqtzxQgr5.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["health", "medical", "lifestyle"]
+}
