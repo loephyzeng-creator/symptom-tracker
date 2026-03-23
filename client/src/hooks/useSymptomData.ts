@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useCallback, useMemo } from "react";
 import { getLocalDateStr } from "@shared/timezone";
+import { toast } from "sonner";
 
 export interface MedicationItem {
   name: string;
@@ -139,6 +140,19 @@ export function useSymptomData() {
       a.download = `症状日记_完整备份_${getLocalDateStr()}.json`;
       a.click();
       URL.revokeObjectURL(url);
+
+      // Build summary toast
+      const parts: string[] = [];
+      parts.push(`${data.entries?.length ?? 0} 条记录`);
+      if (data.medicationReminders?.length) parts.push(`${data.medicationReminders.length} 个用药提醒`);
+      if (data.medicationGroups?.length) parts.push(`${data.medicationGroups.length} 个用药分组`);
+      if (data.drugInteractions?.length) parts.push(`${data.drugInteractions.length} 条药物相互作用`);
+      if (data.alertRules?.length) parts.push(`${data.alertRules.length} 条警报规则`);
+      if (data.customMetrics?.length) parts.push(`${data.customMetrics.length} 个自定义指标`);
+      if (data.customTriggers?.length) parts.push(`${data.customTriggers.length} 个自定义诱因`);
+      toast.success("备份文件已下载", {
+        description: `已导出：${parts.join("、")}`,
+      });
     } catch (error: any) {
       console.error("Export failed:", error);
       // Fallback to entries-only export if backup API fails
@@ -150,6 +164,9 @@ export function useSymptomData() {
       a.download = `症状日记_${getLocalDateStr()}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      toast.success("备份文件已下载", {
+        description: `已导出 ${entries.length} 条记录（仅症状记录）`,
+      });
     }
   }, [entries, utils]);
 

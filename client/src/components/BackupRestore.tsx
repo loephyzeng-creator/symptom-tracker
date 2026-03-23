@@ -77,7 +77,9 @@ export default function BackupRestore() {
       if (data.customTriggers?.length) parts.push(`${data.customTriggers.length} 个自定义诱因`);
 
       setLastBackupInfo(parts.join("，"));
-      toast.success("备份文件已下载");
+      toast.success("备份文件已下载", {
+        description: `已导出：${parts.join("、")}`,
+      });
     } catch (error: any) {
       toast.error(`备份失败：${error.message || "未知错误"}`);
     } finally {

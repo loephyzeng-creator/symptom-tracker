@@ -65,4 +65,21 @@ describe("Unified Export - History page uses v2 backup API", () => {
     expect(hookSource).toContain("症状日记_完整备份_");
     expect(backupSource).toContain("症状日记_完整备份_");
   });
+
+  // Verify export summary toast
+  it("useSymptomData exportData should show summary toast with data counts", () => {
+    expect(hookSource).toContain('toast.success("备份文件已下载"');
+    expect(hookSource).toContain('已导出：');
+    expect(hookSource).toContain('条记录');
+    expect(hookSource).toContain('个用药提醒');
+  });
+
+  it("BackupRestore should show summary toast with data counts", () => {
+    expect(backupSource).toContain('toast.success("备份文件已下载"');
+    expect(backupSource).toContain('已导出：');
+  });
+
+  it("fallback export should show toast indicating entries-only", () => {
+    expect(hookSource).toContain('仅症状记录');
+  });
 });
