@@ -1,0 +1,8 @@
+{
+  "query": "SELECT u.id, u.name, u.openId, \n  (SELECT COUNT(*) FROM medication_reminders mr WHERE mr.user_id = u.id) as reminder_count,\n  (SELECT COUNT(*) FROM symptom_entries se WHERE se.user_id = u.id) as entry_count\nFROM users u\nORDER BY u.id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT u.id, u.name, u.openId, \n  (SELECT COUNT(*) FROM medication_reminders mr WHERE mr.user_id = u.id) as reminder_count,\n  (SELECT COUNT(*) FROM symptom_entries se WHERE se.user_id = u.id) as entry_count\nFROM users u\nORDER BY u.id;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'mr.user_id' in 'where clause'"
+  ]
+}

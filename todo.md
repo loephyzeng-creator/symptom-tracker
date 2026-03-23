@@ -587,6 +587,11 @@
 - [x] 前端：库存显示改为实时计算值
 - [x] 测试验证
 
+## 历史页面导出升级为v2完整备份
+- [x] Fix: History page "导出 JSON" uses old v1 format (plain entries array) instead of v2 complete backup
+- [x] Replace old exportData in useSymptomData with v2 backup API call
+- [x] Unify export: both History page and Settings page use the same backup.export API
+
 ## 库存累计计算
 - [x] 修改库存计算逻辑：累加所有补货记录总量 - 所有用药记录总次数（而非仅看最近一次补货）
 - [x] 补货后库存 = 之前剩余 + 本次补货量

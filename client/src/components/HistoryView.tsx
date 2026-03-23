@@ -232,7 +232,7 @@ export default function HistoryView({ entries, onDelete, onExport, onExportCSV, 
                     onClick={() => { onExport(); setShowDataMenu(false); }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
                   >
-                    <Download className="w-3.5 h-3.5 text-muted-foreground" /> 导出 JSON
+                    <Download className="w-3.5 h-3.5 text-muted-foreground" /> 导出完整备份
                   </button>
                   {onExportCSV && (
                     <button

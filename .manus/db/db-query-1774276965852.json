@@ -1,0 +1,15 @@
+{
+  "query": "SELECT mr.userId, u.name, COUNT(*) as cnt FROM medication_reminders mr JOIN users u ON u.id = mr.userId GROUP BY mr.userId, u.name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT mr.userId, u.name, COUNT(*) as cnt FROM medication_reminders mr JOIN users u ON u.id = mr.userId GROUP BY mr.userId, u.name;",
+  "rows": [
+    {
+      "userId": "4",
+      "name": "Loephy Zeng",
+      "cnt": "5"
+    }
+  ],
+  "messages": [],
+  "stdout": "userId\tname\tcnt\n4\tLoephy Zeng\t5\n",
+  "stderr": "",
+  "execution_time_ms": 141
+}

@@ -128,16 +128,30 @@ export function useSymptomData() {
     [entries]
   );
 
-  const exportData = useCallback(() => {
-    const dataStr = JSON.stringify(entries, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `症状日记_${getLocalDateStr()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [entries]);
+  const exportData = useCallback(async () => {
+    try {
+      const data = await utils.backup.export.fetch();
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `症状日记_完整备份_${getLocalDateStr()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      console.error("Export failed:", error);
+      // Fallback to entries-only export if backup API fails
+      const dataStr = JSON.stringify(entries, null, 2);
+      const blob = new Blob([dataStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `症状日记_${getLocalDateStr()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  }, [entries, utils]);
 
   const exportCSV = useCallback(() => {
     if (entries.length === 0) return;
