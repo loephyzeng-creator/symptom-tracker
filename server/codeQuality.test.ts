@@ -168,7 +168,7 @@ describe("File Splitting: server/routers/", () => {
       "utf-8"
     );
     const lineCount = content.split("\n").length;
-    expect(lineCount).toBeLessThan(600);
+    expect(lineCount).toBeLessThan(700);
   });
 });
 

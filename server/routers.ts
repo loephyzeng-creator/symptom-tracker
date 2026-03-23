@@ -339,10 +339,11 @@ export const appRouter = router({
       return exportUserData(ctx.user.id);
     }),
 
-    /** Restore user data from a backup JSON */
+    /** Restore user data from a backup JSON (v2: includes all tables) */
     restore: protectedProcedure
       .input(
         z.object({
+          version: z.number().optional(),
           entries: z
             .array(
               z.object({
@@ -362,6 +363,8 @@ export const appRouter = router({
                 triggers: z.array(z.string()).optional(),
                 severeHeadache: z.number().optional(),
                 painkillerTaken: z.number().optional(),
+                painkillerBrand: z.string().nullable().optional(),
+                painkillerDosage: z.string().nullable().optional(),
                 notes: z.string().nullable().optional(),
               })
             )
@@ -374,8 +377,115 @@ export const appRouter = router({
               enabled: z.number(),
               reminderHour: z.number(),
               reminderMinute: z.number(),
+              painkillerDayLimit: z.number().optional(),
+              painkillerAlertEnabled: z.number().optional(),
+              weeklyReportFrequency: z.string().optional(),
+              weeklyReportHour: z.number().optional(),
+              notificationSound: z.string().optional(),
+              timezone: z.string().optional(),
             })
             .nullable()
+            .optional(),
+          medicationGroups: z
+            .array(
+              z.object({
+                name: z.string(),
+                icon: z.string().nullable().optional(),
+                color: z.string().nullable().optional(),
+                sortOrder: z.number().optional(),
+              })
+            )
+            .optional(),
+          medicationReminders: z
+            .array(
+              z.object({
+                medicationName: z.string(),
+                dosage: z.string(),
+                reminderHour: z.number(),
+                reminderMinute: z.number(),
+                reminderTimes: z
+                  .array(z.object({ hour: z.number(), minute: z.number() }))
+                  .nullable()
+                  .optional(),
+                enabled: z.number().optional(),
+                repeatDays: z.array(z.number()).nullable().optional(),
+                offsetMinutes: z.number().optional(),
+                stockQuantity: z.number().nullable().optional(),
+                dailyDosageCount: z.number().nullable().optional(),
+                stockAlertDays: z.number().nullable().optional(),
+                instructionUrl: z.string().nullable().optional(),
+                expirationDate: z.string().nullable().optional(),
+                expirationAlertDays: z.number().nullable().optional(),
+                groupName: z.string().nullable().optional(),
+                intervalHours: z.number().nullable().optional(),
+                sortOrder: z.number().optional(),
+                startDate: z.string().nullable().optional(),
+                endDate: z.string().nullable().optional(),
+                defaultRestockQuantity: z.number().nullable().optional(),
+              })
+            )
+            .optional(),
+          medicationRestocks: z
+            .array(
+              z.object({
+                medicationName: z.string(),
+                restockQuantity: z.number(),
+                restockDate: z.string(),
+              })
+            )
+            .optional(),
+          drugInteractions: z
+            .array(
+              z.object({
+                drugA: z.string(),
+                drugB: z.string(),
+                severity: z.string().optional(),
+                description: z.string(),
+                recommendation: z.string().nullable().optional(),
+                source: z.string().optional(),
+              })
+            )
+            .optional(),
+          alertRules: z
+            .array(
+              z.object({
+                metricKey: z.string(),
+                threshold: z.number().optional(),
+                consecutiveDays: z.number().optional(),
+                direction: z.string().optional(),
+                enabled: z.number().optional(),
+              })
+            )
+            .optional(),
+          alertHistory: z
+            .array(
+              z.object({
+                metricKey: z.string(),
+                message: z.string(),
+                triggeredDate: z.string(),
+                isRead: z.number().optional(),
+              })
+            )
+            .optional(),
+          customMetrics: z
+            .array(
+              z.object({
+                name: z.string(),
+                description: z.string().nullable().optional(),
+                icon: z.string().nullable().optional(),
+                isHighGood: z.number().optional(),
+                sortOrder: z.number().optional(),
+              })
+            )
+            .optional(),
+          customMetricValues: z
+            .array(
+              z.object({
+                entryDate: z.string(),
+                metricName: z.string(),
+                value: z.number(),
+              })
+            )
             .optional(),
         })
       )

@@ -1,6 +1,6 @@
 /**
  * Backup & Restore — complete data backup/restore with server-side API
- * Exports all entries, custom triggers, and notification settings as JSON
+ * v2: Exports all tables including medication reminders, groups, interactions, alerts, etc.
  */
 import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
@@ -21,14 +21,31 @@ export default function BackupRestore() {
 
   const restoreMutation = trpc.backup.restore.useMutation({
     onSuccess: (result) => {
-      toast.success(
-        `恢复成功：${result.entriesRestored} 条记录，${result.triggersRestored} 个自定义诱因`
-      );
+      const parts: string[] = [];
+      if (result.entriesRestored > 0) parts.push(`${result.entriesRestored} 条记录`);
+      if (result.triggersRestored > 0) parts.push(`${result.triggersRestored} 个诱因`);
+      if (result.remindersRestored > 0) parts.push(`${result.remindersRestored} 个用药提醒`);
+      if (result.groupsRestored > 0) parts.push(`${result.groupsRestored} 个用药分组`);
+      if (result.interactionsRestored > 0) parts.push(`${result.interactionsRestored} 条药物相互作用`);
+      if (result.restocksRestored > 0) parts.push(`${result.restocksRestored} 条补货记录`);
+      if (result.alertRulesRestored > 0) parts.push(`${result.alertRulesRestored} 条警报规则`);
+      if (result.alertHistoryRestored > 0) parts.push(`${result.alertHistoryRestored} 条警报历史`);
+      if (result.customMetricsRestored > 0) parts.push(`${result.customMetricsRestored} 个自定义指标`);
+      if (result.customMetricValuesRestored > 0) parts.push(`${result.customMetricValuesRestored} 个指标值`);
+
+      const summary = parts.length > 0 ? parts.join("，") : "数据已是最新，无需恢复";
+      toast.success(`恢复成功：${summary}`);
+
       // Invalidate all queries to refresh data
       utils.entries.list.invalidate();
       utils.triggers.list.invalidate();
       utils.notification.getSettings.invalidate();
       utils.medications.history.invalidate();
+      utils.medReminders.list.invalidate();
+      utils.medGroups.list.invalidate();
+      utils.drugInteractions.list.invalidate();
+      utils.alerts.listRules.invalidate();
+      utils.alerts.history.invalidate();
       setIsRestoring(false);
     },
     onError: (error) => {
@@ -50,9 +67,16 @@ export default function BackupRestore() {
       a.click();
       URL.revokeObjectURL(url);
 
-      setLastBackupInfo(
-        `${data.entries.length} 条记录，${data.customTriggers.length} 个自定义诱因`
-      );
+      const parts: string[] = [];
+      parts.push(`${data.entries.length} 条记录`);
+      if (data.medicationReminders?.length) parts.push(`${data.medicationReminders.length} 个用药提醒`);
+      if (data.medicationGroups?.length) parts.push(`${data.medicationGroups.length} 个用药分组`);
+      if (data.drugInteractions?.length) parts.push(`${data.drugInteractions.length} 条药物相互作用`);
+      if (data.alertRules?.length) parts.push(`${data.alertRules.length} 条警报规则`);
+      if (data.customMetrics?.length) parts.push(`${data.customMetrics.length} 个自定义指标`);
+      if (data.customTriggers?.length) parts.push(`${data.customTriggers.length} 个自定义诱因`);
+
+      setLastBackupInfo(parts.join("，"));
       toast.success("备份文件已下载");
     } catch (error: any) {
       toast.error(`备份失败：${error.message || "未知错误"}`);
@@ -81,16 +105,25 @@ export default function BackupRestore() {
           throw new Error("无效的备份文件格式");
         }
 
-        // Support both old format (array of entries) and new format (full backup)
+        // Support old format (array of entries), v1 format, and v2 format
         if (Array.isArray(data)) {
           // Old format: just an array of entries
           restoreMutation.mutate({ entries: data });
         } else {
-          // New format: full backup with entries, triggers, settings
+          // v1/v2 format: pass all available fields
           restoreMutation.mutate({
+            version: data.version,
             entries: data.entries,
             customTriggers: data.customTriggers,
             notificationSettings: data.notificationSettings,
+            medicationGroups: data.medicationGroups,
+            medicationReminders: data.medicationReminders,
+            medicationRestocks: data.medicationRestocks,
+            drugInteractions: data.drugInteractions,
+            alertRules: data.alertRules,
+            alertHistory: data.alertHistory,
+            customMetrics: data.customMetrics,
+            customMetricValues: data.customMetricValues,
           });
         }
       } catch (error: any) {
@@ -115,7 +148,7 @@ export default function BackupRestore() {
         <div>
           <h3 className="font-serif font-semibold text-sm">数据备份与恢复</h3>
           <p className="text-[10px] text-muted-foreground">
-            完整备份包含所有记录、自定义诱因和提醒设置
+            完整备份包含所有记录、用药提醒、分组、警报规则等
           </p>
         </div>
       </div>
@@ -175,7 +208,7 @@ export default function BackupRestore() {
         </div>
         <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
           <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
-          <span>恢复时同日期的记录会被覆盖，不会删除已有数据</span>
+          <span>恢复时同名药品/同日期记录不会重复创建，已有数据不会被删除</span>
         </div>
       </div>
     </motion.div>
