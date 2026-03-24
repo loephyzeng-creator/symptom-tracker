@@ -743,3 +743,9 @@
 - [x] 优化LLM prompt：强调复方制剂需按实际剂量评估，区分低剂量和常规剂量
 - [x] 优化LLM prompt：要求分析时考虑药品的实际临床用途和常见剂量
 - [x] 测试验证分析准确性
+
+## 全面审查所有AI分析功能
+- [x] 查找并列出所有LLM调用点（3个：aiAnalysis, drugInteractions, drowsinessAnalysis）
+- [x] 逐一审查每个AI prompt的准确性和严谨性
+- [x] 修复发现的问题（药物相互作用prompt大幅扩展，症状分析prompt优化MOH标准）
+- [x] 测试验证（998测试全通过）
