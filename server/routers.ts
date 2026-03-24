@@ -50,6 +50,7 @@ import { medRemindersRouter } from "./routers/medReminders";
 import { notificationRouter } from "./routers/notification";
 import { medGroupsRouter } from "./routers/medGroups";
 import { drugInteractionsRouter } from "./routers/drugInteractions";
+import { drowsinessAnalysisRouter } from "./routers/drowsinessAnalysis";
 
 const medicationSchema = z.object({
   name: z.string(),
@@ -248,6 +249,7 @@ export const appRouter = router({
   medReminders: medRemindersRouter,
   medGroups: medGroupsRouter,
   drugInteractions: drugInteractionsRouter,
+  drowsinessAnalysis: drowsinessAnalysisRouter,
 
   medications: router({
     /** Get medication history for autocomplete */
