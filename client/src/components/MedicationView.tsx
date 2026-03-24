@@ -7,6 +7,7 @@ import { useState, useMemo, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import MedicationCheckInCalendar from "@/components/MedicationCheckInCalendar";
 import DrugInteractionChecker from "@/components/DrugInteractionChecker";
+import DrowsinessReference from "@/components/DrowsinessReference";
 import PainkillerTrendChart from "@/components/PainkillerTrendChart";
 import PainkillerHeatmapCalendar from "@/components/PainkillerHeatmapCalendar";
 import MedicationConsumptionChart from "@/components/MedicationConsumptionChart";
@@ -573,6 +574,16 @@ export default function MedicationView() {
         className="bg-card rounded-2xl p-4 shadow-sm border border-border/40"
       >
         <DrugInteractionChecker />
+      </motion.div>
+
+      {/* Drowsiness Reference */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="bg-card rounded-2xl p-4 shadow-sm border border-border/40"
+      >
+        <DrowsinessReference />
       </motion.div>
     </div>
   );
