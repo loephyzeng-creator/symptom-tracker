@@ -1,0 +1,8 @@
+{
+  "query": "SELECT mr.id, mr.medication_name, mr.dosage, mr.frequency, mr.reminder_time, mg.name as group_name FROM medication_reminders mr LEFT JOIN medication_groups mg ON mr.group_id = mg.id WHERE mr.user_id = 4 ORDER BY mg.name, mr.medication_name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute SELECT mr.id, mr.medication_name, mr.dosage, mr.frequency, mr.reminder_time, mg.name as group_name FROM medication_reminders mr LEFT JOIN medication_groups mg ON mr.group_id = mg.id WHERE mr.user_id = 4 ORDER BY mg.name, mr.medication_name;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'mr.group_id' in 'on clause'"
+  ]
+}
