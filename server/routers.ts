@@ -41,6 +41,7 @@ import {
   getMedicationReminders,
 } from "./db";
 import { generateReportHTML } from "./report";
+import { generateUrinaryReportHTML } from "./urinaryReport";
 import { analyzeSymptoms } from "./aiAnalysis";
 import { sendWebPush } from "./reminderScheduler";
 import { getDateStrInTimezone, DEFAULT_TIMEZONE } from "../shared/timezone";
@@ -664,6 +665,46 @@ export const appRouter = router({
           input.endDate,
           ctx.user.name ?? "用户",
           adherenceData,
+          medRemindersList
+        );
+        return { html, entryCount: entries.length };
+      }),
+
+    /** Generate urinary symptom-medication correlation report */
+    generateUrinary: protectedProcedure
+      .input(
+        z.object({
+          startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const entries = await getEntriesByDateRange(
+          ctx.user.id,
+          input.startDate,
+          input.endDate
+        );
+
+        // Fetch medication reminders for risk assessment
+        let medRemindersList = null;
+        try {
+          const reminders = await getMedicationReminders(ctx.user.id);
+          medRemindersList = reminders.map((r: any) => ({
+            medicationName: r.medicationName,
+            dosage: r.dosage,
+            startDate: r.startDate,
+            endDate: r.endDate,
+            reminderTimes: r.reminderTimes,
+            repeatDays: r.repeatDays,
+            enabled: r.enabled,
+          }));
+        } catch { /* ignore */ }
+
+        const html = generateUrinaryReportHTML(
+          entries,
+          input.startDate,
+          input.endDate,
+          ctx.user.name ?? "用户",
           medRemindersList
         );
         return { html, entryCount: entries.length };

@@ -166,6 +166,125 @@ function getWeekStart(dateStr: string): string {
   return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
 }
 
+/** Urinary symptom trigger keywords */
+const URINARY_TRIGGERS = ["排尿困难", "尿等待", "夜尿增多", "排尿不尽", "尿频", "尿急"];
+
+/** Build urinary symptom-medication correlation analysis data */
+function buildUrinaryMedicationCorrelation(entries: SymptomEntryForAnalysis[]): string {
+  if (entries.length < 3) return "";
+
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+
+  // Find entries with urinary symptoms in triggers
+  const withUrinary: SymptomEntryForAnalysis[] = [];
+  const withoutUrinary: SymptomEntryForAnalysis[] = [];
+  const urinaryTriggerCounts: Record<string, number> = {};
+
+  for (const e of sorted) {
+    const triggers = normTriggers(e.triggers);
+    const urinaryTriggers = triggers.filter(t => URINARY_TRIGGERS.includes(t));
+    if (urinaryTriggers.length > 0) {
+      withUrinary.push(e);
+      for (const t of urinaryTriggers) {
+        urinaryTriggerCounts[t] = (urinaryTriggerCounts[t] || 0) + 1;
+      }
+    } else {
+      withoutUrinary.push(e);
+    }
+  }
+
+  // No urinary symptoms recorded
+  if (withUrinary.length === 0) return "";
+
+  let section = "\n\n泌尿系统症状-用药关联分析数据：\n";
+  section += `- 泌尿症状出现天数：${withUrinary.length} 天（共 ${sorted.length} 天记录）\n`;
+
+  // Breakdown by urinary trigger type
+  const triggerBreakdown = Object.entries(urinaryTriggerCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([t, c]) => `${t}(${c}天)`)
+    .join("、");
+  section += `- 泌尿症状类型分布：${triggerBreakdown}\n`;
+
+  // Medication frequency on urinary symptom days vs non-urinary days
+  const medOnUrinary: Record<string, number> = {};
+  const medOnNonUrinary: Record<string, number> = {};
+
+  for (const e of withUrinary) {
+    for (const m of normMeds(e.medications)) {
+      if (m.name.trim()) {
+        const key = m.dosage ? `${m.name} ${m.dosage}` : m.name;
+        medOnUrinary[key] = (medOnUrinary[key] || 0) + 1;
+      }
+    }
+  }
+
+  for (const e of withoutUrinary) {
+    for (const m of normMeds(e.medications)) {
+      if (m.name.trim()) {
+        const key = m.dosage ? `${m.name} ${m.dosage}` : m.name;
+        medOnNonUrinary[key] = (medOnNonUrinary[key] || 0) + 1;
+      }
+    }
+  }
+
+  // All unique medications
+  const allMeds = Array.from(new Set([...Object.keys(medOnUrinary), ...Object.keys(medOnNonUrinary)]));
+  if (allMeds.length > 0) {
+    section += "泌尿症状日 vs 无泌尿症状日的用药对比：\n";
+    for (const med of allMeds) {
+      const onU = medOnUrinary[med] || 0;
+      const onN = medOnNonUrinary[med] || 0;
+      const rateU = withUrinary.length > 0 ? Math.round((onU / withUrinary.length) * 100) : 0;
+      const rateN = withoutUrinary.length > 0 ? Math.round((onN / withoutUrinary.length) * 100) : 0;
+      section += `  ${med}: 泌尿症状日 ${rateU}% (${onU}/${withUrinary.length}天) vs 无症状日 ${rateN}% (${onN}/${withoutUrinary.length}天)\n`;
+    }
+  }
+
+  // Compare other symptom scores on urinary days vs non-urinary days
+  const symptomFields = ["dizziness", "headache", "sleepQuality", "anxiety", "fatigue", "mood"] as const;
+  const labels: Record<string, string> = {
+    dizziness: "头晕", headache: "头痛", sleepQuality: "睡眠质量",
+    anxiety: "焦虑", fatigue: "疲劳", mood: "心情",
+  };
+  section += "- 泌尿症状日 vs 无症状日其他指标对比：\n";
+  for (const f of symptomFields) {
+    const avgU = withUrinary.length > 0
+      ? Math.round((withUrinary.reduce((s, e) => s + (e[f] ?? 0), 0) / withUrinary.length) * 10) / 10
+      : 0;
+    const avgN = withoutUrinary.length > 0
+      ? Math.round((withoutUrinary.reduce((s, e) => s + (e[f] ?? 0), 0) / withoutUrinary.length) * 10) / 10
+      : 0;
+    section += `  ${labels[f]}: 泌尿症状日 ${avgU} vs 无症状日 ${avgN}\n`;
+  }
+
+  // Timeline: when did urinary symptoms first appear and trend
+  const urinaryDates = withUrinary.map(e => e.date).sort();
+  section += `- 泌尿症状首次出现日期：${urinaryDates[0]}\n`;
+  section += `- 泌尿症状最近出现日期：${urinaryDates[urinaryDates.length - 1]}\n`;
+
+  // Weekly trend of urinary symptoms
+  const weeklyUrinary: Record<string, { total: number; urinary: number }> = {};
+  for (const e of sorted) {
+    const weekStart = getWeekStart(e.date);
+    if (!weeklyUrinary[weekStart]) weeklyUrinary[weekStart] = { total: 0, urinary: 0 };
+    weeklyUrinary[weekStart].total++;
+    const triggers = normTriggers(e.triggers);
+    if (triggers.some(t => URINARY_TRIGGERS.includes(t))) {
+      weeklyUrinary[weekStart].urinary++;
+    }
+  }
+  const weeks = Object.entries(weeklyUrinary).sort((a, b) => a[0].localeCompare(b[0]));
+  if (weeks.length > 1) {
+    section += "- 每周泌尿症状出现频率：\n";
+    for (const [week, data] of weeks.slice(-8)) {
+      section += `  ${week}周: ${data.urinary}/${data.total}天\n`;
+    }
+  }
+
+  return section;
+}
+
 /** Build a concise data summary for the LLM prompt */
 function buildDataSummary(entries: SymptomEntryForAnalysis[]): string {
   if (entries.length === 0) return "暂无数据记录。";
@@ -260,6 +379,9 @@ function buildDataSummary(entries: SymptomEntryForAnalysis[]): string {
   // Build painkiller-headache correlation section
   const painkillerCorrelation = buildPainkillerHeadacheCorrelation(entries);
 
+  // Build urinary symptom-medication correlation section
+  const urinaryCorrelation = buildUrinaryMedicationCorrelation(entries);
+
   return `数据概览：
 - 记录范围：${dateRange}，共 ${totalDays} 天
 - 头痛发作天数：${attackCount} 天（其中明显/严重 ${severeCount} 天）
@@ -271,7 +393,7 @@ function buildDataSummary(entries: SymptomEntryForAnalysis[]): string {
   运动敏感: ${avgs.motionSickness}  |  心慌程度: ${avgs.palpitations}  |  整体心情: ${avgs.mood}
 
 常见诱因：${triggerStr}
-常用药物：${medStr}${trendSection}${painkillerCorrelation}${dataTable}`;
+常用药物：${medStr}${trendSection}${painkillerCorrelation}${urinaryCorrelation}${dataTable}`;
 }
 
 interface AdherenceData {
@@ -393,16 +515,27 @@ export async function analyzeSymptoms(
    - 分析服药日其他症状的变化
    - 给出止疼药使用的具体建议
 5. **用药依从性与症状关联**：如果有依从性数据，分析服药规律与症状改善之间的相关性
-6. **时间规律发现**：发现是否存在周期性波动
-7. **个性化建议**：基于数据给出具体、可操作的健康管理建议
+6. **泌尿系统症状-用药关联分析**（如果有泌尿症状数据）：
+   - 分析泌尿症状（排尿困难、尿等待、夜尿增多、排尿不尽、尿频、尿急）的出现频率和趋势
+   - 对比泌尿症状日和无症状日的用药情况，识别哪些药物与泌尿症状最相关
+   - 结合药理学知识分析：
+     * 度洛西汀（Duloxetine）：SNRI类药物，通过去甲肾上腺素增加尿道闭合压，是导致排尿困难的常见药物
+     * 氟哌噻吨美利曲辛片（黛力新）：美利曲辛成分具有抹胆碱能活性，可抑制膀胱逼尿肌收缩
+     * 草酸艾司西酉普兰（SSRI）：低剂量时泌尿影响较小，但可能增强其他药物的泌尿副作用
+     * 盐酸乙哌立松（肌松弛剂）和甲磺酸二氢麦角碱（麦角生物碱）：对泌尿系统影响极小
+   - 特别关注多药联用的叠加效应（如度洛西汀增加尿道阻力 + 黛力新抑制膀胱收缩 = 双重不利）
+   - 给出具体建议（如建议复诊时告知医生、可能的药物调整方向）
+7. **时间规律发现**：发现是否存在周期性波动
+8. **个性化建议**：基于数据给出具体、可操作的健康管理建议
 
 ## 输出格式
 
 请使用 Markdown 格式输出，包含清晰的标题和段落。语言风格应温和、专业、鼓励性。
 不要使用过于绝对的医学诊断语言，而是用"数据显示"、"可能存在"、"建议关注"等表述。
 如果数据量较少，请如实说明分析的局限性。
-**必须**包含一个独立的"止疼药使用与头痛关联分析"章节，即使止疼药使用天数为0也要说明。
-如果提供了用药依从性数据，请在报告中单独设置一个"用药依从性与症状关联分析"章节。
+**必须**包含一个独立的“止疼药使用与头痛关联分析”章节，即使止疼药使用天数为0也要说明。
+如果提供了用药依从性数据，请在报告中单独设置一个“用药依从性与症状关联分析”章节。
+如果提供了泌尿系统症状数据，请在报告中单独设置一个“泌尿系统症状-用药关联分析”章节，重点分析哪个药物最可能导致泌尿症状，并给出复诊建议。
 
 ## 免责声明（必须包含）
 
@@ -441,4 +574,4 @@ ${dataSummary}${adherenceSummary}${stockSummary}`;
 }
 
 /** Export buildDataSummary and buildPainkillerHeadacheCorrelation for testing */
-export { buildDataSummary, buildPainkillerHeadacheCorrelation };
+export { buildDataSummary, buildPainkillerHeadacheCorrelation, buildUrinaryMedicationCorrelation };
