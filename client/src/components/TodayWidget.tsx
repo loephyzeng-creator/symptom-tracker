@@ -82,11 +82,10 @@ export default function TodayWidget({ entries }: TodayWidgetProps) {
     [entries, yesterdayStr]
   );
 
-  // If no today entry, don't show widget
-  if (!todayEntry) return null;
-
+  // ALL hooks must be called before any early return (React Rules of Hooks)
   // Calculate overall score (average of all 9 metrics, normalized)
   const todayAvg = useMemo(() => {
+    if (!todayEntry) return 0;
     let sum = 0;
     for (const m of METRICS) {
       const val = (todayEntry as any)[m.key] ?? 0;
@@ -106,13 +105,9 @@ export default function TodayWidget({ entries }: TodayWidgetProps) {
     return sum / METRICS.length;
   }, [yesterdayEntry]);
 
-  const overallChange = yesterdayAvg !== null
-    ? getChange(todayAvg, yesterdayAvg, false) // higher wellness = better
-    : null;
-
   // Pick top 4 most notable changes (largest absolute diff)
   const metricChanges = useMemo(() => {
-    if (!yesterdayEntry) return [];
+    if (!todayEntry || !yesterdayEntry) return [];
     return METRICS.map((m) => {
       const todayVal = (todayEntry as any)[m.key] ?? 0;
       const yesterdayVal = (yesterdayEntry as any)[m.key] ?? 0;
@@ -123,6 +118,13 @@ export default function TodayWidget({ entries }: TodayWidgetProps) {
       .sort((a, b) => Math.abs(b.change.diff) - Math.abs(a.change.diff))
       .slice(0, 4);
   }, [todayEntry, yesterdayEntry]);
+
+  // If no today entry, don't show widget (AFTER all hooks)
+  if (!todayEntry) return null;
+
+  const overallChange = yesterdayAvg !== null
+    ? getChange(todayAvg, yesterdayAvg, false) // higher wellness = better
+    : null;
 
   // Wellness level text
   const getWellnessText = (avg: number): string => {

@@ -764,3 +764,9 @@
 - [x] 前端：创建可打印的泌尿症状-用药关联报告页面
 - [x] 前端：报告包含泌尿症状统计、用药清单、关联分析、AI建议
 - [x] 测试验证（1010个测试全部通过）
+
+## Bug: 部署站点运行时崩溃（记录页保存后）
+- [x] 排查 mysymptrack.manus.space 前端 "An unexpected error occurred" 错误
+- [x] 定位根本原因：TodayWidget.tsx 违反 React Rules of Hooks（useMemo 在 early return 之后调用）
+- [x] 修复：将所有 hooks 移到 early return 之前，在 useMemo 内部处理 null 情况
+- [x] 测试验证（1010个测试全部通过）
