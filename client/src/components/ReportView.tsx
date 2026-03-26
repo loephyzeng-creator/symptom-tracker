@@ -115,18 +115,23 @@ export default function ReportView() {
   };
 
   const handlePrint = () => {
-    if (!reportHtml) return;
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      toast.error("无法打开打印窗口，请允许弹出窗口");
-      return;
+    if (!reportHtml || !iframeRef.current) return;
+    try {
+      const iframeWindow = iframeRef.current.contentWindow;
+      if (iframeWindow) {
+        iframeWindow.print();
+      }
+    } catch {
+      // Fallback: download as HTML file if iframe print fails
+      const blob = new Blob([reportHtml], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `就诊报告_${startStr}_${endStr}.html`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast.info("已下载报告文件，请在浏览器中打开后打印");
     }
-    printWindow.document.write(reportHtml);
-    printWindow.document.close();
-    // Wait for fonts to load then print
-    setTimeout(() => {
-      printWindow.print();
-    }, 1000);
   };
 
   const handleCalendarSelect = (selected: { from?: Date; to?: Date } | undefined) => {

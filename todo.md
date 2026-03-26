@@ -770,3 +770,8 @@
 - [x] 定位根本原因：TodayWidget.tsx 违反 React Rules of Hooks（useMemo 在 early return 之后调用）
 - [x] 修复：将所有 hooks 移到 early return 之前，在 useMemo 内部处理 null 情况
 - [x] 测试验证（1010个测试全部通过）
+
+## Bug: 泌尿症状报告弹出窗口被移动端浏览器拦截
+- [x] 修复泌尿症状报告生成方式（window.open 改为页面内 iframe 全屏覆盖层）
+- [x] 同时修复就诊报告打印功能（改用 iframe.contentWindow.print）
+- [x] 测试验证（1010个测试全部通过）
