@@ -15,6 +15,7 @@ import MedicationChart from "@/components/MedicationChart";
 import TriggerBubbleChart from "@/components/TriggerBubbleChart";
 import AIAnalysis from "@/components/AIAnalysis";
 import TriggerDietCorrelation from "@/components/TriggerDietCorrelation";
+import TriggerTimelineAnalysis from "@/components/TriggerTimelineAnalysis";
 import MedicationAdherence from "@/components/MedicationAdherence";
 import HeadachePainkillerChart from "@/components/HeadachePainkillerChart";
 import PainkillerHeadacheScatter from "@/components/PainkillerHeadacheScatter";
@@ -281,7 +282,8 @@ export default function StatsView({ entries }: StatsViewProps) {
         <>
           <TriggerBubbleChart entries={filteredEntries} />
           <TriggerDietCorrelation entries={filteredEntries} />
-          <TriggerAnalysis entries={filteredEntries} />
+           <TriggerTimelineAnalysis entries={filteredEntries} />
+           <TriggerAnalysis entries={filteredEntries} />
         </>
       ) : (
         <>
