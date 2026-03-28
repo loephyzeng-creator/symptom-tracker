@@ -25,6 +25,7 @@ import BackupRestore from "@/components/BackupRestore";
 import SyncStatus from "@/components/SyncStatus";
 import CustomMetricsManager from "@/components/CustomMetricsManager";
 import PainkillerLimitSetting from "@/components/PainkillerLimitSetting";
+import TriggerTipSettings from "@/components/TriggerTipSettings";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2,
@@ -346,6 +347,10 @@ function SettingsView({
 
       <SettingsSection title="自定义指标" icon={Activity} defaultOpen={false}>
         <CustomMetricsManager />
+      </SettingsSection>
+
+      <SettingsSection title="诱因调理建议" icon={Zap} defaultOpen={false}>
+        <TriggerTipSettings />
       </SettingsSection>
 
       {/* App Info */}

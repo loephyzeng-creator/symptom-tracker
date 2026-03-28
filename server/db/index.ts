@@ -10,3 +10,4 @@ export * from "./customMetrics";
 export * from "./backup";
 export * from "./alerts";
 export * from "./medications";
+export * from "./triggerTips";

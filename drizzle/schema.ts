@@ -267,3 +267,23 @@ export const medicationRestocks = mysqlTable("medication_restocks", {
 
 export type MedicationRestock = typeof medicationRestocks.$inferSelect;
 export type InsertMedicationRestock = typeof medicationRestocks.$inferInsert;
+
+/**
+ * Trigger tips — user-customizable health tips for specific triggers.
+ * Each row stores recommended items, items to avoid, and a summary tip for one trigger.
+ * Overrides the built-in defaults when present.
+ */
+export const triggerTips = mysqlTable("trigger_tips", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  trigger: varchar("trigger", { length: 100 }).notNull(), // trigger name, e.g. "上火"
+  title: varchar("title", { length: 200 }), // custom title (null = use default)
+  recommended: json("recommended").$type<string[]>().default([]).notNull(),
+  avoid: json("avoid").$type<string[]>().default([]).notNull(),
+  tip: text("tip"), // custom summary tip
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TriggerTip = typeof triggerTips.$inferSelect;
+export type InsertTriggerTip = typeof triggerTips.$inferInsert;

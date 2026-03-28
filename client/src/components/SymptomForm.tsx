@@ -14,9 +14,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import type { SymptomEntry } from "@/hooks/useSymptomData";
 import CustomMetricSliders from "@/components/CustomMetricSliders";
 import PainkillerDetailDialog from "@/components/PainkillerDetailDialog";
-import InflammationDietTip from "@/components/InflammationDietTip";
+import TriggerTips from "@/components/TriggerTips";
 import { trpc } from "@/lib/trpc";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { zhCN } from "date-fns/locale";
 import { toast } from "sonner";
 import {
@@ -520,9 +520,7 @@ export default function SymptomForm({
         </div>
 
         {/* Trigger-specific tips */}
-        <AnimatePresence>
-          {triggers.includes("上火") && <InflammationDietTip />}
-        </AnimatePresence>
+        <TriggerTips selectedTriggers={triggers} />
       </motion.div>
 
 

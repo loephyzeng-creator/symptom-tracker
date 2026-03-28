@@ -14,6 +14,7 @@ import SymptomSummary from "@/components/SymptomSummary";
 import MedicationChart from "@/components/MedicationChart";
 import TriggerBubbleChart from "@/components/TriggerBubbleChart";
 import AIAnalysis from "@/components/AIAnalysis";
+import TriggerDietCorrelation from "@/components/TriggerDietCorrelation";
 import MedicationAdherence from "@/components/MedicationAdherence";
 import HeadachePainkillerChart from "@/components/HeadachePainkillerChart";
 import PainkillerHeadacheScatter from "@/components/PainkillerHeadacheScatter";
@@ -279,6 +280,7 @@ export default function StatsView({ entries }: StatsViewProps) {
       ) : statsTab === "triggers" ? (
         <>
           <TriggerBubbleChart entries={filteredEntries} />
+          <TriggerDietCorrelation entries={filteredEntries} />
           <TriggerAnalysis entries={filteredEntries} />
         </>
       ) : (

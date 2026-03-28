@@ -11,6 +11,9 @@ import {
   getTriggersByUserId,
   addCustomTrigger,
   deleteCustomTrigger,
+  getTriggerTipsByUserId,
+  upsertTriggerTip,
+  deleteTriggerTip,
   getMedicationHistory,
   exportUserData,
   restoreUserData,
@@ -620,6 +623,41 @@ export const appRouter = router({
     status: protectedProcedure.query(async ({ ctx }) => {
       return getIntervalMedicationStatus(ctx.user.id);
     }),
+  }),
+
+  triggerTips: router({
+    /** List all custom trigger tips for the current user */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getTriggerTipsByUserId(ctx.user.id);
+    }),
+
+    /** Upsert a trigger tip (create or update) */
+    upsert: protectedProcedure
+      .input(
+        z.object({
+          trigger: z.string().min(1).max(100),
+          title: z.string().max(200).optional().nullable(),
+          recommended: z.array(z.string()).default([]),
+          avoid: z.array(z.string()).default([]),
+          tip: z.string().optional().nullable(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        return upsertTriggerTip(ctx.user.id, input.trigger, {
+          title: input.title,
+          recommended: input.recommended,
+          avoid: input.avoid,
+          tip: input.tip,
+        });
+      }),
+
+    /** Delete a custom trigger tip (revert to default) */
+    delete: protectedProcedure
+      .input(z.object({ trigger: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteTriggerTip(ctx.user.id, input.trigger);
+        return { success: true };
+      }),
   }),
 
   report: router({

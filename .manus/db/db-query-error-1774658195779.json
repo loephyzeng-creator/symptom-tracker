@@ -1,0 +1,14 @@
+{
+  "query": "CREATE TABLE `trigger_tips` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`trigger` varchar(100) NOT NULL,\n\t`title` varchar(200),\n\t`recommended` json NOT NULL DEFAULT ('[]'),\n\t`avoid` json NOT NULL DEFAULT ('[]'),\n\t`tip` text,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `trigger_tips_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute CREATE TABLE `trigger_tips` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`trigger` varchar(100) NOT NULL,\n\t`title` varchar(200),\n\t`recommended` json NOT NULL DEFAULT ('[]'),\n\t`avoid` json NOT NULL DEFAULT ('[]'),\n\t`tip` text,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `trigger_tips_id` PRIMARY KEY(`id`)\n);",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your TiDB version for the right syntax to use line 6 column 43 near \"'[]'),",
+    "\t`avoid` json NOT NULL DEFAULT ('[]'),",
+    "\t`tip` text,",
+    "\t`createdAt` timestamp NOT NULL DEFAULT (now()),",
+    "\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,",
+    "\tCONSTRAINT `trigger_tips_id` PRIMARY KEY(`id`)",
+    ")\""
+  ]
+}
