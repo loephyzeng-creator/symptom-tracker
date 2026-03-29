@@ -302,6 +302,7 @@ export const healthArticles = mysqlTable("health_articles", {
   source: varchar("source", { length: 200 }), // attribution / reference
   relatedTriggers: json("relatedTriggers").$type<string[]>().default([]).notNull(), // linked trigger names
   isPreset: int("isPreset").default(1).notNull(), // 1 = system preset, 0 = user-contributed
+  userId: int("userId"), // null for preset articles, user ID for user-contributed
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -321,3 +322,16 @@ export const articleFavorites = mysqlTable("article_favorites", {
 
 export type ArticleFavorite = typeof articleFavorites.$inferSelect;
 export type InsertArticleFavorite = typeof articleFavorites.$inferInsert;
+
+/**
+ * Article read history — tracks which articles a user has viewed.
+ */
+export const articleReadHistory = mysqlTable("article_read_history", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  articleId: int("articleId").notNull(),
+  readAt: timestamp("readAt").defaultNow().notNull(),
+});
+
+export type ArticleReadHistory = typeof articleReadHistory.$inferSelect;
+export type InsertArticleReadHistory = typeof articleReadHistory.$inferInsert;

@@ -10,6 +10,14 @@ import {
   getUserFavoriteArticles,
   toggleFavorite,
   seedPresetArticles,
+  createUserArticle,
+  updateUserArticle,
+  deleteUserArticle,
+  getUserArticles,
+  recordArticleRead,
+  getReadHistory,
+  getRecentlyReadArticles,
+  getRecommendedArticles,
 } from "../db";
 import { PRESET_ARTICLES } from "../knowledgeBaseSeed";
 
@@ -76,5 +84,90 @@ export const knowledgeBaseRouter = router({
     .input(z.object({ articleId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       return toggleFavorite(ctx.user.id, input.articleId);
+    }),
+
+  /* ─── User Custom Articles ─── */
+
+  /** Create a user-contributed article */
+  createArticle: protectedProcedure
+    .input(
+      z.object({
+        title: z.string().min(1).max(200),
+        category: z.string().min(1).max(50),
+        tags: z.array(z.string()).default([]),
+        summary: z.string().min(1).max(500),
+        content: z.string().min(1),
+        relatedTriggers: z.array(z.string()).default([]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return createUserArticle(ctx.user.id, input);
+    }),
+
+  /** Update a user-contributed article */
+  updateArticle: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        title: z.string().min(1).max(200).optional(),
+        category: z.string().min(1).max(50).optional(),
+        tags: z.array(z.string()).optional(),
+        summary: z.string().min(1).max(500).optional(),
+        content: z.string().min(1).optional(),
+        relatedTriggers: z.array(z.string()).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      return updateUserArticle(ctx.user.id, id, data);
+    }),
+
+  /** Delete a user-contributed article */
+  deleteArticle: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      return deleteUserArticle(ctx.user.id, input.id);
+    }),
+
+  /** Get current user's custom articles */
+  myArticles: protectedProcedure.query(async ({ ctx }) => {
+    return getUserArticles(ctx.user.id);
+  }),
+
+  /* ─── Reading History ─── */
+
+  /** Record that the user read an article */
+  recordRead: protectedProcedure
+    .input(z.object({ articleId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      await recordArticleRead(ctx.user.id, input.articleId);
+      return { success: true };
+    }),
+
+  /** Get user's reading history (article IDs + timestamps) */
+  readHistory: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(20) }).optional())
+    .query(async ({ ctx, input }) => {
+      return getReadHistory(ctx.user.id, input?.limit ?? 20);
+    }),
+
+  /** Get user's recently read articles (full data) */
+  recentlyRead: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(20) }).optional())
+    .query(async ({ ctx, input }) => {
+      await ensureSeeded();
+      return getRecentlyReadArticles(ctx.user.id, input?.limit ?? 20);
+    }),
+
+  /* ─── AI Recommendations ─── */
+
+  /** Get AI-recommended articles based on user's recent triggers */
+  recommendations: protectedProcedure
+    .input(z.object({ triggers: z.array(z.string()), limit: z.number().min(1).max(20).default(5) }).optional())
+    .query(async ({ ctx, input }) => {
+      await ensureSeeded();
+      const triggers = input?.triggers ?? [];
+      const limit = input?.limit ?? 5;
+      return getRecommendedArticles(triggers, limit);
     }),
 });
