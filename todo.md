@@ -804,3 +804,16 @@
 - [x] 检查 TypeScript 编译和代码质量（0错误，无 Hooks 违规）
 - [x] 检查前端性能（主包 3.87MB，需要代码分割）
 - [x] 修复：代码分割（manualChunks）+ DB 连接池优化 + 提醒调度器 ECONNRESET 重试逻辑
+
+## 健康知识库模块
+- [x] 数据库：新增health_articles表（标题/分类/标签/摘要/内容/来源/关联诱因/预置标记）
+- [x] 数据库：新增article_favorites表（用户ID/文章ID/收藏时间）
+- [x] 后端：知识库DB查询模块（列表/详情/搜索/按诱因/分类/收藏/切换收藏/种子数据）
+- [x] 后端：knowledgeBase tRPC路由（list/detail/search/byTriggers/categories/favoriteIds/favorites/toggleFavorite）
+- [x] 后端：10篇预置健康文章种子数据（覆盖饮食调理/睡眠改善/心理健康/生活习惯/环境因素/头痛管理/运动康复/用药知识）
+- [x] 前端：HealthKnowledgeBase组件（分类浏览+关键词搜索+收藏筛选+文章详情+诱因标签+Markdown渲染）
+- [x] 前端：设置页面添加"健康知识库"入口按钮（搜索和收藏常用调理方案）
+- [x] 前端：TriggerTips组件添加"查看更多相关知识"链接（点击跳转知识库并按诱因筛选）
+- [x] 前端：SymptomForm传递onViewKnowledge回调，从记录页诱因提示直达知识库
+- [x] 测试：22个新增测试（种子数据完整性/路由输入验证/DB查询mock/分类映射）
+- [x] 测试验证（1051个测试全部通过）

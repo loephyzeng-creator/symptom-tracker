@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronUp,
   Lightbulb,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 
@@ -150,7 +151,7 @@ export const DEFAULT_TRIGGER_TIPS: TriggerTipData[] = [
 ];
 
 /* ─── Single tip card component ─── */
-function TriggerTipCard({ data }: { data: TriggerTipData }) {
+function TriggerTipCard({ data, onViewKnowledge }: { data: TriggerTipData; onViewKnowledge?: (trigger: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const Icon = data.icon;
 
@@ -237,6 +238,17 @@ function TriggerTipCard({ data }: { data: TriggerTipData }) {
                 </p>
               </div>
             )}
+
+            {/* Knowledge base link */}
+            {onViewKnowledge && (
+              <button
+                onClick={() => onViewKnowledge(data.trigger)}
+                className={`flex items-center gap-1 text-[10px] ${data.colorScheme.chevron} hover:underline pt-1`}
+              >
+                <BookOpen className="w-3 h-3" />
+                查看更多「{data.trigger}」相关知识
+              </button>
+            )}
           </motion.div>
         )}
       </div>
@@ -245,7 +257,7 @@ function TriggerTipCard({ data }: { data: TriggerTipData }) {
 }
 
 /* ─── Main container: renders tips for all selected triggers ─── */
-export default function TriggerTips({ selectedTriggers }: { selectedTriggers: string[] }) {
+export default function TriggerTips({ selectedTriggers, onViewKnowledge }: { selectedTriggers: string[]; onViewKnowledge?: (trigger: string) => void }) {
   // Fetch user custom tips (overrides defaults)
   const customTipsQuery = trpc.triggerTips.list.useQuery(undefined, {
     refetchOnWindowFocus: false,
@@ -279,7 +291,7 @@ export default function TriggerTips({ selectedTriggers }: { selectedTriggers: st
   return (
     <AnimatePresence>
       {activeTips.map((tip) => (
-        <TriggerTipCard key={tip.trigger} data={tip} />
+        <TriggerTipCard key={tip.trigger} data={tip} onViewKnowledge={onViewKnowledge} />
       ))}
     </AnimatePresence>
   );

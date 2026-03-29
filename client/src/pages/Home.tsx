@@ -26,6 +26,7 @@ import SyncStatus from "@/components/SyncStatus";
 import CustomMetricsManager from "@/components/CustomMetricsManager";
 import PainkillerLimitSetting from "@/components/PainkillerLimitSetting";
 import TriggerTipSettings from "@/components/TriggerTipSettings";
+import HealthKnowledgeBase from "@/components/HealthKnowledgeBase";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2,
@@ -247,9 +248,11 @@ function SettingsSection({
 function SettingsView({
   user,
   onLogout,
+  onOpenKnowledgeBase,
 }: {
   user: { name?: string | null; avatarUrl?: string; openId?: string } | null;
   onLogout: () => void;
+  onOpenKnowledgeBase?: () => void;
 }) {
   const { theme, toggleTheme } = useTheme();
 
@@ -353,6 +356,25 @@ function SettingsView({
         <TriggerTipSettings />
       </SettingsSection>
 
+      {/* Health Knowledge Base Entry */}
+      {onOpenKnowledgeBase && (
+        <button
+          onClick={onOpenKnowledgeBase}
+          className="w-full bg-card rounded-xl border border-border/40 p-4 text-left hover:bg-accent/30 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-terracotta/10 flex items-center justify-center">
+              <BookOpen className="w-4 h-4 text-terracotta" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">健康知识库</p>
+              <p className="text-xs text-muted-foreground">搜索和收藏常用调理方案</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          </div>
+        </button>
+      )}
+
       {/* App Info */}
       <div className="text-center py-4">
         <p className="text-xs text-muted-foreground">症状日记 v1.0</p>
@@ -441,6 +463,21 @@ export default function Home() {
   const handleSelectDateFromHistory = (date: string) => {
     setSelectedDate(date);
     setActiveTab("record");
+  };
+
+  // Knowledge base state
+  const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
+  const [knowledgeTriggerFilter, setKnowledgeTriggerFilter] = useState<string[]>([]);
+
+  const handleViewKnowledge = (trigger: string) => {
+    setKnowledgeTriggerFilter([trigger]);
+    setShowKnowledgeBase(true);
+    setActiveTab("settings");
+  };
+
+  const handleOpenKnowledgeBase = () => {
+    setKnowledgeTriggerFilter([]);
+    setShowKnowledgeBase(true);
   };
 
   // Loading state
@@ -598,6 +635,7 @@ export default function Home() {
                       onAddTrigger={addTrigger}
                       onRemoveTrigger={removeTrigger}
                       onSwitchToMedication={() => setActiveTab("medication")}
+                      onViewKnowledge={handleViewKnowledge}
                     />
                   )}
                 </>
@@ -615,7 +653,14 @@ export default function Home() {
                 />
               )}
               {activeTab === "settings" && (
-                <SettingsView user={user} onLogout={logout} />
+                showKnowledgeBase ? (
+                  <HealthKnowledgeBase
+                    initialTriggerFilter={knowledgeTriggerFilter}
+                    onBack={() => setShowKnowledgeBase(false)}
+                  />
+                ) : (
+                  <SettingsView user={user} onLogout={logout} onOpenKnowledgeBase={handleOpenKnowledgeBase} />
+                )
               )}
             </motion.div>
           </AnimatePresence>

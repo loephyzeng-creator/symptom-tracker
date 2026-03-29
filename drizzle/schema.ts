@@ -287,3 +287,37 @@ export const triggerTips = mysqlTable("trigger_tips", {
 
 export type TriggerTip = typeof triggerTips.$inferSelect;
 export type InsertTriggerTip = typeof triggerTips.$inferInsert;
+
+/**
+ * Health knowledge base articles — preset and user-contributed health articles.
+ * Articles are categorized by topic and tagged for search/filter.
+ */
+export const healthArticles = mysqlTable("health_articles", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 200 }).notNull(),
+  category: varchar("category", { length: 50 }).notNull(), // e.g. "饮食调理", "睡眠改善", "运动康复"
+  tags: json("tags").$type<string[]>().default([]).notNull(), // searchable tags
+  summary: varchar("summary", { length: 500 }).notNull(), // brief description
+  content: text("content").notNull(), // full article content (Markdown)
+  source: varchar("source", { length: 200 }), // attribution / reference
+  relatedTriggers: json("relatedTriggers").$type<string[]>().default([]).notNull(), // linked trigger names
+  isPreset: int("isPreset").default(1).notNull(), // 1 = system preset, 0 = user-contributed
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type HealthArticle = typeof healthArticles.$inferSelect;
+export type InsertHealthArticle = typeof healthArticles.$inferInsert;
+
+/**
+ * Article favorites — tracks which articles a user has bookmarked.
+ */
+export const articleFavorites = mysqlTable("article_favorites", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  articleId: int("articleId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ArticleFavorite = typeof articleFavorites.$inferSelect;
+export type InsertArticleFavorite = typeof articleFavorites.$inferInsert;

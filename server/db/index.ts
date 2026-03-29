@@ -11,3 +11,4 @@ export * from "./backup";
 export * from "./alerts";
 export * from "./medications";
 export * from "./triggerTips";
+export * from "./knowledgeBase";

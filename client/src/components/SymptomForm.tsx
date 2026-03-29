@@ -48,6 +48,7 @@ interface SymptomFormProps {
   onAddTrigger: (trigger: string) => Promise<boolean> | boolean;
   onRemoveTrigger: (trigger: string) => Promise<void> | void;
   onSwitchToMedication?: () => void;
+  onViewKnowledge?: (trigger: string) => void;
 }
 
 const SYMPTOM_FIELDS = [
@@ -111,6 +112,7 @@ export default function SymptomForm({
   date, existingEntry, onSave, onDateChange,
   allTriggers, customTriggers, onAddTrigger, onRemoveTrigger,
   onSwitchToMedication,
+  onViewKnowledge,
 }: SymptomFormProps) {
   const [values, setValues] = useState<Record<string, number>>({
     dizziness: 0, headache: 0, sleepQuality: 5, anxiety: 0,
@@ -520,7 +522,7 @@ export default function SymptomForm({
         </div>
 
         {/* Trigger-specific tips */}
-        <TriggerTips selectedTriggers={triggers} />
+        <TriggerTips selectedTriggers={triggers} onViewKnowledge={onViewKnowledge} />
       </motion.div>
 
 

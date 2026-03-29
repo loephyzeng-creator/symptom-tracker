@@ -55,6 +55,7 @@ import { notificationRouter } from "./routers/notification";
 import { medGroupsRouter } from "./routers/medGroups";
 import { drugInteractionsRouter } from "./routers/drugInteractions";
 import { drowsinessAnalysisRouter } from "./routers/drowsinessAnalysis";
+import { knowledgeBaseRouter } from "./routers/knowledgeBase";
 
 const medicationSchema = z.object({
   name: z.string(),
@@ -748,6 +749,8 @@ export const appRouter = router({
         return { html, entryCount: entries.length };
       }),
   }),
+
+  knowledgeBase: knowledgeBaseRouter,
 });
 
 export type AppRouter = typeof appRouter;
