@@ -321,6 +321,30 @@ async function checkAndSendMedicationReminders() {
  * Run the reminder check: find users who need reminders and send notifications.
  * Also checks medication-specific reminders.
  */
+/**
+ * Retry wrapper for async operations that may fail due to transient DB errors (ECONNRESET).
+ * Retries up to 2 times with a 3-second delay between attempts.
+ */
+async function withRetry<T>(label: string, fn: () => Promise<T>, maxRetries = 2): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const isTransient = error?.message?.includes("ECONNRESET") ||
+        error?.message?.includes("ETIMEDOUT") ||
+        error?.message?.includes("ECONNREFUSED") ||
+        error?.cause?.message?.includes("ECONNRESET");
+      if (isTransient && attempt < maxRetries) {
+        console.warn(`[Reminder] ${label}: transient error (attempt ${attempt + 1}/${maxRetries + 1}), retrying in 3s...`);
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error("unreachable");
+}
+
 async function checkAndSendReminders() {
   const todayStr = getTodayStr();
   const { hour, minute } = getChinaTime();
@@ -331,7 +355,7 @@ async function checkAndSendReminders() {
 
   // 1. Daily symptom recording reminders (isolated try-catch)
   try {
-    const usersNeedingReminder = await getUsersNeedingReminder(todayStr);
+    const usersNeedingReminder = await withRetry("dailyReminders", () => getUsersNeedingReminder(todayStr));
 
     for (const user of usersNeedingReminder) {
       if (user.hasEntryToday) continue;
@@ -368,7 +392,7 @@ async function checkAndSendReminders() {
 
   // 2. Medication-specific reminders (isolated try-catch)
   try {
-    await checkAndSendMedicationReminders();
+    await withRetry("medReminders", () => checkAndSendMedicationReminders());
   } catch (error) {
     console.error("[Reminder] Error in medication reminders (non-fatal):", error);
   }

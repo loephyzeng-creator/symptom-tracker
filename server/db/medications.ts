@@ -526,8 +526,8 @@ export async function getMonthlyMedicationConsumption(
 
   const monthMap = new Map<string, Map<string, { reminderId: number; count: number }>>();
   for (let i = 0; i < months; i++) {
-    const d = new Date(todayDate);
-    d.setMonth(d.getMonth() - (months - 1 - i));
+    // Use day 1 to avoid month overflow (e.g., Mar 31 -> setMonth(-1) = Mar 3 instead of Feb)
+    const d = new Date(todayDate.getFullYear(), todayDate.getMonth() - (months - 1 - i), 1);
     const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     monthMap.set(monthKey, new Map());
   }

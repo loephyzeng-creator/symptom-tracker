@@ -167,6 +167,22 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor: React core
+          'vendor-react': ['react', 'react-dom'],
+          // Vendor: tRPC + React Query
+          'vendor-trpc': ['@trpc/client', '@trpc/react-query', '@tanstack/react-query'],
+          // Vendor: UI libraries
+          'vendor-ui': ['framer-motion', 'lucide-react', '@radix-ui/react-dialog', '@radix-ui/react-tooltip'],
+          // Vendor: Charts
+          'vendor-charts': ['recharts'],
+          // Vendor: Markdown rendering (streamdown includes mermaid etc)
+          'vendor-markdown': ['streamdown'],
+        },
+      },
+    },
   },
   server: {
     host: true,
