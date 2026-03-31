@@ -440,8 +440,11 @@ export default function Home() {
   const {
     allTriggers,
     customTriggers,
+    groupedTriggers,
+    frequency,
     addTrigger,
     removeTrigger,
+    renameTrigger,
   } = useCustomTriggers();
 
   const existingEntry = useMemo(
@@ -632,8 +635,11 @@ export default function Home() {
                       onDateChange={setSelectedDate}
                       allTriggers={allTriggers}
                       customTriggers={customTriggers}
+                      groupedTriggers={groupedTriggers}
+                      triggerFrequency={frequency}
                       onAddTrigger={addTrigger}
                       onRemoveTrigger={removeTrigger}
+                      onRenameTrigger={renameTrigger}
                       onSwitchToMedication={() => setActiveTab("medication")}
                       onViewKnowledge={handleViewKnowledge}
                     />

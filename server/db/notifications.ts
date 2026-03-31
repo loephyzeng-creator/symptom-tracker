@@ -3,6 +3,7 @@ import {
   customTriggers,
   notificationSettings,
   pushSubscriptions,
+  symptomEntries,
   users,
 } from "../../drizzle/schema";
 import { getDb } from "./connection";
@@ -46,6 +47,42 @@ export async function deleteCustomTrigger(userId: number, triggerId: number) {
     .where(
       and(eq(customTriggers.id, triggerId), eq(customTriggers.userId, userId))
     );
+}
+
+export async function renameCustomTrigger(
+  userId: number,
+  triggerId: number,
+  newName: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db
+    .update(customTriggers)
+    .set({ name: newName })
+    .where(
+      and(eq(customTriggers.id, triggerId), eq(customTriggers.userId, userId))
+    );
+  return { id: triggerId, name: newName };
+}
+
+export async function getTriggerFrequency(userId: number) {
+  const db = await getDb();
+  if (!db) return {};
+
+  const entries = await db
+    .select({ triggers: symptomEntries.triggers })
+    .from(symptomEntries)
+    .where(eq(symptomEntries.userId, userId));
+
+  const freq: Record<string, number> = {};
+  for (const entry of entries) {
+    const triggers = entry.triggers ?? [];
+    for (const t of triggers) {
+      freq[t] = (freq[t] || 0) + 1;
+    }
+  }
+  return freq;
 }
 
 // ─── Notification Settings helpers ─────────────────────────────────────

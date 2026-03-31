@@ -36,7 +36,16 @@ import {
   Loader2,
   AlertTriangle,
   Pill,
+  Pencil,
+  Check,
+  LayoutGrid,
+  List,
 } from "lucide-react";
+
+interface TriggerCategory {
+  label: string;
+  triggers: string[];
+}
 
 interface SymptomFormProps {
   date: string;
@@ -45,8 +54,11 @@ interface SymptomFormProps {
   onDateChange: (date: string) => void;
   allTriggers: string[];
   customTriggers: string[];
+  groupedTriggers?: TriggerCategory[];
+  triggerFrequency?: Record<string, number>;
   onAddTrigger: (trigger: string) => Promise<boolean> | boolean;
   onRemoveTrigger: (trigger: string) => Promise<void> | void;
+  onRenameTrigger?: (oldName: string, newName: string) => Promise<boolean> | boolean;
   onSwitchToMedication?: () => void;
   onViewKnowledge?: (trigger: string) => void;
 }
@@ -110,7 +122,8 @@ function dateToDateStr(d: Date): string {
 
 export default function SymptomForm({
   date, existingEntry, onSave, onDateChange,
-  allTriggers, customTriggers, onAddTrigger, onRemoveTrigger,
+  allTriggers, customTriggers, groupedTriggers, triggerFrequency,
+  onAddTrigger, onRemoveTrigger, onRenameTrigger,
   onSwitchToMedication,
   onViewKnowledge,
 }: SymptomFormProps) {
@@ -127,6 +140,10 @@ export default function SymptomForm({
   const [painkillerTaken, setPainkillerTaken] = useState(false);
   const [newTrigger, setNewTrigger] = useState("");
   const [showAddTrigger, setShowAddTrigger] = useState(false);
+  const [triggerViewMode, setTriggerViewMode] = useState<"grouped" | "flat">("grouped");
+  const [editingTrigger, setEditingTrigger] = useState<string | null>(null);
+  const [editTriggerName, setEditTriggerName] = useState("");
+  const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [customMetricValues, setCustomMetricValues] = useState<Record<number, number>>({});
   const [painkillerDialogOpen, setPainkillerDialogOpen] = useState(false);
@@ -284,6 +301,106 @@ export default function SymptomForm({
     }
   };
 
+
+  /* ─── Long-press to edit custom trigger ─── */
+  const handleTriggerPointerDown = (triggerName: string) => {
+    if (!customTriggers.includes(triggerName) || !onRenameTrigger) return;
+    const timer = setTimeout(() => {
+      setEditingTrigger(triggerName);
+      setEditTriggerName(triggerName);
+    }, 500);
+    setLongPressTimer(timer);
+  };
+
+  const handleTriggerPointerUp = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  };
+
+  const handleRenameConfirm = async () => {
+    if (!editingTrigger || !onRenameTrigger) return;
+    const trimmed = editTriggerName.trim();
+    if (!trimmed || trimmed === editingTrigger) {
+      setEditingTrigger(null);
+      return;
+    }
+    const success = await onRenameTrigger(editingTrigger, trimmed);
+    if (success) {
+      // Update local triggers state if the renamed trigger was selected
+      setTriggers((prev) =>
+        prev.map((t) => (t === editingTrigger ? trimmed : t))
+      );
+      toast.success("诱因已重命名");
+    } else {
+      toast.error("重命名失败，名称可能已存在");
+    }
+    setEditingTrigger(null);
+  };
+
+  /* ─── Render a single trigger badge ─── */
+  const renderTriggerBadge = (t: string) => {
+    const isCustom = customTriggers.includes(t);
+    const freq = triggerFrequency?.[t];
+
+    if (editingTrigger === t) {
+      return (
+        <div key={t} className="flex items-center gap-1">
+          <Input
+            value={editTriggerName}
+            onChange={(e) => setEditTriggerName(e.target.value)}
+            className="text-xs h-7 w-28 bg-muted/50 border-terracotta"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); handleRenameConfirm(); }
+              if (e.key === "Escape") setEditingTrigger(null);
+            }}
+          />
+          <button onClick={handleRenameConfirm} className="text-sage hover:text-sage/80">
+            <Check className="w-4 h-4" />
+          </button>
+          <button onClick={() => setEditingTrigger(null)} className="text-muted-foreground hover:text-destructive">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <Badge
+        key={t}
+        variant={triggers.includes(t) ? "default" : "outline"}
+        className={`cursor-pointer transition-all text-xs select-none ${
+          triggers.includes(t)
+            ? "bg-terracotta text-white hover:bg-terracotta/90 border-terracotta"
+            : "hover:bg-muted border-border"
+        }`}
+        onClick={() => toggleTrigger(t)}
+        onPointerDown={() => handleTriggerPointerDown(t)}
+        onPointerUp={handleTriggerPointerUp}
+        onPointerLeave={handleTriggerPointerUp}
+      >
+        {t}
+        {freq && freq > 0 && !triggers.includes(t) && (
+          <span className="ml-1 text-[10px] opacity-50">{freq}</span>
+        )}
+        {triggers.includes(t) && <X className="w-3 h-3 ml-1" />}
+        {isCustom && !triggers.includes(t) && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemoveTrigger(t);
+              setTriggers((prev) => prev.filter((x) => x !== t));
+            }}
+            className="ml-1 hover:text-destructive"
+          >
+            <Trash2 className="w-2.5 h-2.5" />
+          </button>
+        )}
+      </Badge>
+    );
+  };
 
   const handleCalendarSelect = (day: Date | undefined) => {
     if (day) {
@@ -447,13 +564,22 @@ export default function SymptomForm({
       >
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-serif font-semibold text-sm">今日诱因</h3>
-          <button
-            onClick={() => setShowAddTrigger(!showAddTrigger)}
-            className="text-xs text-terracotta hover:text-terracotta/80 flex items-center gap-1 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            自定义
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setTriggerViewMode(triggerViewMode === "grouped" ? "flat" : "grouped")}
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors"
+              title={triggerViewMode === "grouped" ? "切换为平铺视图" : "切换为分组视图"}
+            >
+              {triggerViewMode === "grouped" ? <List className="w-3.5 h-3.5" /> : <LayoutGrid className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              onClick={() => setShowAddTrigger(!showAddTrigger)}
+              className="text-xs text-terracotta hover:text-terracotta/80 flex items-center gap-1 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              自定义
+            </button>
+          </div>
         </div>
 
         {showAddTrigger && (
@@ -488,38 +614,26 @@ export default function SymptomForm({
           </motion.div>
         )}
 
-        <div className="flex flex-wrap gap-2">
-          {allTriggers.map((t) => {
-            const isCustom = customTriggers.includes(t);
-            return (
-              <Badge
-                key={t}
-                variant={triggers.includes(t) ? "default" : "outline"}
-                className={`cursor-pointer transition-all text-xs ${
-                  triggers.includes(t)
-                    ? "bg-terracotta text-white hover:bg-terracotta/90 border-terracotta"
-                    : "hover:bg-muted border-border"
-                }`}
-                onClick={() => toggleTrigger(t)}
-              >
-                {t}
-                {triggers.includes(t) && <X className="w-3 h-3 ml-1" />}
-                {isCustom && !triggers.includes(t) && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemoveTrigger(t);
-                      setTriggers((prev) => prev.filter((x) => x !== t));
-                    }}
-                    className="ml-1 hover:text-destructive"
-                  >
-                    <Trash2 className="w-2.5 h-2.5" />
-                  </button>
-                )}
-              </Badge>
-            );
-          })}
-        </div>
+        {onRenameTrigger && customTriggers.length > 0 && (
+          <p className="text-[10px] text-muted-foreground mb-2">长按自定义诱因可编辑名称</p>
+        )}
+
+        {triggerViewMode === "grouped" && groupedTriggers ? (
+          <div className="space-y-3">
+            {groupedTriggers.map((group) => (
+              <div key={group.label}>
+                <p className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">{group.label}</p>
+                <div className="flex flex-wrap gap-2">
+                  {group.triggers.map((t) => renderTriggerBadge(t))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {allTriggers.map((t) => renderTriggerBadge(t))}
+          </div>
+        )}
 
         {/* Trigger-specific tips */}
         <TriggerTips selectedTriggers={triggers} onViewKnowledge={onViewKnowledge} />

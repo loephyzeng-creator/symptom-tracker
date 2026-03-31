@@ -11,6 +11,8 @@ import {
   getTriggersByUserId,
   addCustomTrigger,
   deleteCustomTrigger,
+  renameCustomTrigger,
+  getTriggerFrequency,
   getTriggerTipsByUserId,
   upsertTriggerTip,
   deleteTriggerTip,
@@ -247,6 +249,18 @@ export const appRouter = router({
         await deleteCustomTrigger(ctx.user.id, input.id);
         return { success: true };
       }),
+
+    /** Rename a custom trigger */
+    rename: protectedProcedure
+      .input(z.object({ id: z.number(), name: z.string().min(1).max(100) }))
+      .mutation(async ({ ctx, input }) => {
+        return renameCustomTrigger(ctx.user.id, input.id, input.name);
+      }),
+
+    /** Get trigger usage frequency for the current user */
+    frequency: protectedProcedure.query(async ({ ctx }) => {
+      return getTriggerFrequency(ctx.user.id);
+    }),
   }),
 
   // Extracted sub-routers
