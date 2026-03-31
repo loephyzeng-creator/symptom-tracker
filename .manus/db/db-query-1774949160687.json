@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE custom_triggers SET name = '白天嗜睡' WHERE name = '白天嘼睡'; UPDATE custom_triggers SET name = '头昏沉' WHERE name = '头昔沉';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 41qmLBnmieMvk21.root --database 7CnBeGxyBasxbKLjVrJzxx --execute UPDATE custom_triggers SET name = '白天嗜睡' WHERE name = '白天嘼睡'; UPDATE custom_triggers SET name = '头昏沉' WHERE name = '头昔沉';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 215
+}
