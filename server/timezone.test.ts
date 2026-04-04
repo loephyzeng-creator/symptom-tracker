@@ -6,7 +6,8 @@ import {
   getLocalDateStr,
   getBrowserTimezone,
   DEFAULT_TIMEZONE,
-  TIMEZONE_OPTIONS,
+  TIMEZONE_OPTIONS_BASE,
+  getTimezoneOptions,
 } from "../shared/timezone";
 
 describe("Timezone utilities", () => {
@@ -129,21 +130,48 @@ describe("Timezone utilities", () => {
     });
   });
 
-  describe("TIMEZONE_OPTIONS", () => {
+  describe("TIMEZONE_OPTIONS_BASE", () => {
     it("contains common timezones", () => {
-      expect(TIMEZONE_OPTIONS.length).toBeGreaterThan(10);
-      const values = TIMEZONE_OPTIONS.map((o) => o.value);
+      expect(TIMEZONE_OPTIONS_BASE.length).toBeGreaterThan(10);
+      const values = TIMEZONE_OPTIONS_BASE.map((o) => o.value);
       expect(values).toContain("Asia/Shanghai");
       expect(values).toContain("America/New_York");
       expect(values).toContain("Europe/London");
       expect(values).toContain("America/Los_Angeles");
     });
 
+    it("contains Africa/Kampala", () => {
+      const values = TIMEZONE_OPTIONS_BASE.map((o) => o.value);
+      expect(values).toContain("Africa/Kampala");
+      expect(values).toContain("Africa/Nairobi");
+      expect(values).toContain("Africa/Cairo");
+    });
+
     it("each option has value and label", () => {
-      for (const opt of TIMEZONE_OPTIONS) {
+      for (const opt of TIMEZONE_OPTIONS_BASE) {
         expect(opt.value).toBeTruthy();
         expect(opt.label).toBeTruthy();
       }
+    });
+  });
+
+  describe("getTimezoneOptions", () => {
+    it("returns base options when browser tz is in the list", () => {
+      const options = getTimezoneOptions("Asia/Shanghai");
+      expect(options.length).toBe(TIMEZONE_OPTIONS_BASE.length);
+    });
+
+    it("adds unknown browser timezone to the beginning", () => {
+      const options = getTimezoneOptions("Pacific/Fiji");
+      expect(options.length).toBe(TIMEZONE_OPTIONS_BASE.length + 1);
+      expect(options[0].value).toBe("Pacific/Fiji");
+      expect(options[0].label).toContain("Pacific/Fiji");
+    });
+
+    it("does not duplicate if browser tz already in list", () => {
+      const options = getTimezoneOptions("Africa/Kampala");
+      const kampalaCount = options.filter(o => o.value === "Africa/Kampala").length;
+      expect(kampalaCount).toBe(1);
     });
   });
 });

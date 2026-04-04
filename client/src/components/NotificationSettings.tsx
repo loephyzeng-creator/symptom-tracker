@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Bell, BellOff, Clock, Loader2, Check, BellRing, AlertTriangle, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { TIMEZONE_OPTIONS, getBrowserTimezone } from "@shared/timezone";
+import { getTimezoneOptions, getBrowserTimezone } from "@shared/timezone";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
@@ -40,6 +40,7 @@ export default function NotificationSettings() {
   const [pushStatus, setPushStatus] = useState<PushStatus>("loading");
   const [subscribing, setSubscribing] = useState(false);
   const [timezone, setTimezone] = useState(getBrowserTimezone());
+  const timezoneOptions = useMemo(() => getTimezoneOptions(), []);
 
   useEffect(() => {
     if (settings) {
@@ -415,7 +416,7 @@ export default function NotificationSettings() {
           onChange={(e) => handleTimezoneChange(e.target.value)}
           className="w-full bg-muted/50 border border-border/30 rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-terracotta/30 transition-colors"
         >
-          {TIMEZONE_OPTIONS.map((tz) => (
+          {timezoneOptions.map((tz) => (
             <option key={tz.value} value={tz.value}>
               {tz.label}
             </option>
@@ -426,7 +427,7 @@ export default function NotificationSettings() {
             onClick={() => handleTimezoneChange(getBrowserTimezone())}
             className="mt-2 text-xs text-terracotta hover:text-terracotta/80 transition-colors"
           >
-            ← 使用浏览器时区 ({TIMEZONE_OPTIONS.find(o => o.value === getBrowserTimezone())?.label || getBrowserTimezone()})
+            ← 使用浏览器时区 ({timezoneOptions.find(o => o.value === getBrowserTimezone())?.label || getBrowserTimezone()})
           </button>
         )}
       </div>
