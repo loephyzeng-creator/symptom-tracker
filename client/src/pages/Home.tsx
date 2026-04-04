@@ -31,14 +31,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   PenLine, BarChart3, Clock, BookOpen, LogIn, LogOut, Loader2,
   Bell, Settings, Sun, Moon, Zap, CalendarDays, User,
-  ChevronLeft, ChevronRight, Database, Shield, Activity, Palette, Pill, RotateCcw
+  ChevronLeft, ChevronRight, Database, Shield, Activity, Palette, Pill, RotateCcw, Globe
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { zhCN } from "date-fns/locale";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
-import { getLocalDateStr, getBrowserTimezone } from "@shared/timezone";
+import { getLocalDateStr, getBrowserTimezone, getTimezoneOptions } from "@shared/timezone";
 import { trpc } from "@/lib/trpc";
 
 type TabKey = "record" | "medication" | "stats" | "history" | "settings";
@@ -387,17 +387,59 @@ function SettingsView({
 export default function Home() {
   const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
 
-  // Auto-detect and save browser timezone on first login
+  // Timezone auto-sync: detect mismatch and prompt user
   const setTimezoneMutation = trpc.notification.setTimezone.useMutation();
+  const [tzMismatch, setTzMismatch] = useState<{ browser: string; saved: string } | null>(null);
+  const [tzDismissed, setTzDismissed] = useState(false);
+  const utils = trpc.useUtils();
+
   useEffect(() => {
     if (isAuthenticated && user) {
       const browserTz = getBrowserTimezone();
       if (browserTz && browserTz !== "UTC") {
-        setTimezoneMutation.mutate({ timezone: browserTz });
+        setTimezoneMutation.mutate({ timezone: browserTz }, {
+          onSuccess: (result) => {
+            // If not updated and saved timezone differs from browser, show prompt
+            if (!result.updated && result.savedTimezone && result.savedTimezone !== browserTz) {
+              // Check if user already dismissed this specific mismatch in this session
+              const dismissedKey = `tz-dismissed-${result.savedTimezone}-${browserTz}`;
+              try {
+                if (!sessionStorage.getItem(dismissedKey)) {
+                  setTzMismatch({ browser: browserTz, saved: result.savedTimezone });
+                }
+              } catch {
+                setTzMismatch({ browser: browserTz, saved: result.savedTimezone });
+              }
+            }
+          }
+        });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user?.id]);
+
+  const handleTzUpdate = () => {
+    if (!tzMismatch) return;
+    setTimezoneMutation.mutate({ timezone: tzMismatch.browser, force: true }, {
+      onSuccess: () => {
+        setTzMismatch(null);
+        setTzDismissed(false);
+        utils.notification.getSettings.invalidate();
+      }
+    });
+  };
+
+  const handleTzDismiss = () => {
+    if (tzMismatch) {
+      try {
+        sessionStorage.setItem(`tz-dismissed-${tzMismatch.saved}-${tzMismatch.browser}`, "1");
+      } catch { /* ignore */ }
+    }
+    setTzMismatch(null);
+    setTzDismissed(true);
+  };
+
+  const tzOptions = useMemo(() => getTimezoneOptions(), []);
 
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     // Support deep linking from notifications via ?tab=medication etc.
@@ -553,6 +595,48 @@ export default function Home() {
 
       {/* Content */}
       <main className="flex-1 container max-w-lg mx-auto px-4 py-5 pb-24">
+        {/* Timezone mismatch prompt */}
+        <AnimatePresence>
+          {tzMismatch && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mb-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl p-4"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Globe className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-1">
+                    检测到时区变化
+                  </p>
+                  <p className="text-xs text-amber-700/80 dark:text-amber-300/70 mb-3 leading-relaxed">
+                    当前设置：{tzOptions.find(o => o.value === tzMismatch.saved)?.label || tzMismatch.saved}<br />
+                    浏览器时区：{tzOptions.find(o => o.value === tzMismatch.browser)?.label || tzMismatch.browser}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleTzUpdate}
+                      disabled={setTimezoneMutation.isPending}
+                      className="px-3 py-1.5 text-xs font-medium bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {setTimezoneMutation.isPending ? "更新中..." : "更新为浏览器时区"}
+                    </button>
+                    <button
+                      onClick={handleTzDismiss}
+                      className="px-3 py-1.5 text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded-lg transition-colors"
+                    >
+                      暂不更新
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Daily reminder - show on all tabs except record and settings when not recorded today */}
         {!dataLoading && activeTab !== "record" && activeTab !== "settings" && activeTab !== "medication" && (
           <DailyReminder

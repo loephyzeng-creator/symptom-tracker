@@ -109,9 +109,20 @@ export const notificationRouter = router({
 
   /** Auto-detect and save browser timezone (called on first login / app load) */
   setTimezone: protectedProcedure
-    .input(z.object({ timezone: z.string().min(1).max(50) }))
+    .input(z.object({ timezone: z.string().min(1).max(50), force: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       const settings = await getNotificationSettings(ctx.user.id);
+      // Force update when user explicitly confirms timezone change
+      if (input.force) {
+        await upsertNotificationSettings(ctx.user.id, {
+          enabled: settings?.enabled ?? 1,
+          reminderHour: settings?.reminderHour ?? 21,
+          reminderMinute: settings?.reminderMinute ?? 0,
+          timezone: input.timezone,
+        });
+        return { updated: true, timezone: input.timezone, savedTimezone: input.timezone };
+      }
+      // Auto-detect: only update if no timezone set or still on default
       if (!settings || !settings.timezone || settings.timezone === DEFAULT_TIMEZONE) {
         await upsertNotificationSettings(ctx.user.id, {
           enabled: settings?.enabled ?? 1,
@@ -119,9 +130,9 @@ export const notificationRouter = router({
           reminderMinute: settings?.reminderMinute ?? 0,
           timezone: input.timezone,
         });
-        return { updated: true, timezone: input.timezone };
+        return { updated: true, timezone: input.timezone, savedTimezone: input.timezone };
       }
-      return { updated: false, timezone: settings.timezone };
+      return { updated: false, timezone: settings.timezone, savedTimezone: settings.timezone };
     }),
 
   /** Update notification settings */
