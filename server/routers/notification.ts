@@ -29,6 +29,8 @@ export const notificationRouter = router({
         weeklyReportHour: 19,
         notificationSound: "default" as const,
         timezone: "Asia/Shanghai",
+        autoReportEnabled: 0,
+        autoReportFrequency: "weekly" as const,
       }),
       hasPushSubscription: subs.length > 0,
     };
@@ -175,5 +177,37 @@ export const notificationRouter = router({
     .mutation(async ({ ctx, input }) => {
       await removePushSubscription(ctx.user.id, input.endpoint);
       return { success: true };
+    }),
+  /** Toggle auto-report on/off */
+  updateAutoReportEnabled: protectedProcedure
+    .input(z.object({ enabled: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const { notificationSettings: ns } = await import("../../drizzle/schema");
+      const { eq: eqOp } = await import("drizzle-orm");
+      const existing = await getNotificationSettings(ctx.user.id);
+      if (existing) {
+        await db.update(ns).set({ autoReportEnabled: input.enabled ? 1 : 0 }).where(eqOp(ns.userId, ctx.user.id));
+      } else {
+        await db.insert(ns).values({ userId: ctx.user.id, autoReportEnabled: input.enabled ? 1 : 0 });
+      }
+      return { success: true, enabled: input.enabled };
+    }),
+  /** Update auto-report frequency */
+  updateAutoReportFrequency: protectedProcedure
+    .input(z.object({ frequency: z.enum(["weekly", "monthly"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const { notificationSettings: ns } = await import("../../drizzle/schema");
+      const { eq: eqOp } = await import("drizzle-orm");
+      const existing = await getNotificationSettings(ctx.user.id);
+      if (existing) {
+        await db.update(ns).set({ autoReportFrequency: input.frequency }).where(eqOp(ns.userId, ctx.user.id));
+      } else {
+        await db.insert(ns).values({ userId: ctx.user.id, autoReportFrequency: input.frequency });
+      }
+      return { success: true, frequency: input.frequency };
     }),
 });

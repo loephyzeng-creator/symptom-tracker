@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { Bell, BellOff, Clock, Loader2, Check, BellRing, AlertTriangle, Globe } from "lucide-react";
+import { Bell, BellOff, Clock, Loader2, Check, BellRing, AlertTriangle, Globe, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { getTimezoneOptions, getBrowserTimezone } from "@shared/timezone";
@@ -31,6 +31,8 @@ export default function NotificationSettings() {
   const updateMutation = trpc.notification.updateSettings.useMutation();
   const subscribeMutation = trpc.notification.subscribe.useMutation();
   const unsubscribeMutation = trpc.notification.unsubscribe.useMutation();
+  const autoReportEnabledMutation = trpc.notification.updateAutoReportEnabled.useMutation();
+  const autoReportFreqMutation = trpc.notification.updateAutoReportFrequency.useMutation();
   const utils = trpc.useUtils();
 
   const [enabled, setEnabled] = useState(true);
@@ -429,6 +431,90 @@ export default function NotificationSettings() {
           >
             ← 使用浏览器时区 ({timezoneOptions.find(o => o.value === getBrowserTimezone())?.label || getBrowserTimezone()})
           </button>
+        )}
+      </div>
+
+      {/* Auto Report Settings */}
+      <div className="bg-card rounded-2xl border border-border/30 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                settings?.autoReportEnabled === 1 ? "bg-terracotta/15" : "bg-muted"
+              }`}
+            >
+              <FileText className={`w-4.5 h-4.5 ${settings?.autoReportEnabled === 1 ? "text-terracotta" : "text-muted-foreground"}`} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">自动生成报告</p>
+              <p className="text-[11px] text-muted-foreground">
+                {settings?.autoReportEnabled === 1
+                  ? `每${settings?.autoReportFrequency === "monthly" ? "月" : "周"}自动生成并推送症状报告`
+                  : "关闭中 · 开启后定期自动生成症状报告"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const newVal = settings?.autoReportEnabled === 1 ? false : true;
+              autoReportEnabledMutation.mutate({ enabled: newVal }, {
+                onSuccess: () => {
+                  utils.notification.getSettings.invalidate();
+                  toast.success(newVal ? "自动报告已开启" : "自动报告已关闭");
+                },
+                onError: () => toast.error("操作失败，请重试"),
+              });
+            }}
+            className={`relative w-12 h-7 rounded-full transition-colors ${
+              settings?.autoReportEnabled === 1 ? "bg-terracotta" : "bg-muted"
+            }`}
+          >
+            <motion.div
+              className="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-sm"
+              animate={{ left: settings?.autoReportEnabled === 1 ? "calc(100% - 1.625rem)" : "0.125rem" }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            />
+          </button>
+        </div>
+
+        {/* Frequency selector - only show when enabled */}
+        {settings?.autoReportEnabled === 1 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mt-3 pt-3 border-t border-border/30"
+          >
+            <p className="text-[11px] text-muted-foreground mb-2">报告频率</p>
+            <div className="grid grid-cols-2 gap-2">
+              {(["weekly", "monthly"] as const).map((freq) => (
+                <button
+                  key={freq}
+                  onClick={() => {
+                    autoReportFreqMutation.mutate({ frequency: freq }, {
+                      onSuccess: () => {
+                        utils.notification.getSettings.invalidate();
+                        toast.success(`已切换为${freq === "weekly" ? "每周" : "每月"}报告`);
+                      },
+                      onError: () => toast.error("操作失败，请重试"),
+                    });
+                  }}
+                  className={`py-2 rounded-xl text-xs font-medium transition-all ${
+                    settings?.autoReportFrequency === freq
+                      ? "bg-terracotta text-white"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {freq === "weekly" ? "每周一" : "每月1日"}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              {settings?.autoReportFrequency === "weekly"
+                ? "每周一自动生成上周症状报告并推送通知"
+                : "每月1日自动生成上月症状报告并推送通知"}
+            </p>
+          </motion.div>
         )}
       </div>
 

@@ -450,6 +450,13 @@ async function checkAndSendReminders() {
   } catch (error) {
     console.error("[Reminder] Error in course-ending reminders (non-fatal):", error);
   }
+
+  // 9. Auto-generated symptom reports (weekly on Monday / monthly on 1st)
+  try {
+    await checkAndSendAutoReports(todayStr, hour, minute);
+  } catch (error) {
+    console.error("[Reminder] Error in auto reports (non-fatal):", error);
+  }
 }
 
 /**
@@ -774,6 +781,127 @@ async function checkAndSendCourseEndingReminders(todayStr: string) {
   }
 }
 
+/**
+ * Auto-generate symptom reports (weekly/monthly) and push notification.
+ * Users who have autoReportEnabled=1 will receive a push notification
+ * with a summary of their symptoms for the past week/month.
+ */
+async function checkAndSendAutoReports(todayStr: string, currentHour: number, currentMinute: number) {
+  try {
+    const dbModule = await import("./db");
+    const dbInst = await dbModule.getDb();
+    if (!dbInst) return;
+
+    const { notificationSettings: ns } = await import("../drizzle/schema");
+    const { eq: eqOp, and: andOp } = await import("drizzle-orm");
+
+    // Fetch all users with auto-report enabled
+    const settings = await dbInst
+      .select()
+      .from(ns)
+      .where(eqOp(ns.autoReportEnabled, 1));
+
+    if (settings.length === 0) return;
+
+    const todayDate = new Date(todayStr + "T00:00:00");
+    const { dayOfWeek } = getChinaTime();
+
+    for (const setting of settings) {
+      // Use weeklyReportHour for auto-report timing (reuse existing setting)
+      const reportHour = setting.weeklyReportHour ?? 19;
+      if (currentHour !== reportHour || currentMinute >= 15) continue;
+
+      // Check if already sent today
+      if (setting.lastAutoReportDate === todayStr) continue;
+
+      const frequency = setting.autoReportFrequency ?? "weekly";
+
+      // Determine if it's time to send based on frequency
+      let shouldSend = false;
+      let periodLabel = "";
+      let startDate = "";
+      let endDate = todayStr;
+
+      if (frequency === "weekly") {
+        // Send every Monday (dayOfWeek === 1) for the previous week
+        if (dayOfWeek === 1) {
+          shouldSend = true;
+          periodLabel = "上周";
+          const lastMonday = new Date(todayDate);
+          lastMonday.setDate(lastMonday.getDate() - 7);
+          startDate = lastMonday.toISOString().slice(0, 10);
+          const lastSunday = new Date(todayDate);
+          lastSunday.setDate(lastSunday.getDate() - 1);
+          endDate = lastSunday.toISOString().slice(0, 10);
+        }
+      } else if (frequency === "monthly") {
+        // Send on the 1st of each month for the previous month
+        if (todayDate.getDate() === 1) {
+          shouldSend = true;
+          periodLabel = "上月";
+          const lastMonth = new Date(todayDate.getFullYear(), todayDate.getMonth() - 1, 1);
+          startDate = lastMonth.toISOString().slice(0, 10);
+          const lastDayPrevMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 0);
+          endDate = lastDayPrevMonth.toISOString().slice(0, 10);
+        }
+      }
+
+      if (!shouldSend) continue;
+
+      // Fetch entries for the period
+      const entries = await dbModule.getEntriesByDateRange(setting.userId, startDate, endDate);
+      const entryCount = entries.length;
+
+      if (entryCount === 0) {
+        console.log(`[AutoReport] No entries for user ${setting.userId} in ${startDate}~${endDate}, skipping`);
+        // Still mark as sent to avoid re-checking
+        await dbInst.update(ns).set({ lastAutoReportDate: todayStr }).where(eqOp(ns.userId, setting.userId));
+        continue;
+      }
+
+      // Calculate summary stats
+      let totalDizziness = 0, totalHeadache = 0, totalSleep = 0, totalAnxiety = 0, totalFatigue = 0;
+      for (const e of entries) {
+        totalDizziness += (e as any).dizziness ?? 0;
+        totalHeadache += (e as any).headache ?? 0;
+        totalSleep += (e as any).sleepQuality ?? 0;
+        totalAnxiety += (e as any).anxiety ?? 0;
+        totalFatigue += (e as any).fatigue ?? 0;
+      }
+      const avgDizziness = (totalDizziness / entryCount).toFixed(1);
+      const avgHeadache = (totalHeadache / entryCount).toFixed(1);
+      const avgSleep = (totalSleep / entryCount).toFixed(1);
+
+      // Build notification body
+      const title = `\ud83d\udcca ${periodLabel}症状报告已生成`;
+      let body = `${periodLabel}共记录 ${entryCount} 天`;
+      body += `\n\u2022 平均眩晕: ${avgDizziness} | 头痛: ${avgHeadache} | 睡眠: ${avgSleep}`;
+      body += `\n点击查看完整报告 \u2192`;
+
+      const sent = await sendWebPush(
+        setting.userId,
+        title,
+        body,
+        "auto-report",
+        [{ action: "view-report", title: "查看报告" }],
+        { type: "auto-report", url: "/?tab=history&view=report" },
+        setting.notificationSound ?? "default"
+      );
+
+      // Mark as sent
+      await dbInst.update(ns).set({ lastAutoReportDate: todayStr }).where(eqOp(ns.userId, setting.userId));
+
+      if (sent) {
+        console.log(`[AutoReport] Sent ${frequency} report to user ${setting.userId}: ${entryCount} entries (${startDate}~${endDate})`);
+      } else {
+        console.log(`[AutoReport] No push subscriptions for user ${setting.userId}, marked as sent`);
+      }
+    }
+  } catch (error) {
+    console.error("[AutoReport] Error sending auto reports:", error);
+  }
+}
+
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
 /**
@@ -817,4 +945,5 @@ export {
   sendWebPush,
   configureWebPush,
   sendWeeklyPainkillerReports,
+  checkAndSendAutoReports,
 };
