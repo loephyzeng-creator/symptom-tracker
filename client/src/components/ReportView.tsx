@@ -45,6 +45,7 @@ export default function ReportView() {
 
   const [range, setRange] = useState<DateRange>({ from: defaultFrom, to: today });
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [selectingStart, setSelectingStart] = useState(true);
   const [reportHtml, setReportHtml] = useState<string | null>(null);
   const [entryCount, setEntryCount] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -134,16 +135,34 @@ export default function ReportView() {
     }
   };
 
-  const handleCalendarSelect = (selected: { from?: Date; to?: Date } | undefined) => {
-    if (selected?.from) {
+  const handleCalendarSelect = (
+    selected: { from?: Date; to?: Date } | undefined,
+    triggerDate: Date
+  ) => {
+    if (!selected) return;
+
+    if (selectingStart) {
+      // First click: set start date
       setRange({
-        from: selected.from,
-        to: selected.to ?? selected.from,
+        from: triggerDate,
+        to: triggerDate,
       });
+      setSelectingStart(false);
       setReportHtml(null);
-      if (selected.to) {
-        setCalendarOpen(false);
+    } else {
+      // Second click: set end date
+      const from = range.from;
+      let newFrom = from;
+      let newTo = triggerDate;
+      // Ensure from <= to
+      if (triggerDate < from) {
+        newFrom = triggerDate;
+        newTo = from;
       }
+      setRange({ from: newFrom, to: newTo });
+      setSelectingStart(true);
+      setReportHtml(null);
+      setCalendarOpen(false);
     }
   };
 
@@ -200,7 +219,10 @@ export default function ReportView() {
             <span className="font-medium">{formatDateCN(startStr)} — {formatDateCN(endStr)}</span>
             <span className="text-xs text-muted-foreground ml-2">({daysDiff}天)</span>
           </div>
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          <Popover open={calendarOpen} onOpenChange={(open) => {
+              setCalendarOpen(open);
+              if (open) setSelectingStart(true);
+            }}>
             <PopoverTrigger asChild>
               <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-sm text-muted-foreground hover:text-foreground transition-colors">
                 <CalendarDays className="w-4 h-4" />
@@ -210,7 +232,7 @@ export default function ReportView() {
             <PopoverContent className="w-auto p-0" align="end" sideOffset={8}>
               <Calendar
                 mode="range"
-                selected={{ from: range.from, to: range.to }}
+                selected={selectingStart ? undefined : { from: range.from, to: range.to }}
                 onSelect={handleCalendarSelect as any}
                 locale={zhCN}
                 disabled={{ after: today }}
@@ -225,6 +247,11 @@ export default function ReportView() {
                   month_caption: "flex items-center justify-center h-10 w-full px-8 font-serif font-semibold",
                 }}
               />
+              <div className="px-3 py-2 text-xs text-center text-muted-foreground border-t border-border/50">
+                {selectingStart
+                  ? "请选择开始日期"
+                  : `开始：${formatDateCN(dateToStr(range.from))}，请选择结束日期`}
+              </div>
             </PopoverContent>
           </Popover>
         </div>
