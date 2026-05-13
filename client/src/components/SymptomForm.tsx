@@ -40,6 +40,7 @@ import {
   Check,
   LayoutGrid,
   List,
+  Users,
 } from "lucide-react";
 
 interface TriggerCategory {
@@ -73,6 +74,18 @@ const SYMPTOM_FIELDS = [
   { key: "motionSickness", label: "运动敏感", icon: Car, color: "text-terracotta", bgColor: "bg-terracotta/10", invert: true },
   { key: "palpitations", label: "心慌程度", icon: HeartPulse, color: "text-destructive", bgColor: "bg-destructive/10", invert: true },
   { key: "mood", label: "整体心情", icon: Smile, color: "text-sage", bgColor: "bg-sage/10", invert: false },
+  { key: "socialAnxiety", label: "社交焦虑", icon: Users, color: "text-chart-5", bgColor: "bg-chart-5/10", invert: true },
+] as const;
+
+const SOCIAL_CONTEXTS = [
+  "一对一交谈",
+  "多人聚会",
+  "公开发言",
+  "与陌生人交流",
+  "工作会议",
+  "电话/视频通话",
+  "社交媒体互动",
+  "家庭聚会",
 ] as const;
 
 function getScoreLabel(value: number, invert: boolean): string {
@@ -130,7 +143,9 @@ export default function SymptomForm({
   const [values, setValues] = useState<Record<string, number>>({
     dizziness: 0, headache: 0, sleepQuality: 5, anxiety: 0,
     fatigue: 0, photosensitivity: 0, motionSickness: 0, palpitations: 0, mood: 5,
+    socialAnxiety: 0,
   });
+  const [socialContext, setSocialContext] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
 
   const [triggers, setTriggers] = useState<string[]>([]);
@@ -182,18 +197,22 @@ export default function SymptomForm({
         motionSickness: existingEntry.motionSickness,
         palpitations: existingEntry.palpitations,
         mood: existingEntry.mood,
+        socialAnxiety: (existingEntry as any).socialAnxiety ?? 0,
       });
       setNotes(existingEntry.notes ?? "");
       setTriggers(existingEntry.triggers ?? []);
+      setSocialContext((existingEntry as any).socialContext ?? []);
       setHeadacheAttack(existingEntry.severeHeadache ?? 0);
       setPainkillerTaken(existingEntry.painkillerTaken === 1);
     } else {
       setValues({
         dizziness: 0, headache: 0, sleepQuality: 5, anxiety: 0,
         fatigue: 0, photosensitivity: 0, motionSickness: 0, palpitations: 0, mood: 5,
+        socialAnxiety: 0,
       });
       setNotes("");
       setTriggers([]);
+      setSocialContext([]);
       setHeadacheAttack(0);
       setPainkillerTaken(false);
       setCustomMetricValues({});
@@ -226,6 +245,8 @@ export default function SymptomForm({
         motionSickness: values.motionSickness,
         palpitations: values.palpitations,
         mood: values.mood,
+        socialAnxiety: values.socialAnxiety,
+        socialContext,
         notes,
         medications: [],
         triggers,
@@ -647,6 +668,47 @@ export default function SymptomForm({
           setCustomMetricValues((prev) => ({ ...prev, [metricId]: value }))
         }
       />
+
+      {/* Social Context - shown when socialAnxiety > 0 */}
+      {values.socialAnxiety > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.48 }}
+          className="bg-card rounded-xl p-4 shadow-sm border border-border/50"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg bg-chart-5/10 flex items-center justify-center">
+              <Users className="w-4 h-4 text-chart-5" />
+            </div>
+            <div>
+              <h3 className="font-serif font-semibold text-sm">今日社交场景</h3>
+              <p className="text-[11px] text-muted-foreground">选择今天经历的社交场景（可多选）</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {SOCIAL_CONTEXTS.map((ctx) => (
+              <button
+                key={ctx}
+                onClick={() => {
+                  setSocialContext((prev) =>
+                    prev.includes(ctx)
+                      ? prev.filter((c) => c !== ctx)
+                      : [...prev, ctx]
+                  );
+                }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                  socialContext.includes(ctx)
+                    ? "bg-chart-5/15 text-chart-5 border-chart-5/30 ring-1 ring-chart-5/20"
+                    : "bg-muted/50 text-muted-foreground border-border/50 hover:bg-muted"
+                }`}
+              >
+                {ctx}
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       {/* Notes */}
       <motion.div

@@ -27,6 +27,8 @@ export interface SymptomEntry {
   painkillerTaken: number; // 0=否, 1=是
   painkillerBrand?: string | null;
   painkillerDosage?: string | null;
+  socialAnxiety: number;
+  socialContext: string[];
   notes: string | null;
   medications: MedicationItem[];
   triggers: string[];

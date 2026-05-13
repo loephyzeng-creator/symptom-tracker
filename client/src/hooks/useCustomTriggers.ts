@@ -32,6 +32,10 @@ const TRIGGER_CATEGORIES: TriggerCategory[] = [
     label: "泌尿相关",
     triggers: ["排尿困难", "尿等待", "夜尿增多", "排尿不尽", "尿频", "尿急"],
   },
+  {
+    label: "社交相关",
+    triggers: ["社交聚会", "公开发言", "与陌生人交流", "被关注/评价", "冲突对话"],
+  },
 ];
 
 const DEFAULT_TRIGGERS = TRIGGER_CATEGORIES.flatMap((c) => c.triggers);

@@ -47,6 +47,7 @@ const SYMPTOM_CONFIGS = [
   { key: "motionSickness", label: "运动敏感", color: "#5b8fa8", invert: true },
   { key: "palpitations", label: "心慌", color: "#d4845a", invert: true },
   { key: "mood", label: "心情", color: "#8b6bbf", invert: false },
+  { key: "socialAnxiety", label: "社交焦虑", color: "#6b8a9b", invert: true },
 ];
 
 function CustomTooltip({ active, payload, label }: any) {
@@ -102,6 +103,7 @@ export default function StatsView({ entries }: StatsViewProps) {
         motionSickness: e.motionSickness,
         palpitations: e.palpitations,
         mood: e.mood,
+        socialAnxiety: (e as any).socialAnxiety ?? 0,
       };
 
       // Apply micro-offsets to overlapping values so lines don't hide each other

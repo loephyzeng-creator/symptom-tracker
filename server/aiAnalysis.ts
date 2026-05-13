@@ -18,6 +18,8 @@ interface SymptomEntryForAnalysis {
   mood: number;
   severeHeadache: number;
   painkillerTaken: number;
+  socialAnxiety?: number;
+  socialContext?: string[] | null;
   medications: { name: string; dosage: string }[] | string | null;
   triggers: string[] | string | null;
   notes: string | null;
@@ -357,13 +359,15 @@ function buildDataSummary(entries: SymptomEntryForAnalysis[]): string {
   // Build per-day data table (last 30 entries max for token efficiency)
   const recentEntries = sorted.slice(-30);
   let dataTable = "\n\n最近记录明细（最多30天）：\n";
-  dataTable += "日期 | 头晕 | 头痛 | 睡眠 | 焦虑 | 疲劳 | 畏光 | 运动敏感 | 心慌 | 心情 | 头痛发作 | 止疼药 | 诱因 | 用药 | 备注\n";
+  dataTable += "日期 | 头晕 | 头痛 | 睡眠 | 焦虑 | 疲劳 | 畏光 | 运动敏感 | 心慌 | 心情 | 社交焦虑 | 头痛发作 | 止疼药 | 诱因 | 用药 | 社交场景 | 备注\n";
   for (const e of recentEntries) {
     const meds = normMeds(e.medications).map((m) => m.dosage ? `${m.name}(${m.dosage})` : m.name).join(",") || "-";
     const trigs = normTriggers(e.triggers).join(",") || "-";
     const attackLevel = e.severeHeadache === 0 ? "无" : e.severeHeadache === 1 ? "轻微" : e.severeHeadache === 2 ? "明显" : "严重";
     const painkiller = e.painkillerTaken === 1 ? "是" : "否";
-    dataTable += `${e.date} | ${e.dizziness} | ${e.headache} | ${e.sleepQuality} | ${e.anxiety} | ${e.fatigue} | ${e.photosensitivity} | ${e.motionSickness} | ${e.palpitations} | ${e.mood} | ${attackLevel} | ${painkiller} | ${trigs} | ${meds} | ${e.notes || "-"}\n`;
+    const socialAnx = (e as any).socialAnxiety ?? 0;
+    const socialCtx = Array.isArray((e as any).socialContext) && (e as any).socialContext.length > 0 ? (e as any).socialContext.join(",") : "-";
+    dataTable += `${e.date} | ${e.dizziness} | ${e.headache} | ${e.sleepQuality} | ${e.anxiety} | ${e.fatigue} | ${e.photosensitivity} | ${e.motionSickness} | ${e.palpitations} | ${e.mood} | ${socialAnx} | ${attackLevel} | ${painkiller} | ${trigs} | ${meds} | ${socialCtx} | ${e.notes || "-"}\n`;
   }
 
   const triggerStr = Object.entries(triggerCounts)
@@ -391,6 +395,7 @@ function buildDataSummary(entries: SymptomEntryForAnalysis[]): string {
   头晕脑胀: ${avgs.dizziness}  |  头痛程度: ${avgs.headache}  |  睡眠质量: ${avgs.sleepQuality}
   焦虑程度: ${avgs.anxiety}  |  疲劳程度: ${avgs.fatigue}  |  畏光程度: ${avgs.photosensitivity}
   运动敏感: ${avgs.motionSickness}  |  心慌程度: ${avgs.palpitations}  |  整体心情: ${avgs.mood}
+  社交焦虑: ${(entries.reduce((s, e) => s + ((e as any).socialAnxiety ?? 0), 0) / Math.max(entries.length, 1)).toFixed(1)}
 
 常见诱因：${triggerStr}
 常用药物：${medStr}${trendSection}${painkillerCorrelation}${urinaryCorrelation}${dataTable}`;

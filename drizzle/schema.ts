@@ -42,6 +42,8 @@ export const symptomEntries = mysqlTable("symptom_entries", {
   painkillerTaken: int("painkillerTaken").default(0).notNull(), // 0 = no, 1 = yes
   painkillerBrand: varchar("painkillerBrand", { length: 100 }),
   painkillerDosage: varchar("painkillerDosage", { length: 100 }),
+  socialAnxiety: int("socialAnxiety").default(0).notNull(), // 0-10, social anxiety level
+  socialContext: json("socialContext").$type<string[]>().default([]).notNull(), // social situations: e.g. ["一对一交谈", "多人聚会"]
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

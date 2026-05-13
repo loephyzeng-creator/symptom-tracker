@@ -29,6 +29,13 @@
       "when": 1777454657336,
       "tag": "0003_awesome_squadron_supreme",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1778640678206,
+      "tag": "0004_gigantic_baron_strucker",
+      "breakpoints": true
     }
   ]
 }

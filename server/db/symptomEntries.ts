@@ -217,6 +217,8 @@ export async function upsertEntry(
         painkillerTaken: data.painkillerTaken,
         painkillerBrand: data.painkillerBrand ?? null,
         painkillerDosage: data.painkillerDosage ?? null,
+        socialAnxiety: data.socialAnxiety,
+        socialContext: data.socialContext,
         notes: data.notes,
       })
       .where(eq(symptomEntries.id, existing.id));

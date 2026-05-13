@@ -23,6 +23,8 @@ interface EntryRow {
   triggers: string[] | null;
   severeHeadache?: number;
   painkillerTaken?: number;
+  socialAnxiety?: number;
+  socialContext?: string[] | null;
   notes: string | null;
 }
 
@@ -52,6 +54,7 @@ const SYMPTOM_LABELS: Record<string, string> = {
   motionSickness: "运动敏感",
   palpitations: "心慌程度",
   mood: "整体心情",
+  socialAnxiety: "社交焦虑",
 };
 
 const SYMPTOM_KEYS = Object.keys(SYMPTOM_LABELS);
@@ -59,7 +62,7 @@ const SYMPTOM_KEYS = Object.keys(SYMPTOM_LABELS);
 // Symptoms where higher = worse
 const INVERTED_SYMPTOMS = new Set([
   "dizziness", "headache", "anxiety", "fatigue",
-  "photosensitivity", "motionSickness", "palpitations",
+  "photosensitivity", "motionSickness", "palpitations", "socialAnxiety",
 ]);
 
 function computeAvg(entries: EntryRow[], key: string): string {
@@ -679,6 +682,41 @@ ${(() => {
 </div>`;
 })()}
 
+${(() => {
+  // Social Context Analysis
+  const socialEntries = sorted.filter(e => (e as any).socialAnxiety > 0);
+  if (socialEntries.length === 0) return "";
+  const contextCounts: Record<string, { count: number; totalAnxiety: number }> = {};
+  socialEntries.forEach(e => {
+    const contexts = (e as any).socialContext;
+    if (Array.isArray(contexts)) {
+      contexts.forEach((c: string) => {
+        if (!contextCounts[c]) contextCounts[c] = { count: 0, totalAnxiety: 0 };
+        contextCounts[c].count++;
+        contextCounts[c].totalAnxiety += (e as any).socialAnxiety;
+      });
+    }
+  });
+  const contextList = Object.entries(contextCounts)
+    .map(([name, data]) => ({ name, count: data.count, avgAnxiety: (data.totalAnxiety / data.count).toFixed(1) }))
+    .sort((a, b) => b.count - a.count);
+  if (contextList.length === 0) return `
+<div class="section">
+  <h2>社交焦虑分析</h2>
+  <p>记录社交焦虑的天数：${socialEntries.length}天，平均社交焦虑评分：${(socialEntries.reduce((s, e) => s + ((e as any).socialAnxiety ?? 0), 0) / socialEntries.length).toFixed(1)}</p>
+</div>`;
+  return `
+<div class="section">
+  <h2>社交焦虑分析</h2>
+  <p style="font-size:10px;color:#8a8580;margin-bottom:8px">记录社交焦虑的天数：${socialEntries.length}天，平均社交焦虑评分：${(socialEntries.reduce((s, e) => s + ((e as any).socialAnxiety ?? 0), 0) / socialEntries.length).toFixed(1)}</p>
+  <table>
+    <thead><tr><th>社交场景</th><th>出现次数</th><th>平均焦虑度</th></tr></thead>
+    <tbody>
+      ${contextList.map(c => `<tr><td>${escapeHtml(c.name)}</td><td>${c.count}</td><td>${c.avgAnxiety}</td></tr>`).join("")}
+    </tbody>
+  </table>
+</div>`;
+})()}
 <div class="footer">
   本报告由「症状日记」自动生成，仅供就诊参考。如有疑问请咨询专业医生。
 </div>

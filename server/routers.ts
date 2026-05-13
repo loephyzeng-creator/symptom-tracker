@@ -83,6 +83,8 @@ const entryInputSchema = z.object({
   painkillerTaken: z.number().min(0).max(1).default(0), // 0=否, 1=是
   painkillerBrand: z.string().optional().nullable(),
   painkillerDosage: z.string().optional().nullable(),
+  socialAnxiety: z.number().min(0).max(10).default(0),
+  socialContext: z.array(z.string()).default([]),
   notes: z.string().optional().nullable(),
 });
 
@@ -164,6 +166,8 @@ export const appRouter = router({
           painkillerTaken: input.painkillerTaken,
           painkillerBrand: input.painkillerBrand ?? null,
           painkillerDosage: input.painkillerDosage ?? null,
+          socialAnxiety: input.socialAnxiety,
+          socialContext: input.socialContext,
           notes: input.notes ?? null,
         });
 
