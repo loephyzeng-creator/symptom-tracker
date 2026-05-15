@@ -212,6 +212,8 @@ export const medicationReminders = mysqlTable("medication_reminders", {
   startDate: varchar("startDate", { length: 10 }), // YYYY-MM-DD, medication start date (don't count as missed before this date)
   endDate: varchar("endDate", { length: 10 }), // YYYY-MM-DD, medication end date (auto-archive after this date)
   defaultRestockQuantity: int("defaultRestockQuantity"), // default quantity for quick restock, null = not set
+  timesChangedDate: varchar("timesChangedDate", { length: 10 }), // YYYY-MM-DD, date when reminderTimes was last changed (don't retroactively apply new times before this date)
+  previousReminderTimes: json("previousReminderTimes").$type<{hour: number; minute: number}[] | null>(), // snapshot of reminderTimes before the last change
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

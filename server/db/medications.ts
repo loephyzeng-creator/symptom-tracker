@@ -41,6 +41,33 @@ export function getAllReminderTimes(reminder: { reminderHour: number; reminderMi
   return [{ hour: reminder.reminderHour, minute: reminder.reminderMinute }];
 }
 
+/**
+ * Date-aware version of getAllReminderTimes.
+ * If the reminder has a timesChangedDate and the queried date is BEFORE that date,
+ * use the previousReminderTimes (or fall back to single primary time) instead of
+ * the current reminderTimes. This prevents retroactive application of frequency changes.
+ */
+export function getAllReminderTimesForDate(
+  reminder: {
+    reminderHour: number; reminderMinute: number;
+    reminderTimes?: {hour: number; minute: number}[] | null;
+    timesChangedDate?: string | null;
+    previousReminderTimes?: {hour: number; minute: number}[] | null;
+  },
+  dateStr: string
+): {hour: number; minute: number}[] {
+  // If there's a timesChangedDate and the queried date is before it, use old config
+  if (reminder.timesChangedDate && dateStr < reminder.timesChangedDate) {
+    if (reminder.previousReminderTimes && Array.isArray(reminder.previousReminderTimes) && reminder.previousReminderTimes.length > 0) {
+      return [...reminder.previousReminderTimes].sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute));
+    }
+    // No previous times recorded — fall back to single primary time
+    return [{ hour: reminder.reminderHour, minute: reminder.reminderMinute }];
+  }
+  // Otherwise use current times
+  return getAllReminderTimes(reminder);
+}
+
 export function getNextIntervalDoseTime(
   intervalHours: number | null,
   lastTakenAt: string | null
@@ -183,10 +210,35 @@ export async function updateMedicationReminder(
     stockQuantity: number | null; dailyDosageCount: number; stockAlertDays: number;
     expirationDate: string | null; expirationAlertDays: number; groupId: number | null;
     intervalHours: number | null; startDate: string | null;
+    endDate: string | null; defaultRestockQuantity: number | null;
   }>
 ) {
   const db = await getDb();
   if (!db) return;
+
+  // If reminderTimes is being changed, snapshot the old times and record the change date
+  if (data.reminderTimes !== undefined) {
+    const existing = await db.select({
+      reminderTimes: medicationReminders.reminderTimes,
+      reminderHour: medicationReminders.reminderHour,
+      reminderMinute: medicationReminders.reminderMinute,
+    }).from(medicationReminders)
+      .where(and(eq(medicationReminders.id, id), eq(medicationReminders.userId, userId))).limit(1);
+
+    if (existing.length > 0) {
+      const oldTimes = existing[0].reminderTimes;
+      const newTimes = data.reminderTimes;
+      // Check if the number of times actually changed
+      const oldCount = (oldTimes && Array.isArray(oldTimes) && oldTimes.length > 0) ? oldTimes.length : 1;
+      const newCount = (newTimes && Array.isArray(newTimes) && newTimes.length > 0) ? newTimes.length : 1;
+      if (oldCount !== newCount) {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        (data as any).timesChangedDate = todayStr;
+        (data as any).previousReminderTimes = oldTimes || [{ hour: existing[0].reminderHour, minute: existing[0].reminderMinute }];
+      }
+    }
+  }
+
   await db.update(medicationReminders).set(data)
     .where(and(eq(medicationReminders.id, id), eq(medicationReminders.userId, userId)));
 }
@@ -323,15 +375,26 @@ export async function getMedicationAdherence(userId: number, startDate: string, 
 
     for (const reminder of reminders) {
       if (!isReminderScheduledOnDate(reminder, dateStr)) continue;
-      dayExpected++;
+      // Use date-aware times to count expected doses correctly
+      const timesForDate = getAllReminderTimesForDate(reminder, dateStr);
+      const numDoses = timesForDate.length;
+      dayExpected += numDoses;
       const medName = reminder.medicationName.trim().toLowerCase();
       const recordedMeds = entryMap.get(dateStr);
-      const taken = wasMedTaken(recordedMeds, reminder.id, reminder.medicationName);
-      if (taken) dayTaken++;
+      // Count how many dose slots were actually taken
+      let medTaken = 0;
+      if (numDoses === 1) {
+        if (wasMedTaken(recordedMeds, reminder.id, reminder.medicationName)) medTaken = 1;
+      } else {
+        for (let ti = 0; ti < numDoses; ti++) {
+          if (wasMedTaken(recordedMeds, reminder.id, reminder.medicationName, ti)) medTaken++;
+        }
+      }
+      dayTaken += medTaken;
 
       const existing = perMedMap.get(medName);
-      if (existing) { existing.expected++; if (taken) existing.taken++; }
-      else { perMedMap.set(medName, { name: reminder.medicationName, expected: 1, taken: taken ? 1 : 0 }); }
+      if (existing) { existing.expected += numDoses; existing.taken += medTaken; }
+      else { perMedMap.set(medName, { name: reminder.medicationName, expected: numDoses, taken: medTaken }); }
     }
 
     if (dayExpected > 0) dailyData.push({ date: dateStr, expected: dayExpected, taken: dayTaken, rate: Math.round((dayTaken / dayExpected) * 100) });
@@ -589,7 +652,7 @@ export async function getTodayMedications(userId: number, dateStr: string) {
 
   for (const r of reminders) {
     if (!isReminderScheduledOnDate(r, dateStr)) continue;
-    const allTimes = getAllReminderTimes(r);
+    const allTimes = getAllReminderTimesForDate(r, dateStr);
     for (let ti = 0; ti < allTimes.length; ti++) {
       const t = allTimes[ti];
       const matchedMed = takenMeds.find(
@@ -623,7 +686,7 @@ export async function confirmMedicationTaken(
 
   const med = reminder[0];
   const todayStr = date || getDateStrInTimezone(DEFAULT_TIMEZONE);
-  const allTimes = getAllReminderTimes(med);
+  const allTimes = getAllReminderTimesForDate(med, todayStr);
   const effectiveTimeIndex = timeIndex ?? 0;
   const existing = await getEntryByUserAndDate(userId, todayStr);
 
@@ -670,9 +733,9 @@ export async function unconfirmMedicationTaken(
   if (reminder.length === 0) throw new Error("Reminder not found");
 
   const med = reminder[0];
-  const allTimes = getAllReminderTimes(med);
-  const effectiveTimeIndex = timeIndex ?? 0;
   const todayStr = date || getDateStrInTimezone(DEFAULT_TIMEZONE);
+  const allTimes = getAllReminderTimesForDate(med, todayStr);
+  const effectiveTimeIndex = timeIndex ?? 0;
   const existing = await getEntryByUserAndDate(userId, todayStr);
   if (!existing) return { success: true, medicationName: med.medicationName };
 
@@ -757,23 +820,40 @@ export async function getMedicationCheckInCalendar(userId: number, year: number,
     if (dateStr > todayStr) { days.push({ date: dateStr, status: "future", scheduledCount: 0, takenCount: 0, painkillerTaken: false }); continue; }
 
     const scheduledReminders: { id: number; name: string }[] = [];
-    for (const reminder of reminders) { if (isReminderScheduledOnDate(reminder, dateStr)) scheduledReminders.push({ id: reminder.id, name: reminder.medicationName }); }
+    let scheduledSlotCount = 0;
+    for (const reminder of reminders) {
+      if (!isReminderScheduledOnDate(reminder, dateStr)) continue;
+      scheduledReminders.push({ id: reminder.id, name: reminder.medicationName });
+      // Count actual time slots for this date (date-aware)
+      const timesForDate = getAllReminderTimesForDate(reminder, dateStr);
+      scheduledSlotCount += timesForDate.length;
+    }
 
     if (scheduledReminders.length === 0) { days.push({ date: dateStr, status: "no-schedule", scheduledCount: 0, takenCount: 0, painkillerTaken: painkillerMap.get(dateStr) ?? false }); continue; }
 
     const recordedMeds = entryMap.get(dateStr);
     let takenCount = 0;
-    for (const med of scheduledReminders) { if (wasMedTaken(recordedMeds, med.id, med.name)) takenCount++; }
+    for (const reminder of reminders) {
+      if (!isReminderScheduledOnDate(reminder, dateStr)) continue;
+      const timesForDate = getAllReminderTimesForDate(reminder, dateStr);
+      if (timesForDate.length === 1) {
+        if (wasMedTaken(recordedMeds, reminder.id, reminder.medicationName)) takenCount++;
+      } else {
+        for (let ti = 0; ti < timesForDate.length; ti++) {
+          if (wasMedTaken(recordedMeds, reminder.id, reminder.medicationName, ti)) takenCount++;
+        }
+      }
+    }
 
-    totalScheduled += scheduledReminders.length;
+    totalScheduled += scheduledSlotCount;
     totalCompleted += takenCount;
 
     let status: "all-taken" | "partial" | "missed";
-    if (takenCount === scheduledReminders.length) status = "all-taken";
+    if (takenCount >= scheduledSlotCount) status = "all-taken";
     else if (takenCount > 0) status = "partial";
     else status = "missed";
 
-    days.push({ date: dateStr, status, scheduledCount: scheduledReminders.length, takenCount, painkillerTaken: painkillerMap.get(dateStr) ?? false });
+    days.push({ date: dateStr, status, scheduledCount: scheduledSlotCount, takenCount, painkillerTaken: painkillerMap.get(dateStr) ?? false });
   }
 
   let streak = 0;
@@ -1107,14 +1187,28 @@ export async function getMedCompletionByDates(
 
   for (const dateStr of Array.from(dateSet)) {
     const scheduledReminders: { id: number; name: string }[] = [];
-    for (const reminder of reminders) { if (isReminderScheduledOnDate(reminder, dateStr)) scheduledReminders.push({ id: reminder.id, name: reminder.medicationName }); }
+    let scheduledSlotCount = 0;
+    for (const reminder of reminders) {
+      if (!isReminderScheduledOnDate(reminder, dateStr)) continue;
+      scheduledReminders.push({ id: reminder.id, name: reminder.medicationName });
+      scheduledSlotCount += getAllReminderTimesForDate(reminder, dateStr).length;
+    }
     if (scheduledReminders.length === 0) { result[dateStr] = "no-schedule"; continue; }
-
     const recordedMeds = entryMap.get(dateStr);
     let takenCount = 0;
-    for (const med of scheduledReminders) { if (wasMedTaken(recordedMeds, med.id, med.name)) takenCount++; }
+    for (const reminder of reminders) {
+      if (!isReminderScheduledOnDate(reminder, dateStr)) continue;
+      const timesForDate = getAllReminderTimesForDate(reminder, dateStr);
+      if (timesForDate.length === 1) {
+        if (wasMedTaken(recordedMeds, reminder.id, reminder.medicationName)) takenCount++;
+      } else {
+        for (let ti = 0; ti < timesForDate.length; ti++) {
+          if (wasMedTaken(recordedMeds, reminder.id, reminder.medicationName, ti)) takenCount++;
+        }
+      }
+    }
 
-    if (takenCount === scheduledReminders.length) result[dateStr] = "all-taken";
+    if (takenCount >= scheduledSlotCount) result[dateStr] = "all-taken";
     else if (takenCount > 0) result[dateStr] = "partial";
     else result[dateStr] = "missed";
   }
